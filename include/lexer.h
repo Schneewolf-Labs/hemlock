@@ -23,7 +23,7 @@ typedef enum {
     TOK_TYPE_U8,
     TOK_TYPE_U16,
     TOK_TYPE_U32,
-    TOK_TYPE_F16,
+    //TOK_TYPE_F16,
     TOK_TYPE_F32,
     TOK_TYPE_F64,
     TOK_TYPE_INTEGER,  // alias for i32

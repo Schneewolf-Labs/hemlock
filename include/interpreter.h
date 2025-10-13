@@ -2,15 +2,24 @@
 #define HEMLOCK_INTERPRETER_H
 
 #include "ast.h"
+#include <stdint.h>
 
 // Value types that can exist at runtime
 typedef enum {
-    VAL_INT,
-    VAL_FLOAT,
+    VAL_I8,
+    VAL_I16,
+    VAL_I32,
+    VAL_U8,
+    VAL_U16,
+    VAL_U32,
+    //VAL_F16,
+    VAL_F32,
+    VAL_F64,
     VAL_BOOL,
     VAL_STRING,
     VAL_NULL,
 } ValueType;
+
 
 // String struct
 typedef struct {
@@ -23,8 +32,14 @@ typedef struct {
 typedef struct {
     ValueType type;
     union {
-        int as_int;
-        double as_float;
+        int8_t as_i8;
+        int16_t as_i16;
+        int32_t as_i32;
+        uint8_t as_u8;
+        uint16_t as_u16;
+        uint32_t as_u32;
+        float as_f32;
+        double as_f64;
         int as_bool;
         String *as_string;
     } as;
@@ -50,8 +65,16 @@ void eval_stmt(Stmt *stmt, Environment *env);
 void eval_program(Stmt **stmts, int count, Environment *env);
 
 // Value constructors
-Value val_int(int value);
-Value val_float(double value);
+Value val_int(int value);    // creates i32
+Value val_float(double value); // creates f64
+Value val_i8(int8_t value);
+Value val_i16(int16_t value);
+Value val_i32(int32_t value);
+Value val_u8(uint8_t value);
+Value val_u16(uint16_t value);
+Value val_u32(uint32_t value);
+Value val_f32(float value);
+Value val_f64(double value);
 Value val_bool(int value);
 Value val_string(const char *str);
 Value val_string_take(char *str, int length, int capacity);

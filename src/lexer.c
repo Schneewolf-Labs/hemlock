@@ -152,7 +152,7 @@ static TokenType identifier_type(Lexer *lex) {
             break;
         case 'f':
             if (len == 3) {
-                if (strncmp(lex->start, "f16", 3) == 0) return TOK_TYPE_F16;
+                //if (strncmp(lex->start, "f16", 3) == 0) return TOK_TYPE_F16;
                 if (strncmp(lex->start, "f32", 3) == 0) return TOK_TYPE_F32;
                 if (strncmp(lex->start, "f64", 3) == 0) return TOK_TYPE_F64;
             }

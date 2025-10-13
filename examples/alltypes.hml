@@ -1,0 +1,17 @@
+let a: i8 = -128;
+let b: i16 = 30000;
+let c: i32 = 2000000;
+let d: u8 = 255;
+let e: u16 = 65535;
+let f: u32 = 100000;
+let g: f32 = 3.14;
+let h: f64 = 2.71828;
+
+print(a);
+print(b);
+print(c);
+print(d);
+print(e);
+print(f);
+print(g);
+print(h);

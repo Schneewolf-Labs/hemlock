@@ -1,7 +1,73 @@
 #include "interpreter.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// ========== HELPERS ==========
+
+// Helper: Check if a value is any integer type
+static int is_integer(Value val) {
+    return val.type == VAL_I8 || val.type == VAL_I16 || val.type == VAL_I32 ||
+           val.type == VAL_U8 || val.type == VAL_U16 || val.type == VAL_U32;
+}
+
+// Helper: Check if a value is any float type
+static int is_float(Value val) {
+    return val.type == VAL_F32 || val.type == VAL_F64;
+}
+
+// Helper: Check if a value is any numeric type
+static int is_numeric(Value val) {
+    return is_integer(val) || is_float(val);
+}
+
+// Helper: Convert any integer to i32 (for operations)
+static int32_t value_to_int(Value val) {
+    switch (val.type) {
+        case VAL_I8: return val.as.as_i8;
+        case VAL_I16: return val.as.as_i16;
+        case VAL_I32: return val.as.as_i32;
+        case VAL_U8: return val.as.as_u8;
+        case VAL_U16: return val.as.as_u16;
+        case VAL_U32: return (int32_t)val.as.as_u32;  // potential overflow
+        case VAL_BOOL: return val.as.as_bool;
+        default:
+            fprintf(stderr, "Runtime error: Cannot convert to int\n");
+            exit(1);
+    }
+}
+
+// Helper: Convert any numeric to f64 (for operations)
+static double value_to_float(Value val) {
+    switch (val.type) {
+        case VAL_I8: return (double)val.as.as_i8;
+        case VAL_I16: return (double)val.as.as_i16;
+        case VAL_I32: return (double)val.as.as_i32;
+        case VAL_U8: return (double)val.as.as_u8;
+        case VAL_U16: return (double)val.as.as_u16;
+        case VAL_U32: return (double)val.as.as_u32;
+        case VAL_F32: return (double)val.as.as_f32;
+        case VAL_F64: return val.as.as_f64;
+        default:
+            fprintf(stderr, "Runtime error: Cannot convert to float\n");
+            exit(1);
+    }
+}
+
+// Helper: Check if value is truthy
+static int value_is_truthy(Value val) {
+    if (val.type == VAL_BOOL) {
+        return val.as.as_bool;
+    } else if (is_integer(val)) {
+        return value_to_int(val) != 0;
+    } else if (is_float(val)) {
+        return value_to_float(val) != 0.0;
+    } else if (val.type == VAL_NULL) {
+        return 0;
+    }
+    return 1;  // strings, etc. are truthy
+}
 
 // ========== STRING OPERATIONS ==========
 
@@ -66,18 +132,68 @@ Value val_string_take(char *data, int length, int capacity) {
 
 // ========== VALUE OPERATIONS ==========
 
-Value val_int(int value) {
+Value val_i8(int8_t value) {
     Value v;
-    v.type = VAL_INT;
-    v.as.as_int = value;
+    v.type = VAL_I8;
+    v.as.as_i8 = value;
     return v;
 }
 
-Value val_float(double value) {
+Value val_i16(int16_t value) {
     Value v;
-    v.type = VAL_FLOAT;
-    v.as.as_float = value;
+    v.type = VAL_I16;
+    v.as.as_i16 = value;
     return v;
+}
+
+Value val_i32(int32_t value) {
+    Value v;
+    v.type = VAL_I32;
+    v.as.as_i32 = value;
+    return v;
+}
+
+Value val_u8(uint8_t value) {
+    Value v;
+    v.type = VAL_U8;
+    v.as.as_u8 = value;
+    return v;
+}
+
+Value val_u16(uint16_t value) {
+    Value v;
+    v.type = VAL_U16;
+    v.as.as_u16 = value;
+    return v;
+}
+
+Value val_u32(uint32_t value) {
+    Value v;
+    v.type = VAL_U32;
+    v.as.as_u32 = value;
+    return v;
+}
+
+Value val_f32(float value) {
+    Value v;
+    v.type = VAL_F32;
+    v.as.as_f32 = value;
+    return v;
+}
+
+Value val_f64(double value) {
+    Value v;
+    v.type = VAL_F64;
+    v.as.as_f64 = value;
+    return v;
+}
+
+Value val_int(int value) {
+    return val_i32((int32_t)value);
+}
+
+Value val_float(double value) {
+    return val_f64(value);
 }
 
 Value val_bool(int value) {
@@ -95,14 +211,32 @@ Value val_null(void) {
 
 void print_value(Value val) {
     switch (val.type) {
-        case VAL_INT:
-            printf("%d", val.as.as_int);
+        case VAL_I8:
+            printf("%d", val.as.as_i8);
             break;
-        case VAL_FLOAT:
-            printf("%g", val.as.as_float);  // %g removes trailing zeros
+        case VAL_I16:
+            printf("%d", val.as.as_i16);
+            break;
+        case VAL_I32:
+            printf("%d", val.as.as_i32);
+            break;
+        case VAL_U8:
+            printf("%u", val.as.as_u8);
+            break;
+        case VAL_U16:
+            printf("%u", val.as.as_u16);
+            break;
+        case VAL_U32:
+            printf("%u", val.as.as_u32);
+            break;
+        case VAL_F32:
+            printf("%g", val.as.as_f32);
+            break;
+        case VAL_F64:
+            printf("%g", val.as.as_f64);
             break;
         case VAL_BOOL:
-            printf(val.as.as_bool ? "true" : "false");
+            printf("%s", val.as.as_bool ? "true" : "false");
             break;
         case VAL_STRING:
             printf("%s", val.as.as_string->data);
@@ -111,6 +245,85 @@ void print_value(Value val) {
             printf("null");
             break;
     }
+}
+
+// Helper to convert a value to a target type
+static Value convert_to_type(Value value, TypeKind target_type) {
+    // For now, we'll handle the simple cases
+    // TODO: Add range checking and proper conversions
+    
+    switch (target_type) {
+        case TYPE_I8:
+            // Try to convert value to i8
+            if (value.type == VAL_I32) {
+                // TODO: Check range [-128, 127]
+                return val_i8((int8_t)value.as.as_i32);
+            }
+            // TODO: Handle other source types
+            break;
+            
+        case TYPE_I16:
+            if (value.type == VAL_I32) {
+                return val_i16((int16_t)value.as.as_i32);
+            }
+            break;
+            
+        case TYPE_I32:
+            if (value.type == VAL_I32) {
+                return value;  // Already correct type
+            }
+            break;
+            
+        case TYPE_U8:
+            if (value.type == VAL_I32) {
+                // TODO: Check range [0, 255]
+                return val_u8((uint8_t)value.as.as_i32);
+            }
+            break;
+            
+        case TYPE_U16:
+            if (value.type == VAL_I32) {
+                return val_u16((uint16_t)value.as.as_i32);
+            }
+            break;
+            
+        case TYPE_U32:
+            if (value.type == VAL_I32) {
+                return val_u32((uint32_t)value.as.as_i32);
+            }
+            break;
+            
+        case TYPE_F32:
+            if (value.type == VAL_F64) {
+                return val_f32((float)value.as.as_f64);
+            }
+            break;
+            
+        case TYPE_F64:
+            if (value.type == VAL_F64) {
+                return value;  // Already correct type
+            }
+            break;
+            
+        case TYPE_BOOL:
+            if (value.type == VAL_BOOL) {
+                return value;
+            }
+            break;
+            
+        case TYPE_STRING:
+            if (value.type == VAL_STRING) {
+                return value;
+            }
+            break;
+            
+        default:
+            break;
+    }
+    
+    // Type mismatch - error
+    fprintf(stderr, "Runtime error: Type mismatch in assignment\n");
+    exit(1);
 }
 
 // ========== ENVIRONMENT ==========
@@ -200,18 +413,16 @@ Value eval_expr(Expr *expr, Environment *env) {
             
             switch (expr->as.unary.op) {
                 case UNARY_NOT:
-                    if (operand.type == VAL_BOOL) {
-                        return val_bool(!operand.as.as_bool);
-                    } else if (operand.type == VAL_INT) {
-                        return val_bool(operand.as.as_int == 0);
-                    }
-                    break;
+                    return val_bool(!value_is_truthy(operand));
                     
                 case UNARY_NEGATE:
-                    if (operand.type == VAL_INT) {
-                        return val_int(-operand.as.as_int);
+                    if (is_float(operand)) {
+                        return val_f64(-value_to_float(operand));
+                    } else if (is_integer(operand)) {
+                        return val_i32(-value_to_int(operand));
                     }
-                    break;
+                    fprintf(stderr, "Runtime error: Cannot negate non-numeric value\n");
+                    exit(1);
             }
             break;
         }
@@ -226,75 +437,89 @@ Value eval_expr(Expr *expr, Environment *env) {
         }
            
         case EXPR_BINARY: {
-            // For && and ||, short-circuit evaluation
+            // Handle && and || with short-circuit evaluation
             if (expr->as.binary.op == OP_AND) {
                 Value left = eval_expr(expr->as.binary.left, env);
-                int left_bool = (left.type == VAL_BOOL) ? left.as.as_bool : (left.as.as_int != 0);
-                if (!left_bool) return val_bool(0);
+                if (!value_is_truthy(left)) return val_bool(0);
                 
                 Value right = eval_expr(expr->as.binary.right, env);
-                int right_bool = (right.type == VAL_BOOL) ? right.as.as_bool : (right.as.as_int != 0);
-                return val_bool(right_bool);
+                return val_bool(value_is_truthy(right));
             }
             
             if (expr->as.binary.op == OP_OR) {
                 Value left = eval_expr(expr->as.binary.left, env);
-                int left_bool = (left.type == VAL_BOOL) ? left.as.as_bool : (left.as.as_int != 0);
-                if (left_bool) return val_bool(1);
+                if (value_is_truthy(left)) return val_bool(1);
                 
                 Value right = eval_expr(expr->as.binary.right, env);
-                int right_bool = (right.type == VAL_BOOL) ? right.as.as_bool : (right.as.as_int != 0);
-                return val_bool(right_bool);
+                return val_bool(value_is_truthy(right));
             }
-
-            // Handle string concatenation
-            if (expr->as.binary.op == OP_ADD) {
-                Value left = eval_expr(expr->as.binary.left, env);
-                Value right = eval_expr(expr->as.binary.right, env);
-
-                if (left.type == VAL_STRING && right.type == VAL_STRING) {
-                    String *result = string_concat(left.as.as_string, right.as.as_string);
-                    return (Value){ .type = VAL_STRING, .as.as_string = result };
-                }
-                // TODO: throw error if types are incompatible
-            }
-
-            // Regular binary operations:
+            
+            // Evaluate both operands
             Value left = eval_expr(expr->as.binary.left, env);
             Value right = eval_expr(expr->as.binary.right, env);
             
-            // Type check for arithmetic
-            if (left.type != VAL_INT || right.type != VAL_INT) {
-                fprintf(stderr, "Runtime error: Binary operation requires integers\n");
+            // String concatenation
+            if (expr->as.binary.op == OP_ADD && left.type == VAL_STRING && right.type == VAL_STRING) {
+                String *result = string_concat(left.as.as_string, right.as.as_string);
+                return (Value){ .type = VAL_STRING, .as.as_string = result };
+            }
+            
+            // Numeric operations
+            if (!is_numeric(left) || !is_numeric(right)) {
+                fprintf(stderr, "Runtime error: Binary operation requires numeric operands\n");
                 exit(1);
             }
-
-            int l = left.as.as_int;
-            int r = right.as.as_int;
             
-            switch (expr->as.binary.op) {
-                case OP_ADD: return val_int(l + r);
-                case OP_SUB: return val_int(l - r);
-                case OP_MUL: return val_int(l * r);
-                case OP_DIV:
-                    if (r == 0) {
-                        fprintf(stderr, "Runtime error: Division by zero\n");
-                        exit(1);
-                    }
-                    return val_int(l / r);
-                    
-                // Comparison operators
-                case OP_EQUAL: return val_bool(l == r);
-                case OP_NOT_EQUAL: return val_bool(l != r);
-                case OP_LESS: return val_bool(l < r);
-                case OP_LESS_EQUAL: return val_bool(l <= r);
-                case OP_GREATER: return val_bool(l > r);
-                case OP_GREATER_EQUAL: return val_bool(l >= r);
-                case OP_AND: // Handled above
-                case OP_OR:  // Handled above
-                    break;
+            // If either operand is float, do float math
+            if (is_float(left) || is_float(right)) {
+                double l = value_to_float(left);
+                double r = value_to_float(right);
+                
+                switch (expr->as.binary.op) {
+                    case OP_ADD: return val_f64(l + r);
+                    case OP_SUB: return val_f64(l - r);
+                    case OP_MUL: return val_f64(l * r);
+                    case OP_DIV:
+                        if (r == 0.0) {
+                            fprintf(stderr, "Runtime error: Division by zero\n");
+                            exit(1);
+                        }
+                        return val_f64(l / r);
+                    case OP_EQUAL: return val_bool(l == r);
+                    case OP_NOT_EQUAL: return val_bool(l != r);
+                    case OP_LESS: return val_bool(l < r);
+                    case OP_LESS_EQUAL: return val_bool(l <= r);
+                    case OP_GREATER: return val_bool(l > r);
+                    case OP_GREATER_EQUAL: return val_bool(l >= r);
+                    default: break;
+                }
+            } else {
+                // Both are integers - do integer math, return i32
+                int32_t l = value_to_int(left);
+                int32_t r = value_to_int(right);
+                
+                switch (expr->as.binary.op) {
+                    case OP_ADD: return val_i32(l + r);
+                    case OP_SUB: return val_i32(l - r);
+                    case OP_MUL: return val_i32(l * r);
+                    case OP_DIV:
+                        if (r == 0) {
+                            fprintf(stderr, "Runtime error: Division by zero\n");
+                            exit(1);
+                        }
+                        return val_i32(l / r);
+                    case OP_EQUAL: return val_bool(l == r);
+                    case OP_NOT_EQUAL: return val_bool(l != r);
+                    case OP_LESS: return val_bool(l < r);
+                    case OP_LESS_EQUAL: return val_bool(l <= r);
+                    case OP_GREATER: return val_bool(l > r);
+                    case OP_GREATER_EQUAL: return val_bool(l >= r);
+                    default: break;
+                }
             }
-            break;
+            
+            fprintf(stderr, "Runtime error: Unknown binary operator\n");
+            exit(1);
         }
             
         case EXPR_CALL: {
@@ -324,6 +549,10 @@ void eval_stmt(Stmt *stmt, Environment *env) {
     switch (stmt->type) {
         case STMT_LET: {
             Value value = eval_expr(stmt->as.let.value, env);
+            // If there's a type annotation, convert/check the value
+            if (stmt->as.let.type_annotation != NULL) {
+                value = convert_to_type(value, stmt->as.let.type_annotation->kind);
+            }
             env_set(env, stmt->as.let.name, value);
             break;
         }
@@ -336,15 +565,7 @@ void eval_stmt(Stmt *stmt, Environment *env) {
         case STMT_IF: {
             Value condition = eval_expr(stmt->as.if_stmt.condition, env);
             
-            // Check if condition is truthy
-            int is_true = 0;
-            if (condition.type == VAL_BOOL) {
-                is_true = condition.as.as_bool;
-            } else if (condition.type == VAL_INT) {
-                is_true = condition.as.as_int != 0;
-            }
-            
-            if (is_true) {
+            if (value_is_truthy(condition)) {
                 eval_stmt(stmt->as.if_stmt.then_branch, env);
             } else if (stmt->as.if_stmt.else_branch != NULL) {
                 eval_stmt(stmt->as.if_stmt.else_branch, env);
@@ -356,14 +577,7 @@ void eval_stmt(Stmt *stmt, Environment *env) {
             for (;;) {
                 Value condition = eval_expr(stmt->as.while_stmt.condition, env);
                 
-                int is_true = 0;
-                if (condition.type == VAL_BOOL) {
-                    is_true = condition.as.as_bool;
-                } else if (condition.type == VAL_INT) {
-                    is_true = condition.as.as_int != 0;
-                }
-                
-                if (!is_true) break;
+                if (!value_is_truthy(condition)) break;
                 
                 eval_stmt(stmt->as.while_stmt.body, env);
             }

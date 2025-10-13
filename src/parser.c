@@ -267,7 +267,7 @@ static Type* parse_type(Parser *p) {
         case TOK_TYPE_CHAR: kind = TYPE_U8; break;  // alias
         case TOK_TYPE_U16: kind = TYPE_U16; break;
         case TOK_TYPE_U32: kind = TYPE_U32; break;
-        case TOK_TYPE_F16: kind = TYPE_F16; break;
+        //case TOK_TYPE_F16: kind = TYPE_F16; break;
         case TOK_TYPE_F32: kind = TYPE_F32; break;
         case TOK_TYPE_F64: kind = TYPE_F64; break;
         case TOK_TYPE_NUMBER: kind = TYPE_F64; break;  // alias
