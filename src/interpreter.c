@@ -249,80 +249,128 @@ void print_value(Value val) {
 
 // Helper to convert a value to a target type
 static Value convert_to_type(Value value, TypeKind target_type) {
-    // For now, we'll handle the simple cases
-    // TODO: Add range checking and proper conversions
+    // Get the source value as the widest type for range checking
+    int64_t int_val = 0;
+    double float_val = 0.0;
+    int is_source_float = 0;
+    
+    // Extract source value
+    if (is_integer(value)) {
+        int_val = value_to_int(value);
+    } else if (is_float(value)) {
+        float_val = value_to_float(value);
+        is_source_float = 1;
+    } else if (value.type == VAL_BOOL) {
+        // Allow bool -> int conversions
+        int_val = value.as.as_bool;
+    } else if (value.type == VAL_STRING && target_type == TYPE_STRING) {
+        return value;  // String to string, ok
+    } else if (value.type == VAL_BOOL && target_type == TYPE_BOOL) {
+        return value;  // Bool to bool, ok
+    } else if (value.type == VAL_NULL && target_type == TYPE_NULL) {
+        return value;  // Null to null, ok
+    } else {
+        fprintf(stderr, "Runtime error: Cannot convert type to target type\n");
+        exit(1);
+    }
     
     switch (target_type) {
         case TYPE_I8:
-            // Try to convert value to i8
-            if (value.type == VAL_I32) {
-                // TODO: Check range [-128, 127]
-                return val_i8((int8_t)value.as.as_i32);
+            if (is_source_float) {
+                int_val = (int64_t)float_val;
             }
-            // TODO: Handle other source types
-            break;
+            if (int_val < -128 || int_val > 127) {
+                fprintf(stderr, "Runtime error: Value %ld out of range for i8 [-128, 127]\n", int_val);
+                exit(1);
+            }
+            return val_i8((int8_t)int_val);
             
         case TYPE_I16:
-            if (value.type == VAL_I32) {
-                return val_i16((int16_t)value.as.as_i32);
+            if (is_source_float) {
+                int_val = (int64_t)float_val;
             }
-            break;
+            if (int_val < -32768 || int_val > 32767) {
+                fprintf(stderr, "Runtime error: Value %ld out of range for i16 [-32768, 32767]\n", int_val);
+                exit(1);
+            }
+            return val_i16((int16_t)int_val);
             
         case TYPE_I32:
-            if (value.type == VAL_I32) {
-                return value;  // Already correct type
+            if (is_source_float) {
+                int_val = (int64_t)float_val;
             }
-            break;
+            if (int_val < -2147483648LL || int_val > 2147483647LL) {
+                fprintf(stderr, "Runtime error: Value %ld out of range for i32 [-2147483648, 2147483647]\n", int_val);
+                exit(1);
+            }
+            return val_i32((int32_t)int_val);
             
         case TYPE_U8:
-            if (value.type == VAL_I32) {
-                // TODO: Check range [0, 255]
-                return val_u8((uint8_t)value.as.as_i32);
+            if (is_source_float) {
+                int_val = (int64_t)float_val;
             }
-            break;
+            if (int_val < 0 || int_val > 255) {
+                fprintf(stderr, "Runtime error: Value %ld out of range for u8 [0, 255]\n", int_val);
+                exit(1);
+            }
+            return val_u8((uint8_t)int_val);
             
         case TYPE_U16:
-            if (value.type == VAL_I32) {
-                return val_u16((uint16_t)value.as.as_i32);
+            if (is_source_float) {
+                int_val = (int64_t)float_val;
             }
-            break;
+            if (int_val < 0 || int_val > 65535) {
+                fprintf(stderr, "Runtime error: Value %ld out of range for u16 [0, 65535]\n", int_val);
+                exit(1);
+            }
+            return val_u16((uint16_t)int_val);
             
         case TYPE_U32:
-            if (value.type == VAL_I32) {
-                return val_u32((uint32_t)value.as.as_i32);
+            if (is_source_float) {
+                int_val = (int64_t)float_val;
             }
-            break;
+            if (int_val < 0 || int_val > 4294967295LL) {
+                fprintf(stderr, "Runtime error: Value %ld out of range for u32 [0, 4294967295]\n", int_val);
+                exit(1);
+            }
+            return val_u32((uint32_t)int_val);
             
         case TYPE_F32:
-            if (value.type == VAL_F64) {
-                return val_f32((float)value.as.as_f64);
+            if (is_source_float) {
+                return val_f32((float)float_val);
+            } else {
+                return val_f32((float)int_val);
             }
-            break;
             
         case TYPE_F64:
-            if (value.type == VAL_F64) {
-                return value;  // Already correct type
+            if (is_source_float) {
+                return val_f64(float_val);
+            } else {
+                return val_f64((double)int_val);
             }
-            break;
             
         case TYPE_BOOL:
             if (value.type == VAL_BOOL) {
                 return value;
             }
-            break;
+            fprintf(stderr, "Runtime error: Cannot convert to bool\n");
+            exit(1);
             
         case TYPE_STRING:
             if (value.type == VAL_STRING) {
                 return value;
             }
-            break;
+            fprintf(stderr, "Runtime error: Cannot convert to string\n");
+            exit(1);
             
-        default:
-            break;
+        case TYPE_NULL:
+            return val_null();
+            
+        case TYPE_INFER:
+            return value;  // No conversion needed
     }
     
-    // Type mismatch - error
-    fprintf(stderr, "Runtime error: Type mismatch in assignment\n");
+    fprintf(stderr, "Runtime error: Unknown type conversion\n");
     exit(1);
 }
 
