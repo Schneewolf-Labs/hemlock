@@ -69,6 +69,76 @@ static int value_is_truthy(Value val) {
     return 1;  // strings, etc. are truthy
 }
 
+// Get the "rank" of a type for promotion rules
+static int type_rank(ValueType type) {
+    switch (type) {
+        case VAL_I8: return 0;
+        case VAL_U8: return 1;
+        case VAL_I16: return 2;
+        case VAL_U16: return 3;
+        case VAL_I32: return 4;
+        case VAL_U32: return 5;
+        case VAL_F32: return 6;
+        case VAL_F64: return 7;
+        default: return -1;
+    }
+}
+
+// Determine the result type for binary operations
+static ValueType promote_types(ValueType left, ValueType right) {
+    // If types are the same, no promotion needed
+    if (left == right) return left;
+    
+    // Any float beats any int
+    if (is_float((Value){.type = left})) {
+        if (is_float((Value){.type = right})) {
+            // Both floats - take the larger
+            return (left == VAL_F64 || right == VAL_F64) ? VAL_F64 : VAL_F32;
+        }
+        // left is float, right is int
+        return left;
+    }
+    if (is_float((Value){.type = right})) {
+        // right is float, left is int
+        return right;
+    }
+    
+    // Both are integers - promote to higher rank
+    int left_rank = type_rank(left);
+    int right_rank = type_rank(right);
+    
+    return (left_rank > right_rank) ? left : right;
+}
+
+// Convert a value to a specific ValueType (for promotions during operations)
+static Value promote_value(Value val, ValueType target_type) {
+    if (val.type == target_type) return val;
+    
+    switch (target_type) {
+        case VAL_I8: return val_i8((int8_t)value_to_int(val));
+        case VAL_I16: return val_i16((int16_t)value_to_int(val));
+        case VAL_I32: return val_i32(value_to_int(val));
+        case VAL_U8: return val_u8((uint8_t)value_to_int(val));
+        case VAL_U16: return val_u16((uint16_t)value_to_int(val));
+        case VAL_U32: return val_u32((uint32_t)value_to_int(val));
+        case VAL_F32:
+            if (is_float(val)) {
+                return val_f32((float)value_to_float(val));
+            } else {
+                return val_f32((float)value_to_int(val));
+            }
+        case VAL_F64:
+            if (is_float(val)) {
+                return val_f64(value_to_float(val));
+            } else {
+                return val_f64((double)value_to_int(val));
+            }
+        default:
+            fprintf(stderr, "Runtime error: Cannot promote to type\n");
+            exit(1);
+    }
+}
+
 // ========== STRING OPERATIONS ==========
 
 void string_free(String *str) {
@@ -518,21 +588,30 @@ Value eval_expr(Expr *expr, Environment *env) {
                 exit(1);
             }
             
-            // If either operand is float, do float math
-            if (is_float(left) || is_float(right)) {
+            // Determine result type and promote operands
+            ValueType result_type = promote_types(left.type, right.type);
+            left = promote_value(left, result_type);
+            right = promote_value(right, result_type);
+            
+            // Perform operation based on result type
+            if (is_float(left)) {
+                // Float operation
                 double l = value_to_float(left);
                 double r = value_to_float(right);
                 
                 switch (expr->as.binary.op) {
-                    case OP_ADD: return val_f64(l + r);
-                    case OP_SUB: return val_f64(l - r);
-                    case OP_MUL: return val_f64(l * r);
+                    case OP_ADD: 
+                        return (result_type == VAL_F32) ? val_f32((float)(l + r)) : val_f64(l + r);
+                    case OP_SUB:
+                        return (result_type == VAL_F32) ? val_f32((float)(l - r)) : val_f64(l - r);
+                    case OP_MUL:
+                        return (result_type == VAL_F32) ? val_f32((float)(l * r)) : val_f64(l * r);
                     case OP_DIV:
                         if (r == 0.0) {
                             fprintf(stderr, "Runtime error: Division by zero\n");
                             exit(1);
                         }
-                        return val_f64(l / r);
+                        return (result_type == VAL_F32) ? val_f32((float)(l / r)) : val_f64(l / r);
                     case OP_EQUAL: return val_bool(l == r);
                     case OP_NOT_EQUAL: return val_bool(l != r);
                     case OP_LESS: return val_bool(l < r);
@@ -542,20 +621,23 @@ Value eval_expr(Expr *expr, Environment *env) {
                     default: break;
                 }
             } else {
-                // Both are integers - do integer math, return i32
-                int32_t l = value_to_int(left);
-                int32_t r = value_to_int(right);
+                // Integer operation - use the promoted type
+                int64_t l = value_to_int(left);
+                int64_t r = value_to_int(right);
                 
                 switch (expr->as.binary.op) {
-                    case OP_ADD: return val_i32(l + r);
-                    case OP_SUB: return val_i32(l - r);
-                    case OP_MUL: return val_i32(l * r);
+                    case OP_ADD:
+                        return promote_value(val_i32((int32_t)(l + r)), result_type);
+                    case OP_SUB:
+                        return promote_value(val_i32((int32_t)(l - r)), result_type);
+                    case OP_MUL:
+                        return promote_value(val_i32((int32_t)(l * r)), result_type);
                     case OP_DIV:
                         if (r == 0) {
                             fprintf(stderr, "Runtime error: Division by zero\n");
                             exit(1);
                         }
-                        return val_i32(l / r);
+                        return promote_value(val_i32((int32_t)(l / r)), result_type);
                     case OP_EQUAL: return val_bool(l == r);
                     case OP_NOT_EQUAL: return val_bool(l != r);
                     case OP_LESS: return val_bool(l < r);
