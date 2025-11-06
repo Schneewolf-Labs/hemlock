@@ -538,6 +538,86 @@ Value eval_expr(Expr *expr, Environment *env) {
             fprintf(stderr, "Runtime error: Unknown function '%s'\n", expr->as.call.name);
             exit(1);
         }
+
+        case EXPR_GET_PROPERTY: {
+            Value object = eval_expr(expr->as.get_property.object, env);
+            
+            if (object.type != VAL_STRING) {
+                fprintf(stderr, "Runtime error: Only strings have properties\n");
+                exit(1);
+            }
+            
+            const char *property = expr->as.get_property.property;
+            
+            if (strcmp(property, "length") == 0) {
+                return val_int(object.as.as_string->length);
+            }
+            
+            fprintf(stderr, "Runtime error: Unknown property '%s'\n", property);
+            exit(1);
+        }
+        
+        case EXPR_INDEX: {
+            Value object = eval_expr(expr->as.index.object, env);
+            Value index_val = eval_expr(expr->as.index.index, env);
+            
+            if (object.type != VAL_STRING) {
+                fprintf(stderr, "Runtime error: Only strings can be indexed\n");
+                exit(1);
+            }
+            
+            if (!is_integer(index_val)) {
+                fprintf(stderr, "Runtime error: Index must be an integer\n");
+                exit(1);
+            }
+            
+            int32_t index = value_to_int(index_val);
+            String *str = object.as.as_string;
+            
+            if (index < 0 || index >= str->length) {
+                fprintf(stderr, "Runtime error: String index %d out of bounds (length %d)\n", 
+                        index, str->length);
+                exit(1);
+            }
+            
+            // Return the byte as an integer (u8/char)
+            return val_int((unsigned char)str->data[index]);
+        }
+        
+        case EXPR_INDEX_ASSIGN: {
+            Value object = eval_expr(expr->as.index_assign.object, env);
+            Value index_val = eval_expr(expr->as.index_assign.index, env);
+            Value value = eval_expr(expr->as.index_assign.value, env);
+            
+            if (object.type != VAL_STRING) {
+                fprintf(stderr, "Runtime error: Only strings can be indexed\n");
+                exit(1);
+            }
+            
+            if (!is_integer(index_val)) {
+                fprintf(stderr, "Runtime error: Index must be an integer\n");
+                exit(1);
+            }
+            
+            if (!is_integer(value)) {
+                fprintf(stderr, "Runtime error: String index value must be an integer (byte)\n");
+                exit(1);
+            }
+            
+            int32_t index = value_to_int(index_val);
+            String *str = object.as.as_string;
+            
+            if (index < 0 || index >= str->length) {
+                fprintf(stderr, "Runtime error: String index %d out of bounds (length %d)\n", 
+                        index, str->length);
+                exit(1);
+            }
+            
+            // Strings are mutable - set the byte
+            str->data[index] = (char)value_to_int(value);
+            
+            return value;
+        }
     }
     
     return val_null();

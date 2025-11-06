@@ -9,13 +9,16 @@ typedef struct Stmt Stmt;
 
 typedef enum {
     EXPR_NUMBER,
+    EXPR_BOOL,
+    EXPR_STRING,
     EXPR_IDENT,
     EXPR_BINARY,
     EXPR_UNARY,
     EXPR_CALL,
     EXPR_ASSIGN,
-    EXPR_BOOL,
-    EXPR_STRING,
+    EXPR_GET_PROPERTY,
+    EXPR_INDEX,
+    EXPR_INDEX_ASSIGN,
 } ExprType;
 
 typedef enum {
@@ -68,6 +71,19 @@ struct Expr {
             char *name;
             Expr *value;
         } assign;
+        struct {
+            Expr *object;
+            char *property;
+        } get_property;
+        struct {
+            Expr *object;
+            Expr *index;
+        } index;
+        struct {
+            Expr *object;
+            Expr *index;
+            Expr *value;
+        } index_assign;
     } as;
 };
 
@@ -141,6 +157,9 @@ Expr* expr_binary(Expr *left, BinaryOp op, Expr *right);
 Expr* expr_unary(UnaryOp op, Expr *operand);
 Expr* expr_call(const char *name, Expr **args, int num_args);
 Expr* expr_assign(const char *name, Expr *value);
+Expr* expr_get_property(Expr *object, const char *property);
+Expr* expr_index(Expr *object, Expr *index);
+Expr* expr_index_assign(Expr *object, Expr *index, Expr *value);
 
 // Statement constructors
 Stmt* stmt_let(const char *name, Expr *value);

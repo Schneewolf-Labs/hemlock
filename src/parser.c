@@ -74,20 +74,6 @@ static Expr* term(Parser *p);
 static Expr* factor(Parser *p);
 static Expr* primary(Parser *p);
 
-static Expr* unary(Parser *p) {
-    if (match(p, TOK_BANG)) {
-        Expr *operand = unary(p);  // Recursive for multiple unary ops
-        return expr_unary(UNARY_NOT, operand);
-    }
-    
-    if (match(p, TOK_MINUS)) {
-        Expr *operand = unary(p);
-        return expr_unary(UNARY_NEGATE, operand);
-    }
-    
-    return primary(p);
-}
-
 static Expr* primary(Parser *p) {
     if (match(p, TOK_TRUE)) {
         return expr_bool(1);
@@ -147,13 +133,51 @@ static Expr* primary(Parser *p) {
     return expr_number(0);
 }
 
+static Expr* postfix(Parser *p) {
+    Expr *expr = primary(p);
+    
+    // Handle chained property access and indexing
+    for (;;) {
+        if (match(p, TOK_DOT)) {
+            // Property access: obj.property
+            consume(p, TOK_IDENT, "Expect property name after '.'");
+            char *property = token_text(&p->previous);
+            expr = expr_get_property(expr, property);
+            free(property);
+        } else if (match(p, TOK_LBRACKET)) {
+            // Indexing: obj[index]
+            Expr *index = expression(p);
+            consume(p, TOK_RBRACKET, "Expect ']' after index");
+            expr = expr_index(expr, index);
+        } else {
+            break;
+        }
+    }
+    
+    return expr;
+}
+
+static Expr* unary(Parser *p) {
+    if (match(p, TOK_BANG)) {
+        Expr *operand = unary(p);  // Recursive for multiple unary ops
+        return expr_unary(UNARY_NOT, operand);
+    }
+    
+    if (match(p, TOK_MINUS)) {
+        Expr *operand = unary(p);
+        return expr_unary(UNARY_NEGATE, operand);
+    }
+    
+    return postfix(p);
+}
+
 static Expr* factor(Parser *p) {
-    Expr *expr = unary(p);  // Changed from primary(p)
+    Expr *expr = unary(p);
     
     while (match(p, TOK_STAR) || match(p, TOK_SLASH)) {
         TokenType op_type = p->previous.type;
         BinaryOp op = (op_type == TOK_STAR) ? OP_MUL : OP_DIV;
-        Expr *right = unary(p);  // Changed from primary(p)
+        Expr *right = unary(p);
         expr = expr_binary(expr, op, right);
     }
     
@@ -235,17 +259,30 @@ static Expr* assignment(Parser *p) {
     Expr *expr = logical_or(p);
     
     if (match(p, TOK_EQUAL)) {
-        // We have an assignment
-        if (expr->type != EXPR_IDENT) {
+        // Check what kind of assignment target we have
+        if (expr->type == EXPR_IDENT) {
+            // Regular variable assignment
+            char *name = strdup(expr->as.ident);
+            Expr *value = assignment(p);
+            expr_free(expr);
+            return expr_assign(name, value);
+        } else if (expr->type == EXPR_INDEX) {
+            // Index assignment: obj[index] = value
+            Expr *object = expr->as.index.object;
+            Expr *index = expr->as.index.index;
+            Expr *value = assignment(p);
+            
+            // Steal the object and index from the EXPR_INDEX
+            // (so we don't double-free them)
+            expr->as.index.object = NULL;
+            expr->as.index.index = NULL;
+            expr_free(expr);
+            
+            return expr_index_assign(object, index, value);
+        } else {
             error(p, "Invalid assignment target");
             return expr;
         }
-        
-        char *name = strdup(expr->as.ident);
-        Expr *value = assignment(p);  // Right-associative
-        
-        expr_free(expr);
-        return expr_assign(name, value);
     }
     
     return expr;

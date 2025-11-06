@@ -79,6 +79,31 @@ Expr* expr_assign(const char *name, Expr *value) {
     return expr;
 }
 
+Expr* expr_get_property(Expr *object, const char *property) {
+    Expr *expr = malloc(sizeof(Expr));
+    expr->type = EXPR_GET_PROPERTY;
+    expr->as.get_property.object = object;
+    expr->as.get_property.property = strdup(property);
+    return expr;
+}
+
+Expr* expr_index(Expr *object, Expr *index) {
+    Expr *expr = malloc(sizeof(Expr));
+    expr->type = EXPR_INDEX;
+    expr->as.index.object = object;
+    expr->as.index.index = index;
+    return expr;
+}
+
+Expr* expr_index_assign(Expr *object, Expr *index, Expr *value) {
+    Expr *expr = malloc(sizeof(Expr));
+    expr->type = EXPR_INDEX_ASSIGN;
+    expr->as.index_assign.object = object;
+    expr->as.index_assign.index = index;
+    expr->as.index_assign.value = value;
+    return expr;
+}
+
 // ========== TYPE CONSTRUCTORS ==========
 
 Type* type_new(TypeKind kind) {
@@ -167,6 +192,19 @@ void expr_free(Expr *expr) {
         case EXPR_ASSIGN:
             free(expr->as.assign.name);
             expr_free(expr->as.assign.value);
+            break;
+        case EXPR_GET_PROPERTY:
+            expr_free(expr->as.get_property.object);
+            free(expr->as.get_property.property);
+            break;
+        case EXPR_INDEX:
+            expr_free(expr->as.index.object);
+            expr_free(expr->as.index.index);
+            break;
+        case EXPR_INDEX_ASSIGN:
+            expr_free(expr->as.index_assign.object);
+            expr_free(expr->as.index_assign.index);
+            expr_free(expr->as.index_assign.value);
             break;
         case EXPR_NUMBER:
         case EXPR_BOOL:
