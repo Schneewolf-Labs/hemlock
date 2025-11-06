@@ -1,0 +1,6 @@
+let a: f64 = 3.14;
+let b: f32 = 2.5;
+let c: number = 0.0;
+print(a);
+print(b);
+print(c);

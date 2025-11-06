@@ -1,0 +1,6 @@
+let tiny: u8 = 5;
+let small: i16 = -10;
+let big: i32 = 100;
+let precise: f64 = 3.14;
+let result = tiny + small + big + precise;
+print(result);

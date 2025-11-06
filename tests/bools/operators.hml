@@ -1,0 +1,8 @@
+let a = true && false;
+let b = true || false;
+let c = !false;
+let d = !true;
+print(a);
+print(b);
+print(c);
+print(d);
