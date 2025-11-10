@@ -154,7 +154,21 @@ static Expr* primary(Parser *p) {
         consume(p, TOK_RPAREN, "Expect ')' after expression");
         return expr;
     }
-    
+
+    // Allow type keywords to be used as identifiers (for sizeof, talloc, etc.)
+    if (match(p, TOK_TYPE_I8)) return expr_ident("i8");
+    if (match(p, TOK_TYPE_I16)) return expr_ident("i16");
+    if (match(p, TOK_TYPE_I32)) return expr_ident("i32");
+    if (match(p, TOK_TYPE_INTEGER)) return expr_ident("integer");
+    if (match(p, TOK_TYPE_U8)) return expr_ident("u8");
+    if (match(p, TOK_TYPE_U16)) return expr_ident("u16");
+    if (match(p, TOK_TYPE_U32)) return expr_ident("u32");
+    if (match(p, TOK_TYPE_CHAR)) return expr_ident("char");
+    if (match(p, TOK_TYPE_F32)) return expr_ident("f32");
+    if (match(p, TOK_TYPE_F64)) return expr_ident("f64");
+    if (match(p, TOK_TYPE_NUMBER)) return expr_ident("number");
+    if (match(p, TOK_TYPE_PTR)) return expr_ident("ptr");
+
     error(p, "Expect expression");
     return expr_number(0);
 }

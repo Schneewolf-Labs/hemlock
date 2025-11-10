@@ -19,6 +19,7 @@ typedef enum {
     VAL_STRING,
     VAL_PTR,
     VAL_BUFFER,
+    VAL_TYPE,           // Represents a type (for sizeof, talloc, etc.)
     VAL_BUILTIN_FN,
     VAL_NULL,
 } ValueType;
@@ -40,6 +41,9 @@ typedef struct {
     int capacity;
 } Buffer;
 
+// Forward declare TypeKind from ast.h
+#include "ast.h"
+
 // Runtime value
 typedef struct Value {
     ValueType type;
@@ -56,6 +60,7 @@ typedef struct Value {
         String *as_string;
         void *as_ptr;
         Buffer *as_buffer;
+        TypeKind as_type;
         BuiltinFn as_builtin_fn;
     } as;
 } Value;
@@ -95,6 +100,7 @@ Value val_string(const char *str);
 Value val_string_take(char *str, int length, int capacity);
 Value val_ptr(void *ptr);
 Value val_buffer(int size);
+Value val_type(TypeKind kind);
 Value val_builtin_fn(BuiltinFn fn);
 Value val_null(void);
 

@@ -1,0 +1,10 @@
+let p = alloc(64);
+print(p);
+
+p = realloc(p, 128);
+print(p);
+
+p = realloc(p, 256);
+print(p);
+
+free(p);

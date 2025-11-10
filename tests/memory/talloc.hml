@@ -1,0 +1,11 @@
+let numbers = talloc(i32, 10);
+print(numbers);
+free(numbers);
+
+let bytes = talloc(u8, 256);
+print(bytes);
+free(bytes);
+
+let floats = talloc(f64, 5);
+print(floats);
+free(floats);

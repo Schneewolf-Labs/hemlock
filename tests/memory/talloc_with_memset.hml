@@ -1,0 +1,8 @@
+let numbers = talloc(i32, 10);
+let size = sizeof(i32);
+let total = size * 10;
+
+memset(numbers, 0, total);
+print(numbers);
+
+free(numbers);

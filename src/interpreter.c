@@ -309,6 +309,13 @@ Value val_ptr(void *ptr) {
     return v;
 }
 
+Value val_type(TypeKind kind) {
+    Value v;
+    v.type = VAL_TYPE;
+    v.as.as_type = kind;
+    return v;
+}
+
 Value val_null(void) {
     Value v;
     v.type = VAL_NULL;
@@ -355,6 +362,9 @@ void print_value(Value val) {
                    val.as.as_buffer->data,
                    val.as.as_buffer->length,
                    val.as.as_buffer->capacity);
+            break;
+        case VAL_TYPE:
+            printf("<type>");
             break;
         case VAL_BUILTIN_FN:
             printf("<builtin function>");
@@ -946,6 +956,35 @@ void eval_program(Stmt **stmts, int count, Environment *env) {
 
 // ========== BUILTIN FUNCTIONS ==========
 
+// Helper: Get the size of a type
+static int get_type_size(TypeKind kind) {
+    switch (kind) {
+        case TYPE_I8:
+        case TYPE_U8:
+            return 1;
+        case TYPE_I16:
+        case TYPE_U16:
+            return 2;
+        case TYPE_I32:
+        case TYPE_U32:
+        case TYPE_F32:
+            return 4;
+        case TYPE_F64:
+            return 8;
+        case TYPE_PTR:
+        case TYPE_BUFFER:
+            return sizeof(void*);  // 8 on 64-bit systems
+        case TYPE_BOOL:
+            return sizeof(int);    // bool is stored as int
+        case TYPE_STRING:
+            return sizeof(String*); // pointer to String struct
+        default:
+            fprintf(stderr, "Runtime error: Cannot get size of this type\n");
+            exit(1);
+    }
+}
+
+
 static Value builtin_print(Value *args, int num_args) {
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: print() expects 1 argument\n");
@@ -1051,20 +1090,19 @@ static Value builtin_memcpy(Value *args, int num_args) {
 }
 
 static Value builtin_sizeof(Value *args, int num_args) {
-    (void)args;
-    (void)num_args;
-
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: sizeof() expects 1 argument (type)\n");
         exit(1);
     }
 
-    // For now, assume the argument is a special type identifier
-    // We'll need to extend this later to handle type values
-    // For simplicity, we'll just return sizes for common types
+    if (args[0].type != VAL_TYPE) {
+        fprintf(stderr, "Runtime error: sizeof() requires a type argument\n");
+        exit(1);
+    }
 
-    fprintf(stderr, "Runtime error: sizeof() not fully implemented yet\n");
-    exit(1);
+    TypeKind kind = args[0].as.as_type;
+    int size = get_type_size(kind);
+    return val_i32(size);
 }
 
 static Value builtin_buffer(Value *args, int num_args) {
@@ -1082,6 +1120,75 @@ static Value builtin_buffer(Value *args, int num_args) {
     return val_buffer(size);
 }
 
+static Value builtin_talloc(Value *args, int num_args) {
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: talloc() expects 2 arguments (type, count)\n");
+        exit(1);
+    }
+
+    if (args[0].type != VAL_TYPE) {
+        fprintf(stderr, "Runtime error: talloc() first argument must be a type\n");
+        exit(1);
+    }
+
+    if (!is_integer(args[1])) {
+        fprintf(stderr, "Runtime error: talloc() count must be an integer\n");
+        exit(1);
+    }
+
+    TypeKind type = args[0].as.as_type;
+    int32_t count = value_to_int(args[1]);
+
+    if (count <= 0) {
+        fprintf(stderr, "Runtime error: talloc() count must be positive\n");
+        exit(1);
+    }
+
+    int elem_size = get_type_size(type);
+    size_t total_size = (size_t)elem_size * (size_t)count;
+
+    void *ptr = malloc(total_size);
+    if (ptr == NULL) {
+        fprintf(stderr, "Runtime error: talloc() failed to allocate memory\n");
+        exit(1);
+    }
+
+    return val_ptr(ptr);
+}
+
+static Value builtin_realloc(Value *args, int num_args) {
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: realloc() expects 2 arguments (ptr, new_size)\n");
+        exit(1);
+    }
+
+    if (args[0].type != VAL_PTR) {
+        fprintf(stderr, "Runtime error: realloc() first argument must be a pointer\n");
+        exit(1);
+    }
+
+    if (!is_integer(args[1])) {
+        fprintf(stderr, "Runtime error: realloc() new_size must be an integer\n");
+        exit(1);
+    }
+
+    void *old_ptr = args[0].as.as_ptr;
+    int32_t new_size = value_to_int(args[1]);
+
+    if (new_size <= 0) {
+        fprintf(stderr, "Runtime error: realloc() new_size must be positive\n");
+        exit(1);
+    }
+
+    void *new_ptr = realloc(old_ptr, new_size);
+    if (new_ptr == NULL) {
+        fprintf(stderr, "Runtime error: realloc() failed to allocate memory\n");
+        exit(1);
+    }
+
+    return val_ptr(new_ptr);
+}
+
 // Structure to hold builtin function info
 typedef struct {
     const char *name;
@@ -1091,6 +1198,8 @@ typedef struct {
 static BuiltinInfo builtins[] = {
     {"print", builtin_print},
     {"alloc", builtin_alloc},
+    {"talloc", builtin_talloc},
+    {"realloc", builtin_realloc},
     {"free", builtin_free},
     {"memset", builtin_memset},
     {"memcpy", builtin_memcpy},
@@ -1107,6 +1216,24 @@ Value val_builtin_fn(BuiltinFn fn) {
 }
 
 void register_builtins(Environment *env) {
+    // Register type constants FIRST for use with sizeof() and talloc()
+    // These must be registered before builtin functions to avoid conflicts
+    env_set(env, "i8", val_type(TYPE_I8));
+    env_set(env, "i16", val_type(TYPE_I16));
+    env_set(env, "i32", val_type(TYPE_I32));
+    env_set(env, "u8", val_type(TYPE_U8));
+    env_set(env, "u16", val_type(TYPE_U16));
+    env_set(env, "u32", val_type(TYPE_U32));
+    env_set(env, "f32", val_type(TYPE_F32));
+    env_set(env, "f64", val_type(TYPE_F64));
+    env_set(env, "ptr", val_type(TYPE_PTR));
+
+    // Type aliases
+    env_set(env, "integer", val_type(TYPE_I32));
+    env_set(env, "number", val_type(TYPE_F64));
+    env_set(env, "char", val_type(TYPE_U8));
+
+    // Register builtin functions (may overwrite some type names if there are conflicts)
     for (int i = 0; builtins[i].name != NULL; i++) {
         env_set(env, builtins[i].name, val_builtin_fn(builtins[i].fn));
     }
