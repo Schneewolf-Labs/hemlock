@@ -1,0 +1,6 @@
+// Function with no parameters
+fn getMessage() {
+    return 42;
+}
+
+print(getMessage());

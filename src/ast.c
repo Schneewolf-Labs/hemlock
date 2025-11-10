@@ -104,6 +104,17 @@ Expr* expr_index_assign(Expr *object, Expr *index, Expr *value) {
     return expr;
 }
 
+Expr* expr_function(char **param_names, Type **param_types, int num_params, Type *return_type, Stmt *body) {
+    Expr *expr = malloc(sizeof(Expr));
+    expr->type = EXPR_FUNCTION;
+    expr->as.function.param_names = param_names;
+    expr->as.function.param_types = param_types;
+    expr->as.function.num_params = num_params;
+    expr->as.function.return_type = return_type;
+    expr->as.function.body = body;
+    return expr;
+}
+
 // ========== TYPE CONSTRUCTORS ==========
 
 Type* type_new(TypeKind kind) {
@@ -163,6 +174,13 @@ Stmt* stmt_expr(Expr *expr) {
     return stmt;
 }
 
+Stmt* stmt_return(Expr *value) {
+    Stmt *stmt = malloc(sizeof(Stmt));
+    stmt->type = STMT_RETURN;
+    stmt->as.return_stmt.value = value;
+    return stmt;
+}
+
 // ========== CLEANUP ==========
 
 void expr_free(Expr *expr) {
@@ -206,12 +224,29 @@ void expr_free(Expr *expr) {
             expr_free(expr->as.index_assign.index);
             expr_free(expr->as.index_assign.value);
             break;
+        case EXPR_FUNCTION:
+            // Free parameter names
+            for (int i = 0; i < expr->as.function.num_params; i++) {
+                free(expr->as.function.param_names[i]);
+                if (expr->as.function.param_types[i]) {
+                    type_free(expr->as.function.param_types[i]);
+                }
+            }
+            free(expr->as.function.param_names);
+            free(expr->as.function.param_types);
+            // Free return type
+            if (expr->as.function.return_type) {
+                type_free(expr->as.function.return_type);
+            }
+            // Free body
+            stmt_free(expr->as.function.body);
+            break;
         case EXPR_NUMBER:
         case EXPR_BOOL:
             // Nothing to free
             break;
     }
-    
+
     free(expr);
 }
 
@@ -242,7 +277,10 @@ void stmt_free(Stmt *stmt) {
             }
             free(stmt->as.block.statements);
             break;
+        case STMT_RETURN:
+            expr_free(stmt->as.return_stmt.value);
+            break;
     }
-    
+
     free(stmt);
 }

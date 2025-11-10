@@ -17,6 +17,7 @@ Hemlock is a systems scripting language that combines the power of C with the er
 
 - **Familiar syntax** - C-like with modern improvements
 - **Rich type system** - i8/i16/i32, u8/u16/u32, f32/f64, bool, string, ptr, buffer
+- **First-class functions** - Closures, recursion, higher-order functions
 - **Two pointer types** - Raw `ptr` for experts, safe `buffer` with bounds checking
 - **Memory API** - alloc, free, memset, memcpy, realloc, talloc, sizeof
 - **Mutable strings** - First-class UTF-8 strings with indexing and concatenation
@@ -59,6 +60,27 @@ print(s.length);        // 5
 let msg = s + " world"; // "Hello world"
 ```
 
+### Functions and Closures
+```hemlock
+// Named function with recursion
+fn factorial(n: i32): i32 {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+
+// Closures capture their environment
+fn makeAdder(x) {
+    return fn(y) {
+        return x + y;
+    };
+}
+
+let add5 = makeAdder(5);
+print(add5(3));  // 8
+```
+
 ## Building
 
 ```bash
@@ -85,7 +107,7 @@ Hemlock is currently in early development (v0.1). The following features are imp
 - ✅ Memory management (ptr, buffer, alloc, free)
 - ✅ String operations
 - ✅ Control flow (if/else, while)
-- 🚧 Functions and closures
+- ✅ Functions and closures (first-class, recursion, lexical scoping)
 - 🚧 Structs and methods
 - 🚧 Async/await and structured concurrency
 

@@ -4,6 +4,7 @@
 // Forward declarations
 typedef struct Expr Expr;
 typedef struct Stmt Stmt;
+typedef struct Type Type;
 
 // ========== EXPRESSION TYPES ==========
 
@@ -19,6 +20,7 @@ typedef enum {
     EXPR_GET_PROPERTY,
     EXPR_INDEX,
     EXPR_INDEX_ASSIGN,
+    EXPR_FUNCTION,
 } ExprType;
 
 typedef enum {
@@ -84,6 +86,13 @@ struct Expr {
             Expr *index;
             Expr *value;
         } index_assign;
+        struct {
+            char **param_names;
+            Type **param_types;
+            int num_params;
+            Type *return_type;
+            Stmt *body;
+        } function;
     } as;
 };
 
@@ -106,9 +115,9 @@ typedef enum {
     TYPE_INFER,      // No annotation, infer from value
 } TypeKind;
 
-typedef struct {
+struct Type {
     TypeKind kind;
-} Type;
+};
 
 // ========== STATEMENT TYPES ==========
 
@@ -118,6 +127,7 @@ typedef enum {
     STMT_IF,
     STMT_WHILE,
     STMT_BLOCK,
+    STMT_RETURN,
 } StmtType;
 
 // Statement node
@@ -143,6 +153,9 @@ struct Stmt {
             Stmt **statements;
             int count;
         } block;
+        struct {
+            Expr *value;  // can be NULL for bare `return;`
+        } return_stmt;
     } as;
 };
 
@@ -162,6 +175,7 @@ Expr* expr_assign(const char *name, Expr *value);
 Expr* expr_get_property(Expr *object, const char *property);
 Expr* expr_index(Expr *object, Expr *index);
 Expr* expr_index_assign(Expr *object, Expr *index, Expr *value);
+Expr* expr_function(char **param_names, Type **param_types, int num_params, Type *return_type, Stmt *body);
 
 // Statement constructors
 Stmt* stmt_let(const char *name, Expr *value);
@@ -170,6 +184,7 @@ Stmt* stmt_if(Expr *condition, Stmt *then_branch, Stmt *else_branch);
 Stmt* stmt_while(Expr *condition, Stmt *body);
 Stmt* stmt_block(Stmt **statements, int count);
 Stmt* stmt_expr(Expr *expr);
+Stmt* stmt_return(Expr *value);
 Type* type_new(TypeKind kind);
 void type_free(Type *type);
 

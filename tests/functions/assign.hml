@@ -1,0 +1,6 @@
+// Assign function to variable
+let adder = fn(a, b) {
+    return a + b;
+};
+
+print(adder(10, 20));

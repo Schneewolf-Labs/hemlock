@@ -21,11 +21,15 @@ typedef enum {
     VAL_BUFFER,
     VAL_TYPE,           // Represents a type (for sizeof, talloc, etc.)
     VAL_BUILTIN_FN,
+    VAL_FUNCTION,       // User-defined function
     VAL_NULL,
 } ValueType;
 
 typedef struct Value Value;
 typedef Value (*BuiltinFn)(Value *args, int num_args);
+
+// Forward declare Environment for Function struct
+typedef struct Environment Environment;
 
 // String struct
 typedef struct {
@@ -40,6 +44,16 @@ typedef struct {
     int length;
     int capacity;
 } Buffer;
+
+// Function struct (user-defined function)
+typedef struct {
+    char **param_names;
+    Type **param_types;
+    int num_params;
+    Type *return_type;
+    Stmt *body;
+    Environment *closure_env;  // CAPTURED ENVIRONMENT
+} Function;
 
 // Forward declare TypeKind from ast.h
 #include "ast.h"
@@ -62,6 +76,7 @@ typedef struct Value {
         Buffer *as_buffer;
         TypeKind as_type;
         BuiltinFn as_builtin_fn;
+        Function *as_function;
     } as;
 } Value;
 
@@ -102,6 +117,7 @@ Value val_ptr(void *ptr);
 Value val_buffer(int size);
 Value val_type(TypeKind kind);
 Value val_builtin_fn(BuiltinFn fn);
+Value val_function(Function *fn);
 Value val_null(void);
 
 // Value operations

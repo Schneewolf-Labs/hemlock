@@ -4,6 +4,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+// ========== RETURN STATE ==========
+
+typedef struct {
+    int is_returning;
+    Value return_value;
+} ReturnState;
+
+static ReturnState return_state = {0};
+
 // ========== HELPERS ==========
 
 // Helper: Check if a value is any integer type
@@ -316,6 +325,13 @@ Value val_type(TypeKind kind) {
     return v;
 }
 
+Value val_function(Function *fn) {
+    Value v;
+    v.type = VAL_FUNCTION;
+    v.as.as_function = fn;
+    return v;
+}
+
 Value val_null(void) {
     Value v;
     v.type = VAL_NULL;
@@ -368,6 +384,9 @@ void print_value(Value val) {
             break;
         case VAL_BUILTIN_FN:
             printf("<builtin function>");
+            break;
+        case VAL_FUNCTION:
+            printf("<function>");
             break;
         case VAL_NULL:
             printf("null");
@@ -748,7 +767,7 @@ Value eval_expr(Expr *expr, Environment *env) {
         case EXPR_CALL: {
             // Look up the function
             Value func = env_get(env, expr->as.call.name);
-            
+
             // Evaluate arguments
             Value *args = NULL;
             if (expr->as.call.num_args > 0) {
@@ -757,13 +776,62 @@ Value eval_expr(Expr *expr, Environment *env) {
                     args[i] = eval_expr(expr->as.call.args[i], env);
                 }
             }
-            
+
             Value result;
-            
+
             if (func.type == VAL_BUILTIN_FN) {
                 // Call builtin function
                 BuiltinFn fn = func.as.as_builtin_fn;
                 result = fn(args, expr->as.call.num_args);
+            } else if (func.type == VAL_FUNCTION) {
+                // Call user-defined function
+                Function *fn = func.as.as_function;
+
+                // Check argument count
+                if (expr->as.call.num_args != fn->num_params) {
+                    fprintf(stderr, "Runtime error: Function expects %d arguments, got %d\n",
+                            fn->num_params, expr->as.call.num_args);
+                    exit(1);
+                }
+
+                // Create call environment with closure_env as parent
+                Environment *call_env = env_new(fn->closure_env);
+
+                // Bind parameters
+                for (int i = 0; i < fn->num_params; i++) {
+                    Value arg_value = args[i];
+
+                    // Type check if parameter has type annotation
+                    if (fn->param_types[i]) {
+                        arg_value = convert_to_type(arg_value, fn->param_types[i]->kind);
+                    }
+
+                    env_set(call_env, fn->param_names[i], arg_value);
+                }
+
+                // Execute body
+                return_state.is_returning = 0;
+                eval_stmt(fn->body, call_env);
+
+                // Get result
+                result = return_state.return_value;
+
+                // Check return type if specified
+                if (fn->return_type) {
+                    if (!return_state.is_returning) {
+                        fprintf(stderr, "Runtime error: Function with return type must return a value\n");
+                        exit(1);
+                    }
+                    result = convert_to_type(result, fn->return_type->kind);
+                }
+
+                // Reset return state
+                return_state.is_returning = 0;
+
+                // Cleanup
+                // NOTE: We don't free call_env here because closures might reference it
+                // This is a known memory leak in v0.1, to be fixed with refcounting in v0.2
+                // env_free(call_env);
             } else {
                 // Check for special case: print (we haven't removed this yet)
                 if (strcmp(expr->as.call.name, "print") == 0) {
@@ -775,11 +843,11 @@ Value eval_expr(Expr *expr, Environment *env) {
                     printf("\n");
                     result = val_null();
                 } else {
-                    fprintf(stderr, "Runtime error: Unknown function '%s'\n", expr->as.call.name);
+                    fprintf(stderr, "Runtime error: '%s' is not a function\n", expr->as.call.name);
                     exit(1);
                 }
             }
-            
+
             if (args) free(args);
             return result;
         }
@@ -893,8 +961,46 @@ Value eval_expr(Expr *expr, Environment *env) {
                 exit(1);
             }
         }
+
+        case EXPR_FUNCTION: {
+            // Create function object and capture current environment
+            Function *fn = malloc(sizeof(Function));
+
+            // Copy parameter names
+            fn->param_names = malloc(sizeof(char*) * expr->as.function.num_params);
+            for (int i = 0; i < expr->as.function.num_params; i++) {
+                fn->param_names[i] = strdup(expr->as.function.param_names[i]);
+            }
+
+            // Copy parameter types (may be NULL)
+            fn->param_types = malloc(sizeof(Type*) * expr->as.function.num_params);
+            for (int i = 0; i < expr->as.function.num_params; i++) {
+                if (expr->as.function.param_types[i]) {
+                    fn->param_types[i] = type_new(expr->as.function.param_types[i]->kind);
+                } else {
+                    fn->param_types[i] = NULL;
+                }
+            }
+
+            fn->num_params = expr->as.function.num_params;
+
+            // Copy return type (may be NULL)
+            if (expr->as.function.return_type) {
+                fn->return_type = type_new(expr->as.function.return_type->kind);
+            } else {
+                fn->return_type = NULL;
+            }
+
+            // Store body AST (shared, not copied)
+            fn->body = expr->as.function.body;
+
+            // CRITICAL: Capture current environment
+            fn->closure_env = env;
+
+            return val_function(fn);
+        }
     }
-    
+
     return val_null();
 }
 
@@ -919,22 +1025,28 @@ void eval_stmt(Stmt *stmt, Environment *env) {
             
         case STMT_IF: {
             Value condition = eval_expr(stmt->as.if_stmt.condition, env);
-            
+
             if (value_is_truthy(condition)) {
                 eval_stmt(stmt->as.if_stmt.then_branch, env);
             } else if (stmt->as.if_stmt.else_branch != NULL) {
                 eval_stmt(stmt->as.if_stmt.else_branch, env);
             }
+            // No need to check return here, it propagates automatically
             break;
         }
-            
+
         case STMT_WHILE: {
             for (;;) {
                 Value condition = eval_expr(stmt->as.while_stmt.condition, env);
-                
+
                 if (!value_is_truthy(condition)) break;
-                
+
                 eval_stmt(stmt->as.while_stmt.body, env);
+
+                // Check if a return happened
+                if (return_state.is_returning) {
+                    break;
+                }
             }
             break;
         }
@@ -942,7 +1054,22 @@ void eval_stmt(Stmt *stmt, Environment *env) {
         case STMT_BLOCK: {
             for (int i = 0; i < stmt->as.block.count; i++) {
                 eval_stmt(stmt->as.block.statements[i], env);
+                // Check if a return happened
+                if (return_state.is_returning) {
+                    break;
+                }
             }
+            break;
+        }
+
+        case STMT_RETURN: {
+            // Evaluate return value (or null if none)
+            if (stmt->as.return_stmt.value) {
+                return_state.return_value = eval_expr(stmt->as.return_stmt.value, env);
+            } else {
+                return_state.return_value = val_null();
+            }
+            return_state.is_returning = 1;
             break;
         }
     }

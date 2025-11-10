@@ -1,0 +1,8 @@
+// Lexical scoping
+let x = 10;
+
+fn useOuter() {
+    return x + 5;
+}
+
+print(useOuter());

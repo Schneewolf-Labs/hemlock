@@ -1,0 +1,9 @@
+// Basic closure
+fn makeAdder(x) {
+    return fn(y) {
+        return x + y;
+    };
+}
+
+let add5 = makeAdder(5);
+print(add5(3));

@@ -1,0 +1,6 @@
+// Function with type annotations
+fn multiply(x: i32, y: i32): i32 {
+    return x * y;
+}
+
+print(multiply(6, 7));

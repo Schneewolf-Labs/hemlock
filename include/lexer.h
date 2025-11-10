@@ -15,6 +15,9 @@ typedef enum {
     TOK_IF,
     TOK_ELSE,
     TOK_WHILE,
+    TOK_FN,
+    TOK_RETURN,
+    TOK_REF,
 
     // Type keywords
     TOK_TYPE_I8,

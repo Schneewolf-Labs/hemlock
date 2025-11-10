@@ -212,32 +212,72 @@ let msg = s + " world"; // concatenation
 ### Planned Features
 - `for` loops
 - `break`/`continue`
-- `return` (already works in statements)
 
 ---
 
-## Functions (TODO)
+## Functions
 
-Target design:
+Functions are **first-class values** that can be assigned, passed, and returned:
+
 ```hemlock
+// Named function syntax
 fn add(a: i32, b: i32): i32 {
     return a + b;
 }
 
+// Anonymous function
+let multiply = fn(x, y) {
+    return x * y;
+};
+
+// Recursion
 fn factorial(n: i32): i32 {
     if (n <= 1) {
         return 1;
     }
     return n * factorial(n - 1);
 }
+
+// Closures
+fn makeAdder(x) {
+    return fn(y) {
+        return x + y;
+    };
+}
+
+let add5 = makeAdder(5);
+print(add5(3));  // 8
 ```
 
-**Design decisions:**
-- Optional parameter types (runtime checked if provided)
-- Optional return type (runtime checked if provided)
-- `return` is mandatory (no last-expr-as-return)
-- Lexical scoping with closure support
-- Recursion fully supported
+**Features:**
+- **First-class:** Functions can be assigned to variables, passed as arguments, and returned
+- **Lexical scoping:** Functions can read (not write) outer scope variables
+- **Closures:** Functions capture their defining environment
+- **Recursion:** Fully supported (no tail call optimization yet)
+- **Type annotations:** Optional for parameters and return type
+- **Pass-by-value:** All arguments are copied
+
+**Return semantics:**
+- Functions with return type annotation MUST return a value
+- Functions without return type annotation implicitly return `null` if no return statement
+- `return;` without a value returns `null`
+
+**Type checking:**
+- Parameter types are checked at call time if annotated
+- Return types are checked when function returns if annotated
+- Implicit type conversions follow standard promotion rules
+
+**Named vs Anonymous:**
+- `fn name(...) {}` desugars to `let name = fn(...) {};`
+- Both forms are equivalent
+
+**Known limitations (v0.1):**
+- Closure environments are never freed (memory leak, to be fixed with refcounting in v0.2)
+- No pass-by-reference yet (`ref` keyword parsed but not implemented)
+- No variadic functions
+- No default arguments
+- No function overloading
+- No tail call optimization
 
 ---
 
@@ -310,8 +350,7 @@ hemlock/
 │   ├── parser.c
 │   ├── interpreter.c
 │   └── main.c
-├── tests/            # Test suite
-│   └── run_tests.sh
+├── tests/            # Test suite, ran by run_tests.sh in the root directory
 └── examples/         # Example programs
 ```
 
@@ -473,11 +512,10 @@ When adding features to Hemlock:
 
 ## Version History
 
-- **v0.1** - Primitives, basic memory, strings, control flow (current)
-- **v0.2** - Functions, closures, recursion (planned)
-- **v0.3** - Structs, methods, JSON (planned)
-- **v0.4** - Async/await, channels, structured concurrency (planned)
-- **v0.5** - FFI, C interop, compiler backend (planned)
+- **v0.1** - Primitives, basic memory, strings, control flow, functions, closures, recursion (current)
+- **v0.2** - Structs, methods, JSON (planned)
+- **v0.3** - Async/await, channels, structured concurrency (planned)
+- **v0.4** - FFI, C interop, compiler backend (planned)
 
 ---
 

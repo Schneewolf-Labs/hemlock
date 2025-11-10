@@ -95,6 +95,8 @@ static Expr* comparison(Parser *p);
 static Expr* term(Parser *p);
 static Expr* factor(Parser *p);
 static Expr* primary(Parser *p);
+static Type* parse_type(Parser *p);
+static Stmt* block_statement(Parser *p);
 
 static Expr* primary(Parser *p) {
     if (match(p, TOK_TRUE)) {
@@ -153,6 +155,46 @@ static Expr* primary(Parser *p) {
         Expr *expr = expression(p);
         consume(p, TOK_RPAREN, "Expect ')' after expression");
         return expr;
+    }
+
+    // Function expression: fn(...) { ... }
+    if (match(p, TOK_FN)) {
+        consume(p, TOK_LPAREN, "Expect '(' after 'fn'");
+
+        // Parse parameters
+        char **param_names = malloc(sizeof(char*) * 32);  // max 32 params
+        Type **param_types = malloc(sizeof(Type*) * 32);
+        int num_params = 0;
+
+        if (!check(p, TOK_RPAREN)) {
+            do {
+                consume(p, TOK_IDENT, "Expect parameter name");
+                param_names[num_params] = token_text(&p->previous);
+
+                // Optional type annotation
+                if (match(p, TOK_COLON)) {
+                    param_types[num_params] = parse_type(p);
+                } else {
+                    param_types[num_params] = NULL;
+                }
+
+                num_params++;
+            } while (match(p, TOK_COMMA));
+        }
+
+        consume(p, TOK_RPAREN, "Expect ')' after parameters");
+
+        // Optional return type
+        Type *return_type = NULL;
+        if (match(p, TOK_COLON)) {
+            return_type = parse_type(p);
+        }
+
+        // Parse body (must be a block)
+        consume(p, TOK_LBRACE, "Expect '{' before function body");
+        Stmt *body = block_statement(p);
+
+        return expr_function(param_names, param_types, num_params, return_type, body);
     }
 
     // Allow type keywords to be used as identifiers (for sizeof, talloc, etc.)
@@ -434,19 +476,92 @@ static Stmt* expression_statement(Parser *p) {
     return stmt_expr(expr);
 }
 
+static Stmt* return_statement(Parser *p) {
+    Expr *value = NULL;
+
+    // Check if there's a return value
+    if (!check(p, TOK_SEMICOLON)) {
+        value = expression(p);
+    }
+
+    consume(p, TOK_SEMICOLON, "Expect ';' after return statement");
+    return stmt_return(value);
+}
+
 static Stmt* statement(Parser *p) {
     if (match(p, TOK_LET)) {
         return let_statement(p);
     }
-    
+
+    // Named function: fn name(...) { ... }
+    // Desugar to: let name = fn(...) { ... };
+    if (match(p, TOK_FN)) {
+        // Check if it's a named function (next token is identifier)
+        if (check(p, TOK_IDENT)) {
+            char *name = token_text(&p->current);
+            advance(p);  // consume identifier
+
+            // Now parse as function expression
+            consume(p, TOK_LPAREN, "Expect '(' after function name");
+
+            // Parse parameters
+            char **param_names = malloc(sizeof(char*) * 32);
+            Type **param_types = malloc(sizeof(Type*) * 32);
+            int num_params = 0;
+
+            if (!check(p, TOK_RPAREN)) {
+                do {
+                    consume(p, TOK_IDENT, "Expect parameter name");
+                    param_names[num_params] = token_text(&p->previous);
+
+                    if (match(p, TOK_COLON)) {
+                        param_types[num_params] = parse_type(p);
+                    } else {
+                        param_types[num_params] = NULL;
+                    }
+
+                    num_params++;
+                } while (match(p, TOK_COMMA));
+            }
+
+            consume(p, TOK_RPAREN, "Expect ')' after parameters");
+
+            // Optional return type
+            Type *return_type = NULL;
+            if (match(p, TOK_COLON)) {
+                return_type = parse_type(p);
+            }
+
+            // Parse body
+            consume(p, TOK_LBRACE, "Expect '{' before function body");
+            Stmt *body = block_statement(p);
+
+            // Create function expression
+            Expr *fn_expr = expr_function(param_names, param_types, num_params, return_type, body);
+
+            // Desugar to let statement
+            Stmt *stmt = stmt_let_typed(name, NULL, fn_expr);
+            free(name);
+            return stmt;
+        } else {
+            // Anonymous function at statement level - error
+            error(p, "Unexpected anonymous function (did you mean to assign it?)");
+            return stmt_expr(expr_number(0));
+        }
+    }
+
     if (match(p, TOK_IF)) {
         return if_statement(p);
     }
-    
+
     if (match(p, TOK_WHILE)) {
         return while_statement(p);
     }
-    
+
+    if (match(p, TOK_RETURN)) {
+        return return_statement(p);
+    }
+
     return expression_statement(p);
 }
 

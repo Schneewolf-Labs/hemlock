@@ -151,6 +151,7 @@ static TokenType identifier_type(Lexer *lex) {
             if (len == 4) return check_keyword(lex->start, 4, "else", TOK_ELSE);
             break;
         case 'f':
+            if (len == 2) return check_keyword(lex->start, 2, "fn", TOK_FN);
             if (len == 3) {
                 //if (strncmp(lex->start, "f16", 3) == 0) return TOK_TYPE_F16;
                 if (strncmp(lex->start, "f32", 3) == 0) return TOK_TYPE_F32;
@@ -174,6 +175,10 @@ static TokenType identifier_type(Lexer *lex) {
             break;
         case 'n':
             if (len == 6) return check_keyword(lex->start, 6, "number", TOK_TYPE_NUMBER);
+            break;
+        case 'r':
+            if (len == 3) return check_keyword(lex->start, 3, "ref", TOK_REF);
+            if (len == 6) return check_keyword(lex->start, 6, "return", TOK_RETURN);
             break;
         case 'p':
             if (len == 3) return check_keyword(lex->start, 3, "ptr", TOK_TYPE_PTR);
