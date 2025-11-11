@@ -30,10 +30,9 @@ typedef enum {
 } ValueType;
 
 typedef struct Value Value;
-typedef Value (*BuiltinFn)(Value *args, int num_args);
-
-// Forward declare Environment for Function struct
+typedef struct ExecutionContext ExecutionContext;
 typedef struct Environment Environment;
+typedef Value (*BuiltinFn)(Value *args, int num_args, ExecutionContext *ctx);
 
 // String struct
 typedef struct {
@@ -124,13 +123,17 @@ typedef struct Environment {
 // Public interface
 Environment* env_new(Environment *parent);
 void env_free(Environment *env);
-void env_define(Environment *env, const char *name, Value value, int is_const);
-void env_set(Environment *env, const char *name, Value value);
-Value env_get(Environment *env, const char *name);
+void env_define(Environment *env, const char *name, Value value, int is_const, ExecutionContext *ctx);
+void env_set(Environment *env, const char *name, Value value, ExecutionContext *ctx);
+Value env_get(Environment *env, const char *name, ExecutionContext *ctx);
 
-Value eval_expr(Expr *expr, Environment *env);
-void eval_stmt(Stmt *stmt, Environment *env);
-void eval_program(Stmt **stmts, int count, Environment *env);
+// Execution context management (opaque pointer pattern)
+ExecutionContext* exec_context_new(void);
+void exec_context_free(ExecutionContext *ctx);
+
+Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx);
+void eval_stmt(Stmt *stmt, Environment *env, ExecutionContext *ctx);
+void eval_program(Stmt **stmts, int count, Environment *env, ExecutionContext *ctx);
 
 // Value constructors
 Value val_int(int value);    // creates i32
@@ -182,6 +185,6 @@ void file_free(FileHandle *file);
 void object_free(Object *obj);
 Object* object_new(char *type_name, int initial_capacity);
 
-void register_builtins(Environment *env, int argc, char **argv);
+void register_builtins(Environment *env, int argc, char **argv, ExecutionContext *ctx);
 
 #endif // HEMLOCK_INTERPRETER_H

@@ -35,11 +35,17 @@ typedef struct {
     int capacity;
 } CallStack;
 
-// Global control flow state (shared across modules)
-extern ReturnState return_state;
-extern LoopState loop_state;
-extern ExceptionState exception_state;
-extern CallStack call_stack;
+// ========== EXECUTION CONTEXT ==========
+
+// Execution context - holds all control flow state
+// Each async task will have its own context (future async support)
+// Note: ExecutionContext is forward-declared in interpreter.h
+struct ExecutionContext {
+    ReturnState return_state;
+    LoopState loop_state;
+    ExceptionState exception_state;
+    CallStack call_stack;
+};
 
 // ========== OBJECT TYPE REGISTRY ==========
 
@@ -64,9 +70,9 @@ extern ObjectTypeRegistry object_types;
 
 Environment* env_new(Environment *parent);
 void env_free(Environment *env);
-void env_define(Environment *env, const char *name, Value value, int is_const);
-void env_set(Environment *env, const char *name, Value value);
-Value env_get(Environment *env, const char *name);
+void env_define(Environment *env, const char *name, Value value, int is_const, ExecutionContext *ctx);
+void env_set(Environment *env, const char *name, Value value, ExecutionContext *ctx);
+Value env_get(Environment *env, const char *name, ExecutionContext *ctx);
 
 // ========== VALUES (values.c) ==========
 
@@ -137,17 +143,17 @@ int value_is_truthy(Value val);
 int type_rank(ValueType type);
 ValueType promote_types(ValueType left, ValueType right);
 Value promote_value(Value val, ValueType target_type);
-Value convert_to_type(Value value, Type *target_type, Environment *env);
+Value convert_to_type(Value value, Type *target_type, Environment *env, ExecutionContext *ctx);
 
 // Object type registry
 void init_object_types(void);
 void register_object_type(ObjectType *type);
 ObjectType* lookup_object_type(const char *name);
-Value check_object_type(Value value, ObjectType *object_type, Environment *env);
+Value check_object_type(Value value, ObjectType *object_type, Environment *env, ExecutionContext *ctx);
 
 // ========== BUILTINS (builtins.c) ==========
 
-void register_builtins(Environment *env, int argc, char **argv);
+void register_builtins(Environment *env, int argc, char **argv, ExecutionContext *ctx);
 
 // ========== I/O (io.c) ==========
 
@@ -156,27 +162,31 @@ Value call_array_method(Array *arr, const char *method, Value *args, int num_arg
 Value call_string_method(String *str, const char *method, Value *args, int num_args);
 
 // I/O builtin functions
-Value builtin_read_file(Value *args, int num_args);
-Value builtin_write_file(Value *args, int num_args);
-Value builtin_append_file(Value *args, int num_args);
-Value builtin_read_bytes(Value *args, int num_args);
-Value builtin_write_bytes(Value *args, int num_args);
-Value builtin_file_exists(Value *args, int num_args);
-Value builtin_read_line(Value *args, int num_args);
-Value builtin_eprint(Value *args, int num_args);
-Value builtin_open(Value *args, int num_args);
+Value builtin_read_file(Value *args, int num_args, ExecutionContext *ctx);
+Value builtin_write_file(Value *args, int num_args, ExecutionContext *ctx);
+Value builtin_append_file(Value *args, int num_args, ExecutionContext *ctx);
+Value builtin_read_bytes(Value *args, int num_args, ExecutionContext *ctx);
+Value builtin_write_bytes(Value *args, int num_args, ExecutionContext *ctx);
+Value builtin_file_exists(Value *args, int num_args, ExecutionContext *ctx);
+Value builtin_read_line(Value *args, int num_args, ExecutionContext *ctx);
+Value builtin_eprint(Value *args, int num_args, ExecutionContext *ctx);
+Value builtin_open(Value *args, int num_args, ExecutionContext *ctx);
 
 // ========== RUNTIME (runtime.c) ==========
 
-Value eval_expr(Expr *expr, Environment *env);
-void eval_stmt(Stmt *stmt, Environment *env);
-void eval_program(Stmt **stmts, int count, Environment *env);
+Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx);
+void eval_stmt(Stmt *stmt, Environment *env, ExecutionContext *ctx);
+void eval_program(Stmt **stmts, int count, Environment *env, ExecutionContext *ctx);
+
+// Execution context helpers
+ExecutionContext* exec_context_new(void);
+void exec_context_free(ExecutionContext *ctx);
 
 // Call stack helpers
-void call_stack_init(void);
-void call_stack_push(const char *function_name);
-void call_stack_pop(void);
-void call_stack_print(void);
-void call_stack_free(void);
+void call_stack_init(CallStack *stack);
+void call_stack_push(CallStack *stack, const char *function_name);
+void call_stack_pop(CallStack *stack);
+void call_stack_print(CallStack *stack);
+void call_stack_free(CallStack *stack);
 
 #endif // HEMLOCK_INTERPRETER_INTERNAL_H

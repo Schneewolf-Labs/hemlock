@@ -34,7 +34,7 @@ ObjectType* lookup_object_type(const char *name) {
 }
 
 // Check if an object matches a type definition (duck typing)
-Value check_object_type(Value value, ObjectType *object_type, Environment *env) {
+Value check_object_type(Value value, ObjectType *object_type, Environment *env, ExecutionContext *ctx) {
     if (value.type != VAL_OBJECT) {
         fprintf(stderr, "Runtime error: Expected object for type '%s', got non-object\n",
                 object_type->name);
@@ -72,7 +72,7 @@ Value check_object_type(Value value, ObjectType *object_type, Environment *env) 
 
                 obj->field_names[obj->num_fields] = strdup(field_name);
                 if (object_type->field_defaults[i]) {
-                    obj->field_values[obj->num_fields] = eval_expr(object_type->field_defaults[i], env);
+                    obj->field_values[obj->num_fields] = eval_expr(object_type->field_defaults[i], env, ctx);
                 } else {
                     obj->field_values[obj->num_fields] = val_null();
                 }
@@ -267,7 +267,7 @@ Value promote_value(Value val, ValueType target_type) {
 // ========== TYPE CONVERSION ==========
 
 // Helper to convert a value to a target type
-Value convert_to_type(Value value, Type *target_type, Environment *env) {
+Value convert_to_type(Value value, Type *target_type, Environment *env, ExecutionContext *ctx) {
     if (!target_type) {
         return value;  // No type annotation
     }
@@ -281,7 +281,7 @@ Value convert_to_type(Value value, Type *target_type, Environment *env) {
             fprintf(stderr, "Runtime error: Unknown object type '%s'\n", target_type->type_name);
             exit(1);
         }
-        return check_object_type(value, object_type, env);
+        return check_object_type(value, object_type, env, ctx);
     }
 
     if (kind == TYPE_GENERIC_OBJECT) {

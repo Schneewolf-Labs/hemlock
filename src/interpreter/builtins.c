@@ -35,7 +35,8 @@ static int get_type_size(TypeKind kind) {
 }
 
 
-static Value builtin_print(Value *args, int num_args) {
+static Value builtin_print(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: print() expects 1 argument\n");
         exit(1);
@@ -46,7 +47,8 @@ static Value builtin_print(Value *args, int num_args) {
     return val_null();
 }
 
-static Value builtin_alloc(Value *args, int num_args) {
+static Value builtin_alloc(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: alloc() expects 1 argument (size in bytes)\n");
         exit(1);
@@ -73,7 +75,8 @@ static Value builtin_alloc(Value *args, int num_args) {
     return val_ptr(ptr);
 }
 
-static Value builtin_free(Value *args, int num_args) {
+static Value builtin_free(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: free() expects 1 argument (pointer or buffer)\n");
         exit(1);
@@ -91,7 +94,8 @@ static Value builtin_free(Value *args, int num_args) {
     }
 }
 
-static Value builtin_memset(Value *args, int num_args) {
+static Value builtin_memset(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 3) {
         fprintf(stderr, "Runtime error: memset() expects 3 arguments (ptr, byte, size)\n");
         exit(1);
@@ -115,7 +119,8 @@ static Value builtin_memset(Value *args, int num_args) {
     return val_null();
 }
 
-static Value builtin_memcpy(Value *args, int num_args) {
+static Value builtin_memcpy(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 3) {
         fprintf(stderr, "Runtime error: memcpy() expects 3 arguments (dest, src, size)\n");
         exit(1);
@@ -139,7 +144,8 @@ static Value builtin_memcpy(Value *args, int num_args) {
     return val_null();
 }
 
-static Value builtin_sizeof(Value *args, int num_args) {
+static Value builtin_sizeof(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: sizeof() expects 1 argument (type)\n");
         exit(1);
@@ -155,7 +161,8 @@ static Value builtin_sizeof(Value *args, int num_args) {
     return val_i32(size);
 }
 
-static Value builtin_buffer(Value *args, int num_args) {
+static Value builtin_buffer(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: buffer() expects 1 argument (size in bytes)\n");
         exit(1);
@@ -170,7 +177,8 @@ static Value builtin_buffer(Value *args, int num_args) {
     return val_buffer(size);
 }
 
-static Value builtin_talloc(Value *args, int num_args) {
+static Value builtin_talloc(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 2) {
         fprintf(stderr, "Runtime error: talloc() expects 2 arguments (type, count)\n");
         exit(1);
@@ -206,7 +214,8 @@ static Value builtin_talloc(Value *args, int num_args) {
     return val_ptr(ptr);
 }
 
-static Value builtin_realloc(Value *args, int num_args) {
+static Value builtin_realloc(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 2) {
         fprintf(stderr, "Runtime error: realloc() expects 2 arguments (ptr, new_size)\n");
         exit(1);
@@ -452,7 +461,8 @@ static char* serialize_value(Value val, VisitedSet *visited) {
     }
 }
 
-static Value builtin_serialize(Value *args, int num_args) {
+static Value builtin_serialize(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: serialize() expects 1 argument\n");
         exit(1);
@@ -714,7 +724,8 @@ static Value json_parse_value(JSONParser *p) {
     }
 }
 
-static Value builtin_deserialize(Value *args, int num_args) {
+static Value builtin_deserialize(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: deserialize() expects 1 argument (JSON string)\n");
         exit(1);
@@ -741,7 +752,8 @@ static Value builtin_deserialize(Value *args, int num_args) {
     return result;
 }
 
-static Value builtin_typeof(Value *args, int num_args) {
+static Value builtin_typeof(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: typeof() expects 1 argument\n");
         exit(1);
@@ -813,7 +825,7 @@ static Value builtin_typeof(Value *args, int num_args) {
 // Note: File/array method handlers are in io.c
 
 
-static Value builtin_assert(Value *args, int num_args) {
+static Value builtin_assert(Value *args, int num_args, ExecutionContext *ctx) {
     if (num_args < 1 || num_args > 2) {
         fprintf(stderr, "Runtime error: assert() expects 1-2 arguments (condition, [message])\n");
         exit(1);
@@ -876,8 +888,8 @@ static Value builtin_assert(Value *args, int num_args) {
             exception_msg = val_string("assertion failed");
         }
 
-        exception_state.exception_value = exception_msg;
-        exception_state.is_throwing = 1;
+        ctx->exception_state.exception_value = exception_msg;
+        ctx->exception_state.is_throwing = 1;
     }
 
     return val_null();
@@ -922,27 +934,27 @@ Value val_builtin_fn(BuiltinFn fn) {
     return v;
 }
 
-void register_builtins(Environment *env, int argc, char **argv) {
+void register_builtins(Environment *env, int argc, char **argv, ExecutionContext *ctx) {
     // Register type constants FIRST for use with sizeof() and talloc()
     // These must be registered before builtin functions to avoid conflicts
-    env_set(env, "i8", val_type(TYPE_I8));
-    env_set(env, "i16", val_type(TYPE_I16));
-    env_set(env, "i32", val_type(TYPE_I32));
-    env_set(env, "u8", val_type(TYPE_U8));
-    env_set(env, "u16", val_type(TYPE_U16));
-    env_set(env, "u32", val_type(TYPE_U32));
-    env_set(env, "f32", val_type(TYPE_F32));
-    env_set(env, "f64", val_type(TYPE_F64));
-    env_set(env, "ptr", val_type(TYPE_PTR));
+    env_set(env, "i8", val_type(TYPE_I8), ctx);
+    env_set(env, "i16", val_type(TYPE_I16), ctx);
+    env_set(env, "i32", val_type(TYPE_I32), ctx);
+    env_set(env, "u8", val_type(TYPE_U8), ctx);
+    env_set(env, "u16", val_type(TYPE_U16), ctx);
+    env_set(env, "u32", val_type(TYPE_U32), ctx);
+    env_set(env, "f32", val_type(TYPE_F32), ctx);
+    env_set(env, "f64", val_type(TYPE_F64), ctx);
+    env_set(env, "ptr", val_type(TYPE_PTR), ctx);
 
     // Type aliases
-    env_set(env, "integer", val_type(TYPE_I32));
-    env_set(env, "number", val_type(TYPE_F64));
-    env_set(env, "char", val_type(TYPE_U8));
+    env_set(env, "integer", val_type(TYPE_I32), ctx);
+    env_set(env, "number", val_type(TYPE_F64), ctx);
+    env_set(env, "char", val_type(TYPE_U8), ctx);
 
     // Register builtin functions (may overwrite some type names if there are conflicts)
     for (int i = 0; builtins[i].name != NULL; i++) {
-        env_set(env, builtins[i].name, val_builtin_fn(builtins[i].fn));
+        env_set(env, builtins[i].name, val_builtin_fn(builtins[i].fn), ctx);
     }
 
     // Register command-line arguments as 'args' array
@@ -950,5 +962,5 @@ void register_builtins(Environment *env, int argc, char **argv) {
     for (int i = 0; i < argc; i++) {
         array_push(args_array, val_string(argv[i]));
     }
-    env_set(env, "args", val_array(args_array));
+    env_set(env, "args", val_array(args_array), ctx);
 }

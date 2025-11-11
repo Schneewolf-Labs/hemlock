@@ -934,7 +934,8 @@ Value call_string_method(String *str, const char *method, Value *args, int num_a
 
 // ========== I/O BUILTIN FUNCTIONS ==========
 
-Value builtin_read_file(Value *args, int num_args) {
+Value builtin_read_file(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 1 || args[0].type != VAL_STRING) {
         fprintf(stderr, "Runtime error: read_file() expects 1 string argument (path)\n");
         exit(1);
@@ -968,7 +969,8 @@ Value builtin_read_file(Value *args, int num_args) {
     return (Value){ .type = VAL_STRING, .as.as_string = str };
 }
 
-Value builtin_write_file(Value *args, int num_args) {
+Value builtin_write_file(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 2) {
         fprintf(stderr, "Runtime error: write_file() expects 2 arguments (path, content)\n");
         exit(1);
@@ -1005,7 +1007,8 @@ Value builtin_write_file(Value *args, int num_args) {
     return val_null();
 }
 
-Value builtin_append_file(Value *args, int num_args) {
+Value builtin_append_file(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 2) {
         fprintf(stderr, "Runtime error: append_file() expects 2 arguments (path, content)\n");
         exit(1);
@@ -1042,7 +1045,8 @@ Value builtin_append_file(Value *args, int num_args) {
     return val_null();
 }
 
-Value builtin_read_bytes(Value *args, int num_args) {
+Value builtin_read_bytes(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 1 || args[0].type != VAL_STRING) {
         fprintf(stderr, "Runtime error: read_bytes() expects 1 string argument (path)\n");
         exit(1);
@@ -1075,7 +1079,8 @@ Value builtin_read_bytes(Value *args, int num_args) {
     return (Value){ .type = VAL_BUFFER, .as.as_buffer = buf };
 }
 
-Value builtin_write_bytes(Value *args, int num_args) {
+Value builtin_write_bytes(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 2) {
         fprintf(stderr, "Runtime error: write_bytes() expects 2 arguments (path, data)\n");
         exit(1);
@@ -1106,7 +1111,8 @@ Value builtin_write_bytes(Value *args, int num_args) {
     return val_null();
 }
 
-Value builtin_file_exists(Value *args, int num_args) {
+Value builtin_file_exists(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 1 || args[0].type != VAL_STRING) {
         fprintf(stderr, "Runtime error: file_exists() expects 1 string argument\n");
         exit(1);
@@ -1122,7 +1128,8 @@ Value builtin_file_exists(Value *args, int num_args) {
     return val_bool(0);
 }
 
-Value builtin_read_line(Value *args, int num_args) {
+Value builtin_read_line(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     (void)args;
     if (num_args != 0) {
         fprintf(stderr, "Runtime error: read_line() expects no arguments\n");
@@ -1156,7 +1163,8 @@ Value builtin_read_line(Value *args, int num_args) {
     return (Value){ .type = VAL_STRING, .as.as_string = str };
 }
 
-Value builtin_eprint(Value *args, int num_args) {
+Value builtin_eprint(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: eprint() expects 1 argument\n");
         exit(1);
@@ -1206,7 +1214,8 @@ Value builtin_eprint(Value *args, int num_args) {
     return val_null();
 }
 
-Value builtin_open(Value *args, int num_args) {
+Value builtin_open(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused
     if (num_args < 1 || num_args > 2) {
         fprintf(stderr, "Runtime error: open() expects 1-2 arguments (path, [mode])\n");
         exit(1);

@@ -73,15 +73,15 @@ static void env_grow(Environment *env) {
 }
 
 // Define a new variable (for let/const declarations)
-void env_define(Environment *env, const char *name, Value value, int is_const) {
+void env_define(Environment *env, const char *name, Value value, int is_const, ExecutionContext *ctx) {
     // Check if variable already exists in current scope
     for (int i = 0; i < env->count; i++) {
         if (strcmp(env->names[i], name) == 0) {
             // Throw exception instead of exiting
             char error_msg[256];
             snprintf(error_msg, sizeof(error_msg), "Variable '%s' already defined in this scope", name);
-            exception_state.exception_value = val_string(error_msg);
-            exception_state.is_throwing = 1;
+            ctx->exception_state.exception_value = val_string(error_msg);
+            ctx->exception_state.is_throwing = 1;
             return;
         }
     }
@@ -98,7 +98,7 @@ void env_define(Environment *env, const char *name, Value value, int is_const) {
 }
 
 // Set a variable (for reassignment or implicit definition in loops/functions)
-void env_set(Environment *env, const char *name, Value value) {
+void env_set(Environment *env, const char *name, Value value, ExecutionContext *ctx) {
     // Check current scope
     for (int i = 0; i < env->count; i++) {
         if (strcmp(env->names[i], name) == 0) {
@@ -107,8 +107,8 @@ void env_set(Environment *env, const char *name, Value value) {
                 // Throw exception instead of exiting
                 char error_msg[256];
                 snprintf(error_msg, sizeof(error_msg), "Cannot assign to const variable '%s'", name);
-                exception_state.exception_value = val_string(error_msg);
-                exception_state.is_throwing = 1;
+                ctx->exception_state.exception_value = val_string(error_msg);
+                ctx->exception_state.is_throwing = 1;
                 return;
             }
             env->values[i] = value;
@@ -128,8 +128,8 @@ void env_set(Environment *env, const char *name, Value value) {
                         // Throw exception instead of exiting
                         char error_msg[256];
                         snprintf(error_msg, sizeof(error_msg), "Cannot assign to const variable '%s'", name);
-                        exception_state.exception_value = val_string(error_msg);
-                        exception_state.is_throwing = 1;
+                        ctx->exception_state.exception_value = val_string(error_msg);
+                        ctx->exception_state.is_throwing = 1;
                         return;
                     }
                     // Update parent scope variable
@@ -153,7 +153,7 @@ void env_set(Environment *env, const char *name, Value value) {
     env->count++;
 }
 
-Value env_get(Environment *env, const char *name) {
+Value env_get(Environment *env, const char *name, ExecutionContext *ctx) {
     // Search current scope
     for (int i = 0; i < env->count; i++) {
         if (strcmp(env->names[i], name) == 0) {
@@ -163,13 +163,13 @@ Value env_get(Environment *env, const char *name) {
 
     // Search parent scope
     if (env->parent != NULL) {
-        return env_get(env->parent, name);
+        return env_get(env->parent, name, ctx);
     }
 
     // Variable not found - throw exception instead of exiting
     char error_msg[256];
     snprintf(error_msg, sizeof(error_msg), "Undefined variable '%s'", name);
-    exception_state.exception_value = val_string(error_msg);
-    exception_state.is_throwing = 1;
+    ctx->exception_state.exception_value = val_string(error_msg);
+    ctx->exception_state.is_throwing = 1;
     return val_null();  // Return dummy value when exception is thrown
 }

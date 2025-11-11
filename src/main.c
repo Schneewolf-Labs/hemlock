@@ -59,10 +59,16 @@ static void run_source(const char *source, int argc, char **argv) {
 
     // Interpret
     Environment *env = env_new(NULL);
-    register_builtins(env, argc, argv);
-    eval_program(statements, stmt_count, env);
+
+    // Create execution context
+    ExecutionContext *ctx = exec_context_new();
+
+    register_builtins(env, argc, argv, ctx);
+
+    eval_program(statements, stmt_count, env, ctx);
 
     // Cleanup
+    exec_context_free(ctx);
     env_free(env);
     for (int i = 0; i < stmt_count; i++) {
         stmt_free(statements[i]);
@@ -83,58 +89,63 @@ static void run_file(const char *path, int argc, char **argv) {
 static void run_repl(void) {
     char line[1024];
     Environment *env = env_new(NULL);
-    register_builtins(env, 0, NULL);
+
+    // Create execution context for REPL (persists across lines)
+    ExecutionContext *ctx = exec_context_new();
+
+    register_builtins(env, 0, NULL, ctx);
 
     printf("Hemlock v0.1 REPL\n");
     printf("Type 'exit' to quit\n\n");
-    
+
     for (;;) {
         printf(">>> ");
-        
+
         if (!fgets(line, sizeof(line), stdin)) {
             printf("\n");
             break;
         }
-        
+
         // Remove newline
         line[strcspn(line, "\n")] = 0;
-        
+
         // Check for exit
         if (strcmp(line, "exit") == 0) {
             break;
         }
-        
+
         // Skip empty lines
         if (strlen(line) == 0) {
             continue;
         }
-        
+
         // Parse and execute
         Lexer lexer;
         lexer_init(&lexer, line);
-        
+
         Parser parser;
         parser_init(&parser, &lexer);
-        
+
         int stmt_count;
         Stmt **statements = parse_program(&parser, &stmt_count);
-        
+
         if (parser.had_error) {
             continue;
         }
-        
+
         // Execute
         for (int i = 0; i < stmt_count; i++) {
-            eval_stmt(statements[i], env);
+            eval_stmt(statements[i], env, ctx);
         }
-        
+
         // Cleanup
         for (int i = 0; i < stmt_count; i++) {
             stmt_free(statements[i]);
         }
         free(statements);
     }
-    
+
+    exec_context_free(ctx);
     env_free(env);
 }
 

@@ -4,71 +4,89 @@
 #include <string.h>
 #include <math.h>
 
-// ========== CONTROL FLOW STATE ==========
+// ========== EXECUTION CONTEXT IMPLEMENTATION ==========
 
-ReturnState return_state = {0};
-LoopState loop_state = {0};
-ExceptionState exception_state = {0};
-CallStack call_stack = {0};
+ExecutionContext* exec_context_new(void) {
+    ExecutionContext *ctx = malloc(sizeof(ExecutionContext));
+    if (!ctx) {
+        fprintf(stderr, "Fatal error: Failed to allocate execution context\n");
+        exit(1);
+    }
+    ctx->return_state.is_returning = 0;
+    ctx->return_state.return_value = val_null();
+    ctx->loop_state.is_breaking = 0;
+    ctx->loop_state.is_continuing = 0;
+    ctx->exception_state.is_throwing = 0;
+    ctx->exception_state.exception_value = val_null();
+    call_stack_init(&ctx->call_stack);
+    return ctx;
+}
+
+void exec_context_free(ExecutionContext *ctx) {
+    if (ctx) {
+        call_stack_free(&ctx->call_stack);
+        free(ctx);
+    }
+}
 
 // ========== CALL STACK IMPLEMENTATION ==========
 
-void call_stack_init(void) {
-    call_stack.capacity = 64;
-    call_stack.count = 0;
-    call_stack.frames = malloc(sizeof(CallFrame) * call_stack.capacity);
-    if (!call_stack.frames) {
+void call_stack_init(CallStack *stack) {
+    stack->capacity = 64;
+    stack->count = 0;
+    stack->frames = malloc(sizeof(CallFrame) * stack->capacity);
+    if (!stack->frames) {
         fprintf(stderr, "Fatal error: Failed to initialize call stack\n");
         exit(1);
     }
 }
 
-void call_stack_push(const char *function_name) {
-    if (call_stack.capacity == 0) {
-        call_stack_init();
+void call_stack_push(CallStack *stack, const char *function_name) {
+    if (stack->capacity == 0) {
+        call_stack_init(stack);
     }
 
-    if (call_stack.count >= call_stack.capacity) {
-        call_stack.capacity *= 2;
-        CallFrame *new_frames = realloc(call_stack.frames, sizeof(CallFrame) * call_stack.capacity);
+    if (stack->count >= stack->capacity) {
+        stack->capacity *= 2;
+        CallFrame *new_frames = realloc(stack->frames, sizeof(CallFrame) * stack->capacity);
         if (!new_frames) {
             fprintf(stderr, "Fatal error: Failed to grow call stack\n");
             exit(1);
         }
-        call_stack.frames = new_frames;
+        stack->frames = new_frames;
     }
 
-    call_stack.frames[call_stack.count].function_name = strdup(function_name);
-    call_stack.frames[call_stack.count].line = 0;  // TODO: Add line tracking
-    call_stack.count++;
+    stack->frames[stack->count].function_name = strdup(function_name);
+    stack->frames[stack->count].line = 0;  // TODO: Add line tracking
+    stack->count++;
 }
 
-void call_stack_pop(void) {
-    if (call_stack.count > 0) {
-        call_stack.count--;
-        free(call_stack.frames[call_stack.count].function_name);
+void call_stack_pop(CallStack *stack) {
+    if (stack->count > 0) {
+        stack->count--;
+        free(stack->frames[stack->count].function_name);
     }
 }
 
-void call_stack_print(void) {
-    if (call_stack.count == 0) {
+void call_stack_print(CallStack *stack) {
+    if (stack->count == 0) {
         return;
     }
 
     fprintf(stderr, "\nStack trace (most recent call first):\n");
-    for (int i = call_stack.count - 1; i >= 0; i--) {
-        fprintf(stderr, "  at %s()\n", call_stack.frames[i].function_name);
+    for (int i = stack->count - 1; i >= 0; i--) {
+        fprintf(stderr, "  at %s()\n", stack->frames[i].function_name);
     }
 }
 
-void call_stack_free(void) {
-    for (int i = 0; i < call_stack.count; i++) {
-        free(call_stack.frames[i].function_name);
+void call_stack_free(CallStack *stack) {
+    for (int i = 0; i < stack->count; i++) {
+        free(stack->frames[i].function_name);
     }
-    free(call_stack.frames);
-    call_stack.frames = NULL;
-    call_stack.count = 0;
-    call_stack.capacity = 0;
+    free(stack->frames);
+    stack->frames = NULL;
+    stack->count = 0;
+    stack->capacity = 0;
 }
 
 // ========== HELPER FUNCTIONS ==========
@@ -105,7 +123,7 @@ static Value value_sub_one(Value val) {
 
 // ========== EXPRESSION EVALUATION ==========
 
-Value eval_expr(Expr *expr, Environment *env) {
+Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
     switch (expr->type) {
         case EXPR_NUMBER:
             if (expr->as.number.is_float) {
@@ -125,7 +143,7 @@ Value eval_expr(Expr *expr, Environment *env) {
             return val_string(expr->as.string);
 
         case EXPR_UNARY: {
-            Value operand = eval_expr(expr->as.unary.operand, env);
+            Value operand = eval_expr(expr->as.unary.operand, env, ctx);
 
             switch (expr->as.unary.op) {
                 case UNARY_NOT:
@@ -144,44 +162,44 @@ Value eval_expr(Expr *expr, Environment *env) {
         }
 
         case EXPR_TERNARY: {
-            Value condition = eval_expr(expr->as.ternary.condition, env);
+            Value condition = eval_expr(expr->as.ternary.condition, env, ctx);
             if (value_is_truthy(condition)) {
-                return eval_expr(expr->as.ternary.true_expr, env);
+                return eval_expr(expr->as.ternary.true_expr, env, ctx);
             } else {
-                return eval_expr(expr->as.ternary.false_expr, env);
+                return eval_expr(expr->as.ternary.false_expr, env, ctx);
             }
         }
 
         case EXPR_IDENT:
-            return env_get(env, expr->as.ident);
+            return env_get(env, expr->as.ident, ctx);
 
         case EXPR_ASSIGN: {
-            Value value = eval_expr(expr->as.assign.value, env);
-            env_set(env, expr->as.assign.name, value);
+            Value value = eval_expr(expr->as.assign.value, env, ctx);
+            env_set(env, expr->as.assign.name, value, ctx);
             return value;
         }
 
         case EXPR_BINARY: {
             // Handle && and || with short-circuit evaluation
             if (expr->as.binary.op == OP_AND) {
-                Value left = eval_expr(expr->as.binary.left, env);
+                Value left = eval_expr(expr->as.binary.left, env, ctx);
                 if (!value_is_truthy(left)) return val_bool(0);
 
-                Value right = eval_expr(expr->as.binary.right, env);
+                Value right = eval_expr(expr->as.binary.right, env, ctx);
                 return val_bool(value_is_truthy(right));
             }
 
             if (expr->as.binary.op == OP_OR) {
-                Value left = eval_expr(expr->as.binary.left, env);
+                Value left = eval_expr(expr->as.binary.left, env, ctx);
                 if (value_is_truthy(left)) return val_bool(1);
 
-                Value right = eval_expr(expr->as.binary.right, env);
+                Value right = eval_expr(expr->as.binary.right, env, ctx);
                 return val_bool(value_is_truthy(right));
             }
 
             // Evaluate both operands
-            Value left = eval_expr(expr->as.binary.left, env);
-            Value right = eval_expr(expr->as.binary.right, env);
+            Value left = eval_expr(expr->as.binary.left, env, ctx);
+            Value right = eval_expr(expr->as.binary.right, env, ctx);
 
             // String concatenation
             if (expr->as.binary.op == OP_ADD && left.type == VAL_STRING && right.type == VAL_STRING) {
@@ -287,7 +305,7 @@ Value eval_expr(Expr *expr, Environment *env) {
 
             if (expr->as.call.func->type == EXPR_GET_PROPERTY) {
                 is_method_call = 1;
-                method_self = eval_expr(expr->as.call.func->as.get_property.object, env);
+                method_self = eval_expr(expr->as.call.func->as.get_property.object, env, ctx);
 
                 // Special handling for file methods
                 if (method_self.type == VAL_FILE) {
@@ -298,7 +316,7 @@ Value eval_expr(Expr *expr, Environment *env) {
                     if (expr->as.call.num_args > 0) {
                         args = malloc(sizeof(Value) * expr->as.call.num_args);
                         for (int i = 0; i < expr->as.call.num_args; i++) {
-                            args[i] = eval_expr(expr->as.call.args[i], env);
+                            args[i] = eval_expr(expr->as.call.args[i], env, ctx);
                         }
                     }
 
@@ -316,7 +334,7 @@ Value eval_expr(Expr *expr, Environment *env) {
                     if (expr->as.call.num_args > 0) {
                         args = malloc(sizeof(Value) * expr->as.call.num_args);
                         for (int i = 0; i < expr->as.call.num_args; i++) {
-                            args[i] = eval_expr(expr->as.call.args[i], env);
+                            args[i] = eval_expr(expr->as.call.args[i], env, ctx);
                         }
                     }
 
@@ -334,7 +352,7 @@ Value eval_expr(Expr *expr, Environment *env) {
                     if (expr->as.call.num_args > 0) {
                         args = malloc(sizeof(Value) * expr->as.call.num_args);
                         for (int i = 0; i < expr->as.call.num_args; i++) {
-                            args[i] = eval_expr(expr->as.call.args[i], env);
+                            args[i] = eval_expr(expr->as.call.args[i], env, ctx);
                         }
                     }
 
@@ -345,14 +363,14 @@ Value eval_expr(Expr *expr, Environment *env) {
             }
 
             // Evaluate the function expression
-            Value func = eval_expr(expr->as.call.func, env);
+            Value func = eval_expr(expr->as.call.func, env, ctx);
 
             // Evaluate arguments
             Value *args = NULL;
             if (expr->as.call.num_args > 0) {
                 args = malloc(sizeof(Value) * expr->as.call.num_args);
                 for (int i = 0; i < expr->as.call.num_args; i++) {
-                    args[i] = eval_expr(expr->as.call.args[i], env);
+                    args[i] = eval_expr(expr->as.call.args[i], env, ctx);
                 }
             }
 
@@ -361,7 +379,7 @@ Value eval_expr(Expr *expr, Environment *env) {
             if (func.type == VAL_BUILTIN_FN) {
                 // Call builtin function
                 BuiltinFn fn = func.as.as_builtin_fn;
-                result = fn(args, expr->as.call.num_args);
+                result = fn(args, expr->as.call.num_args, ctx);
             } else if (func.type == VAL_FUNCTION) {
                 // Call user-defined function
                 Function *fn = func.as.as_function;
@@ -382,14 +400,14 @@ Value eval_expr(Expr *expr, Environment *env) {
                 }
 
                 // Push call onto stack trace
-                call_stack_push(fn_name);
+                call_stack_push(&ctx->call_stack, fn_name);
 
                 // Create call environment with closure_env as parent
                 Environment *call_env = env_new(fn->closure_env);
 
                 // Inject 'self' if this is a method call
                 if (is_method_call) {
-                    env_set(call_env, "self", method_self);
+                    env_set(call_env, "self", method_self, ctx);
                 }
 
                 // Bind parameters
@@ -398,34 +416,34 @@ Value eval_expr(Expr *expr, Environment *env) {
 
                     // Type check if parameter has type annotation
                     if (fn->param_types[i]) {
-                        arg_value = convert_to_type(arg_value, fn->param_types[i], call_env);
+                        arg_value = convert_to_type(arg_value, fn->param_types[i], call_env, ctx);
                     }
 
-                    env_set(call_env, fn->param_names[i], arg_value);
+                    env_set(call_env, fn->param_names[i], arg_value, ctx);
                 }
 
                 // Execute body
-                return_state.is_returning = 0;
-                eval_stmt(fn->body, call_env);
+                ctx->return_state.is_returning = 0;
+                eval_stmt(fn->body, call_env, ctx);
 
                 // Get result
-                result = return_state.return_value;
+                result = ctx->return_state.return_value;
 
                 // Check return type if specified
                 if (fn->return_type) {
-                    if (!return_state.is_returning) {
+                    if (!ctx->return_state.is_returning) {
                         fprintf(stderr, "Runtime error: Function with return type must return a value\n");
                         exit(1);
                     }
-                    result = convert_to_type(result, fn->return_type, call_env);
+                    result = convert_to_type(result, fn->return_type, call_env, ctx);
                 }
 
                 // Reset return state
-                return_state.is_returning = 0;
+                ctx->return_state.is_returning = 0;
 
                 // Pop call from stack trace (but not if exception is active - preserve stack for error reporting)
-                if (!exception_state.is_throwing) {
-                    call_stack_pop();
+                if (!ctx->exception_state.is_throwing) {
+                    call_stack_pop(&ctx->call_stack);
                 }
 
                 // Cleanup
@@ -442,7 +460,7 @@ Value eval_expr(Expr *expr, Environment *env) {
         }
 
         case EXPR_GET_PROPERTY: {
-            Value object = eval_expr(expr->as.get_property.object, env);
+            Value object = eval_expr(expr->as.get_property.object, env, ctx);
             const char *property = expr->as.get_property.property;
 
             if (object.type == VAL_STRING) {
@@ -492,8 +510,8 @@ Value eval_expr(Expr *expr, Environment *env) {
         }
 
         case EXPR_INDEX: {
-            Value object = eval_expr(expr->as.index.object, env);
-            Value index_val = eval_expr(expr->as.index.index, env);
+            Value object = eval_expr(expr->as.index.object, env, ctx);
+            Value index_val = eval_expr(expr->as.index.index, env, ctx);
 
             if (!is_integer(index_val)) {
                 fprintf(stderr, "Runtime error: Index must be an integer\n");
@@ -534,9 +552,9 @@ Value eval_expr(Expr *expr, Environment *env) {
         }
 
         case EXPR_INDEX_ASSIGN: {
-            Value object = eval_expr(expr->as.index_assign.object, env);
-            Value index_val = eval_expr(expr->as.index_assign.index, env);
-            Value value = eval_expr(expr->as.index_assign.value, env);
+            Value object = eval_expr(expr->as.index_assign.object, env, ctx);
+            Value index_val = eval_expr(expr->as.index_assign.index, env, ctx);
+            Value value = eval_expr(expr->as.index_assign.value, env, ctx);
 
             if (!is_integer(index_val)) {
                 fprintf(stderr, "Runtime error: Index must be an integer\n");
@@ -630,7 +648,7 @@ Value eval_expr(Expr *expr, Environment *env) {
             Array *arr = array_new();
 
             for (int i = 0; i < expr->as.array_literal.num_elements; i++) {
-                Value element = eval_expr(expr->as.array_literal.elements[i], env);
+                Value element = eval_expr(expr->as.array_literal.elements[i], env, ctx);
                 array_push(arr, element);
             }
 
@@ -644,7 +662,7 @@ Value eval_expr(Expr *expr, Environment *env) {
             // Evaluate and store fields
             for (int i = 0; i < expr->as.object_literal.num_fields; i++) {
                 obj->field_names[i] = strdup(expr->as.object_literal.field_names[i]);
-                obj->field_values[i] = eval_expr(expr->as.object_literal.field_values[i], env);
+                obj->field_values[i] = eval_expr(expr->as.object_literal.field_values[i], env, ctx);
                 obj->num_fields++;
             }
 
@@ -652,9 +670,9 @@ Value eval_expr(Expr *expr, Environment *env) {
         }
 
         case EXPR_SET_PROPERTY: {
-            Value object = eval_expr(expr->as.set_property.object, env);
+            Value object = eval_expr(expr->as.set_property.object, env, ctx);
             const char *property = expr->as.set_property.property;
-            Value value = eval_expr(expr->as.set_property.value, env);
+            Value value = eval_expr(expr->as.set_property.value, env, ctx);
 
             if (object.type != VAL_OBJECT) {
                 fprintf(stderr, "Runtime error: Only objects can have properties set\n");
@@ -692,14 +710,14 @@ Value eval_expr(Expr *expr, Environment *env) {
 
             if (operand->type == EXPR_IDENT) {
                 // Simple variable: ++x
-                Value old_val = env_get(env, operand->as.ident);
+                Value old_val = env_get(env, operand->as.ident, ctx);
                 Value new_val = value_add_one(old_val);
-                env_set(env, operand->as.ident, new_val);
+                env_set(env, operand->as.ident, new_val, ctx);
                 return new_val;
             } else if (operand->type == EXPR_INDEX) {
                 // Array/buffer/string index: ++arr[i]
-                Value object = eval_expr(operand->as.index.object, env);
-                Value index_val = eval_expr(operand->as.index.index, env);
+                Value object = eval_expr(operand->as.index.object, env, ctx);
+                Value index_val = eval_expr(operand->as.index.index, env, ctx);
 
                 if (!is_integer(index_val)) {
                     fprintf(stderr, "Runtime error: Index must be an integer\n");
@@ -718,7 +736,7 @@ Value eval_expr(Expr *expr, Environment *env) {
                 }
             } else if (operand->type == EXPR_GET_PROPERTY) {
                 // Object property: ++obj.field
-                Value object = eval_expr(operand->as.get_property.object, env);
+                Value object = eval_expr(operand->as.get_property.object, env, ctx);
                 const char *property = operand->as.get_property.property;
                 if (object.type != VAL_OBJECT) {
                     fprintf(stderr, "Runtime error: Can only increment object properties\n");
@@ -746,13 +764,13 @@ Value eval_expr(Expr *expr, Environment *env) {
             Expr *operand = expr->as.prefix_dec.operand;
 
             if (operand->type == EXPR_IDENT) {
-                Value old_val = env_get(env, operand->as.ident);
+                Value old_val = env_get(env, operand->as.ident, ctx);
                 Value new_val = value_sub_one(old_val);
-                env_set(env, operand->as.ident, new_val);
+                env_set(env, operand->as.ident, new_val, ctx);
                 return new_val;
             } else if (operand->type == EXPR_INDEX) {
-                Value object = eval_expr(operand->as.index.object, env);
-                Value index_val = eval_expr(operand->as.index.index, env);
+                Value object = eval_expr(operand->as.index.object, env, ctx);
+                Value index_val = eval_expr(operand->as.index.index, env, ctx);
 
                 if (!is_integer(index_val)) {
                     fprintf(stderr, "Runtime error: Index must be an integer\n");
@@ -770,7 +788,7 @@ Value eval_expr(Expr *expr, Environment *env) {
                     exit(1);
                 }
             } else if (operand->type == EXPR_GET_PROPERTY) {
-                Value object = eval_expr(operand->as.get_property.object, env);
+                Value object = eval_expr(operand->as.get_property.object, env, ctx);
                 const char *property = operand->as.get_property.property;
                 if (object.type != VAL_OBJECT) {
                     fprintf(stderr, "Runtime error: Can only decrement object properties\n");
@@ -798,13 +816,13 @@ Value eval_expr(Expr *expr, Environment *env) {
             Expr *operand = expr->as.postfix_inc.operand;
 
             if (operand->type == EXPR_IDENT) {
-                Value old_val = env_get(env, operand->as.ident);
+                Value old_val = env_get(env, operand->as.ident, ctx);
                 Value new_val = value_add_one(old_val);
-                env_set(env, operand->as.ident, new_val);
+                env_set(env, operand->as.ident, new_val, ctx);
                 return old_val;  // Return old value!
             } else if (operand->type == EXPR_INDEX) {
-                Value object = eval_expr(operand->as.index.object, env);
-                Value index_val = eval_expr(operand->as.index.index, env);
+                Value object = eval_expr(operand->as.index.object, env, ctx);
+                Value index_val = eval_expr(operand->as.index.index, env, ctx);
 
                 if (!is_integer(index_val)) {
                     fprintf(stderr, "Runtime error: Index must be an integer\n");
@@ -822,7 +840,7 @@ Value eval_expr(Expr *expr, Environment *env) {
                     exit(1);
                 }
             } else if (operand->type == EXPR_GET_PROPERTY) {
-                Value object = eval_expr(operand->as.get_property.object, env);
+                Value object = eval_expr(operand->as.get_property.object, env, ctx);
                 const char *property = operand->as.get_property.property;
                 if (object.type != VAL_OBJECT) {
                     fprintf(stderr, "Runtime error: Can only increment object properties\n");
@@ -850,13 +868,13 @@ Value eval_expr(Expr *expr, Environment *env) {
             Expr *operand = expr->as.postfix_dec.operand;
 
             if (operand->type == EXPR_IDENT) {
-                Value old_val = env_get(env, operand->as.ident);
+                Value old_val = env_get(env, operand->as.ident, ctx);
                 Value new_val = value_sub_one(old_val);
-                env_set(env, operand->as.ident, new_val);
+                env_set(env, operand->as.ident, new_val, ctx);
                 return old_val;
             } else if (operand->type == EXPR_INDEX) {
-                Value object = eval_expr(operand->as.index.object, env);
-                Value index_val = eval_expr(operand->as.index.index, env);
+                Value object = eval_expr(operand->as.index.object, env, ctx);
+                Value index_val = eval_expr(operand->as.index.index, env, ctx);
 
                 if (!is_integer(index_val)) {
                     fprintf(stderr, "Runtime error: Index must be an integer\n");
@@ -874,7 +892,7 @@ Value eval_expr(Expr *expr, Environment *env) {
                     exit(1);
                 }
             } else if (operand->type == EXPR_GET_PROPERTY) {
-                Value object = eval_expr(operand->as.get_property.object, env);
+                Value object = eval_expr(operand->as.get_property.object, env, ctx);
                 const char *property = operand->as.get_property.property;
                 if (object.type != VAL_OBJECT) {
                     fprintf(stderr, "Runtime error: Can only decrement object properties\n");
@@ -903,40 +921,40 @@ Value eval_expr(Expr *expr, Environment *env) {
 
 // ========== STATEMENT EVALUATION ==========
 
-void eval_stmt(Stmt *stmt, Environment *env) {
+void eval_stmt(Stmt *stmt, Environment *env, ExecutionContext *ctx) {
     switch (stmt->type) {
         case STMT_LET: {
-            Value value = eval_expr(stmt->as.let.value, env);
+            Value value = eval_expr(stmt->as.let.value, env, ctx);
             // If there's a type annotation, convert/check the value
             if (stmt->as.let.type_annotation != NULL) {
-                value = convert_to_type(value, stmt->as.let.type_annotation, env);
+                value = convert_to_type(value, stmt->as.let.type_annotation, env, ctx);
             }
-            env_define(env, stmt->as.let.name, value, 0);  // 0 = mutable
+            env_define(env, stmt->as.let.name, value, 0, ctx);  // 0 = mutable
             break;
         }
 
         case STMT_CONST: {
-            Value value = eval_expr(stmt->as.const_stmt.value, env);
+            Value value = eval_expr(stmt->as.const_stmt.value, env, ctx);
             // If there's a type annotation, convert/check the value
             if (stmt->as.const_stmt.type_annotation != NULL) {
-                value = convert_to_type(value, stmt->as.const_stmt.type_annotation, env);
+                value = convert_to_type(value, stmt->as.const_stmt.type_annotation, env, ctx);
             }
-            env_define(env, stmt->as.const_stmt.name, value, 1);  // 1 = const
+            env_define(env, stmt->as.const_stmt.name, value, 1, ctx);  // 1 = const
             break;
         }
 
         case STMT_EXPR: {
-            eval_expr(stmt->as.expr, env);
+            eval_expr(stmt->as.expr, env, ctx);
             break;
         }
 
         case STMT_IF: {
-            Value condition = eval_expr(stmt->as.if_stmt.condition, env);
+            Value condition = eval_expr(stmt->as.if_stmt.condition, env, ctx);
 
             if (value_is_truthy(condition)) {
-                eval_stmt(stmt->as.if_stmt.then_branch, env);
+                eval_stmt(stmt->as.if_stmt.then_branch, env, ctx);
             } else if (stmt->as.if_stmt.else_branch != NULL) {
-                eval_stmt(stmt->as.if_stmt.else_branch, env);
+                eval_stmt(stmt->as.if_stmt.else_branch, env, ctx);
             }
             // No need to check return here, it propagates automatically
             break;
@@ -944,22 +962,22 @@ void eval_stmt(Stmt *stmt, Environment *env) {
 
         case STMT_WHILE: {
             for (;;) {
-                Value condition = eval_expr(stmt->as.while_stmt.condition, env);
+                Value condition = eval_expr(stmt->as.while_stmt.condition, env, ctx);
 
                 if (!value_is_truthy(condition)) break;
 
-                eval_stmt(stmt->as.while_stmt.body, env);
+                eval_stmt(stmt->as.while_stmt.body, env, ctx);
 
                 // Check for break/continue/return/exception
-                if (loop_state.is_breaking) {
-                    loop_state.is_breaking = 0;
+                if (ctx->loop_state.is_breaking) {
+                    ctx->loop_state.is_breaking = 0;
                     break;
                 }
-                if (loop_state.is_continuing) {
-                    loop_state.is_continuing = 0;
+                if (ctx->loop_state.is_continuing) {
+                    ctx->loop_state.is_continuing = 0;
                     continue;
                 }
-                if (return_state.is_returning || exception_state.is_throwing) {
+                if (ctx->return_state.is_returning || ctx->exception_state.is_throwing) {
                     break;
                 }
             }
@@ -972,38 +990,38 @@ void eval_stmt(Stmt *stmt, Environment *env) {
 
             // Execute initializer
             if (stmt->as.for_loop.initializer) {
-                eval_stmt(stmt->as.for_loop.initializer, loop_env);
+                eval_stmt(stmt->as.for_loop.initializer, loop_env, ctx);
             }
 
             // Loop
             for (;;) {
                 // Check condition
                 if (stmt->as.for_loop.condition) {
-                    Value cond = eval_expr(stmt->as.for_loop.condition, loop_env);
+                    Value cond = eval_expr(stmt->as.for_loop.condition, loop_env, ctx);
                     if (!value_is_truthy(cond)) {
                         break;
                     }
                 }
 
                 // Execute body
-                eval_stmt(stmt->as.for_loop.body, loop_env);
+                eval_stmt(stmt->as.for_loop.body, loop_env, ctx);
 
                 // Check for break/continue/return/exception
-                if (loop_state.is_breaking) {
-                    loop_state.is_breaking = 0;
+                if (ctx->loop_state.is_breaking) {
+                    ctx->loop_state.is_breaking = 0;
                     break;
                 }
-                if (loop_state.is_continuing) {
-                    loop_state.is_continuing = 0;
+                if (ctx->loop_state.is_continuing) {
+                    ctx->loop_state.is_continuing = 0;
                     // Fall through to increment
                 }
-                if (return_state.is_returning || exception_state.is_throwing) {
+                if (ctx->return_state.is_returning || ctx->exception_state.is_throwing) {
                     break;
                 }
 
                 // Execute increment
                 if (stmt->as.for_loop.increment) {
-                    eval_expr(stmt->as.for_loop.increment, loop_env);
+                    eval_expr(stmt->as.for_loop.increment, loop_env, ctx);
                 }
             }
 
@@ -1012,7 +1030,7 @@ void eval_stmt(Stmt *stmt, Environment *env) {
         }
 
         case STMT_FOR_IN: {
-            Value iterable = eval_expr(stmt->as.for_in.iterable, env);
+            Value iterable = eval_expr(stmt->as.for_in.iterable, env, ctx);
 
             Environment *loop_env = env_new(env);
 
@@ -1022,23 +1040,23 @@ void eval_stmt(Stmt *stmt, Environment *env) {
                 for (int i = 0; i < arr->length; i++) {
                     // Bind variables
                     if (stmt->as.for_in.key_var) {
-                        env_set(loop_env, stmt->as.for_in.key_var, val_i32(i));
+                        env_set(loop_env, stmt->as.for_in.key_var, val_i32(i), ctx);
                     }
-                    env_set(loop_env, stmt->as.for_in.value_var, arr->elements[i]);
+                    env_set(loop_env, stmt->as.for_in.value_var, arr->elements[i], ctx);
 
                     // Execute body
-                    eval_stmt(stmt->as.for_in.body, loop_env);
+                    eval_stmt(stmt->as.for_in.body, loop_env, ctx);
 
                     // Check break/continue/return/exception
-                    if (loop_state.is_breaking) {
-                        loop_state.is_breaking = 0;
+                    if (ctx->loop_state.is_breaking) {
+                        ctx->loop_state.is_breaking = 0;
                         break;
                     }
-                    if (loop_state.is_continuing) {
-                        loop_state.is_continuing = 0;
+                    if (ctx->loop_state.is_continuing) {
+                        ctx->loop_state.is_continuing = 0;
                         continue;
                     }
-                    if (return_state.is_returning || exception_state.is_throwing) {
+                    if (ctx->return_state.is_returning || ctx->exception_state.is_throwing) {
                         break;
                     }
                 }
@@ -1048,23 +1066,23 @@ void eval_stmt(Stmt *stmt, Environment *env) {
                 for (int i = 0; i < obj->num_fields; i++) {
                     // Bind variables
                     if (stmt->as.for_in.key_var) {
-                        env_set(loop_env, stmt->as.for_in.key_var, val_string(obj->field_names[i]));
+                        env_set(loop_env, stmt->as.for_in.key_var, val_string(obj->field_names[i]), ctx);
                     }
-                    env_set(loop_env, stmt->as.for_in.value_var, obj->field_values[i]);
+                    env_set(loop_env, stmt->as.for_in.value_var, obj->field_values[i], ctx);
 
                     // Execute body
-                    eval_stmt(stmt->as.for_in.body, loop_env);
+                    eval_stmt(stmt->as.for_in.body, loop_env, ctx);
 
                     // Check break/continue/return/exception
-                    if (loop_state.is_breaking) {
-                        loop_state.is_breaking = 0;
+                    if (ctx->loop_state.is_breaking) {
+                        ctx->loop_state.is_breaking = 0;
                         break;
                     }
-                    if (loop_state.is_continuing) {
-                        loop_state.is_continuing = 0;
+                    if (ctx->loop_state.is_continuing) {
+                        ctx->loop_state.is_continuing = 0;
                         continue;
                     }
-                    if (return_state.is_returning || exception_state.is_throwing) {
+                    if (ctx->return_state.is_returning || ctx->exception_state.is_throwing) {
                         break;
                     }
                 }
@@ -1078,19 +1096,19 @@ void eval_stmt(Stmt *stmt, Environment *env) {
         }
 
         case STMT_BREAK:
-            loop_state.is_breaking = 1;
+            ctx->loop_state.is_breaking = 1;
             break;
 
         case STMT_CONTINUE:
-            loop_state.is_continuing = 1;
+            ctx->loop_state.is_continuing = 1;
             break;
 
         case STMT_BLOCK: {
             for (int i = 0; i < stmt->as.block.count; i++) {
-                eval_stmt(stmt->as.block.statements[i], env);
+                eval_stmt(stmt->as.block.statements[i], env, ctx);
                 // Check if a return/break/continue/exception happened
-                if (return_state.is_returning || loop_state.is_breaking ||
-                    loop_state.is_continuing || exception_state.is_throwing) {
+                if (ctx->return_state.is_returning || ctx->loop_state.is_breaking ||
+                    ctx->loop_state.is_continuing || ctx->exception_state.is_throwing) {
                     break;
                 }
             }
@@ -1100,11 +1118,11 @@ void eval_stmt(Stmt *stmt, Environment *env) {
         case STMT_RETURN: {
             // Evaluate return value (or null if none)
             if (stmt->as.return_stmt.value) {
-                return_state.return_value = eval_expr(stmt->as.return_stmt.value, env);
+                ctx->return_state.return_value = eval_expr(stmt->as.return_stmt.value, env, ctx);
             } else {
-                return_state.return_value = val_null();
+                ctx->return_state.return_value = val_null();
             }
-            return_state.is_returning = 1;
+            ctx->return_state.is_returning = 1;
             break;
         }
 
@@ -1134,21 +1152,21 @@ void eval_stmt(Stmt *stmt, Environment *env) {
 
         case STMT_TRY: {
             // Execute try block
-            eval_stmt(stmt->as.try_stmt.try_block, env);
+            eval_stmt(stmt->as.try_stmt.try_block, env, ctx);
 
             // Check if exception was thrown
-            if (exception_state.is_throwing) {
+            if (ctx->exception_state.is_throwing) {
                 // Exception thrown - execute catch block if present
                 if (stmt->as.try_stmt.catch_block != NULL) {
                     // Create new scope for catch parameter
                     Environment *catch_env = env_new(env);
-                    env_set(catch_env, stmt->as.try_stmt.catch_param, exception_state.exception_value);
+                    env_set(catch_env, stmt->as.try_stmt.catch_param, ctx->exception_state.exception_value, ctx);
 
                     // Clear exception state
-                    exception_state.is_throwing = 0;
+                    ctx->exception_state.is_throwing = 0;
 
                     // Execute catch block
-                    eval_stmt(stmt->as.try_stmt.catch_block, catch_env);
+                    eval_stmt(stmt->as.try_stmt.catch_block, catch_env, ctx);
 
                     env_free(catch_env);
                 }
@@ -1157,31 +1175,31 @@ void eval_stmt(Stmt *stmt, Environment *env) {
             // Execute finally block if present (always executes)
             if (stmt->as.try_stmt.finally_block != NULL) {
                 // Save current state (return/exception/break/continue)
-                int was_returning = return_state.is_returning;
-                Value saved_return = return_state.return_value;
-                int was_throwing = exception_state.is_throwing;
-                Value saved_exception = exception_state.exception_value;
-                int was_breaking = loop_state.is_breaking;
-                int was_continuing = loop_state.is_continuing;
+                int was_returning = ctx->return_state.is_returning;
+                Value saved_return = ctx->return_state.return_value;
+                int was_throwing = ctx->exception_state.is_throwing;
+                Value saved_exception = ctx->exception_state.exception_value;
+                int was_breaking = ctx->loop_state.is_breaking;
+                int was_continuing = ctx->loop_state.is_continuing;
 
                 // Clear states before finally
-                return_state.is_returning = 0;
-                exception_state.is_throwing = 0;
-                loop_state.is_breaking = 0;
-                loop_state.is_continuing = 0;
+                ctx->return_state.is_returning = 0;
+                ctx->exception_state.is_throwing = 0;
+                ctx->loop_state.is_breaking = 0;
+                ctx->loop_state.is_continuing = 0;
 
                 // Execute finally block
-                eval_stmt(stmt->as.try_stmt.finally_block, env);
+                eval_stmt(stmt->as.try_stmt.finally_block, env, ctx);
 
                 // If finally didn't throw/return/break/continue, restore previous state
-                if (!return_state.is_returning && !exception_state.is_throwing &&
-                    !loop_state.is_breaking && !loop_state.is_continuing) {
-                    return_state.is_returning = was_returning;
-                    return_state.return_value = saved_return;
-                    exception_state.is_throwing = was_throwing;
-                    exception_state.exception_value = saved_exception;
-                    loop_state.is_breaking = was_breaking;
-                    loop_state.is_continuing = was_continuing;
+                if (!ctx->return_state.is_returning && !ctx->exception_state.is_throwing &&
+                    !ctx->loop_state.is_breaking && !ctx->loop_state.is_continuing) {
+                    ctx->return_state.is_returning = was_returning;
+                    ctx->return_state.return_value = saved_return;
+                    ctx->exception_state.is_throwing = was_throwing;
+                    ctx->exception_state.exception_value = saved_exception;
+                    ctx->loop_state.is_breaking = was_breaking;
+                    ctx->loop_state.is_continuing = was_continuing;
                 }
             }
             break;
@@ -1189,26 +1207,26 @@ void eval_stmt(Stmt *stmt, Environment *env) {
 
         case STMT_THROW: {
             // Evaluate the value to throw
-            exception_state.exception_value = eval_expr(stmt->as.throw_stmt.value, env);
-            exception_state.is_throwing = 1;
+            ctx->exception_state.exception_value = eval_expr(stmt->as.throw_stmt.value, env, ctx);
+            ctx->exception_state.is_throwing = 1;
             break;
         }
     }
 }
 
-void eval_program(Stmt **stmts, int count, Environment *env) {
+void eval_program(Stmt **stmts, int count, Environment *env, ExecutionContext *ctx) {
     for (int i = 0; i < count; i++) {
-        eval_stmt(stmts[i], env);
+        eval_stmt(stmts[i], env, ctx);
 
         // Check for uncaught exception
-        if (exception_state.is_throwing) {
+        if (ctx->exception_state.is_throwing) {
             fprintf(stderr, "Runtime error: ");
-            print_value(exception_state.exception_value);
+            print_value(ctx->exception_state.exception_value);
             fprintf(stderr, "\n");
             // Print stack trace
-            call_stack_print();
+            call_stack_print(&ctx->call_stack);
             // Clear stack for next execution (REPL mode)
-            call_stack_free();
+            call_stack_free(&ctx->call_stack);
             exit(1);
         }
     }
