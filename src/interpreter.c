@@ -3095,6 +3095,76 @@ static Value builtin_open(Value *args, int num_args) {
     return val_file(file);
 }
 
+static Value builtin_assert(Value *args, int num_args) {
+    if (num_args < 1 || num_args > 2) {
+        fprintf(stderr, "Runtime error: assert() expects 1-2 arguments (condition, [message])\n");
+        exit(1);
+    }
+
+    // Check if condition is truthy
+    int is_truthy = 0;
+    switch (args[0].type) {
+        case VAL_I8:
+            is_truthy = args[0].as.as_i8 != 0;
+            break;
+        case VAL_I16:
+            is_truthy = args[0].as.as_i16 != 0;
+            break;
+        case VAL_I32:
+            is_truthy = args[0].as.as_i32 != 0;
+            break;
+        case VAL_U8:
+            is_truthy = args[0].as.as_u8 != 0;
+            break;
+        case VAL_U16:
+            is_truthy = args[0].as.as_u16 != 0;
+            break;
+        case VAL_U32:
+            is_truthy = args[0].as.as_u32 != 0;
+            break;
+        case VAL_F32:
+            is_truthy = args[0].as.as_f32 != 0.0f;
+            break;
+        case VAL_F64:
+            is_truthy = args[0].as.as_f64 != 0.0;
+            break;
+        case VAL_BOOL:
+            is_truthy = args[0].as.as_bool;
+            break;
+        case VAL_NULL:
+            is_truthy = 0;
+            break;
+        case VAL_STRING:
+            // Non-empty string is truthy
+            is_truthy = args[0].as.as_string->length > 0;
+            break;
+        case VAL_PTR:
+            is_truthy = args[0].as.as_ptr != NULL;
+            break;
+        default:
+            // All other types (objects, arrays, functions, etc.) are truthy
+            is_truthy = 1;
+            break;
+    }
+
+    // If condition is false, throw exception
+    if (!is_truthy) {
+        Value exception_msg;
+        if (num_args == 2) {
+            // Use provided message
+            exception_msg = args[1];
+        } else {
+            // Use default message
+            exception_msg = val_string("assertion failed");
+        }
+
+        exception_state.exception_value = exception_msg;
+        exception_state.is_throwing = 1;
+    }
+
+    return val_null();
+}
+
 // Structure to hold builtin function info
 typedef struct {
     const char *name;
@@ -3123,6 +3193,7 @@ static BuiltinInfo builtins[] = {
     {"read_line", builtin_read_line},
     {"eprint", builtin_eprint},
     {"open", builtin_open},
+    {"assert", builtin_assert},
     {NULL, NULL}  // Sentinel
 };
 

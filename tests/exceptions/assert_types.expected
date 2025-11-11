@@ -1,0 +1,11 @@
+i32 assertion passed
+u8 zero caught: assertion failed
+f64 assertion passed
+f32 zero caught: assertion failed
+object assertion passed
+array assertion passed
+function assertion passed
+10
+Caught in function: number must be positive
+comparison assertion passed
+comparison failed: assertion failed

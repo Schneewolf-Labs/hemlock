@@ -1,0 +1,63 @@
+// Test: Assert with different numeric types
+let x: i32 = 10;
+assert(x);
+print("i32 assertion passed");
+
+let y: u8 = 0;
+try {
+    assert(y);
+} catch (e) {
+    print("u8 zero caught: " + e);
+}
+
+let z: f64 = 3.14;
+assert(z);
+print("f64 assertion passed");
+
+let w: f32 = 0.0;
+try {
+    assert(w);
+} catch (e) {
+    print("f32 zero caught: " + e);
+}
+
+// Test: Assert with objects (always truthy)
+let obj = { x: 10, y: 20 };
+assert(obj);
+print("object assertion passed");
+
+// Test: Assert with arrays (always truthy)
+let arr = [1, 2, 3];
+assert(arr);
+print("array assertion passed");
+
+// Test: Assert with functions (always truthy)
+let func = fn() { return 42; };
+assert(func);
+print("function assertion passed");
+
+// Test: Assert in functions
+fn check_positive(n) {
+    assert(n > 0, "number must be positive");
+    return n * 2;
+}
+
+print(check_positive(5));
+
+try {
+    check_positive(-1);
+} catch (e) {
+    print("Caught in function: " + e);
+}
+
+// Test: Assert with comparison expressions
+let a = 10;
+let b = 20;
+assert(b > a);
+print("comparison assertion passed");
+
+try {
+    assert(a > b);
+} catch (e) {
+    print("comparison failed: " + e);
+}

@@ -1,0 +1,56 @@
+// Test: Basic assert with truthy values
+assert(true);
+print("assert(true) passed");
+
+assert(1);
+print("assert(1) passed");
+
+assert(42);
+print("assert(42) passed");
+
+assert("non-empty");
+print("assert with non-empty string passed");
+
+// Test: Assert with falsy values (should throw)
+try {
+    assert(false);
+    print("This should not print");
+} catch (e) {
+    print("Caught: " + e);
+}
+
+try {
+    assert(0);
+    print("This should not print");
+} catch (e) {
+    print("Caught: " + e);
+}
+
+try {
+    assert(null);
+    print("This should not print");
+} catch (e) {
+    print("Caught: " + e);
+}
+
+try {
+    assert("");
+    print("This should not print");
+} catch (e) {
+    print("Caught: " + e);
+}
+
+// Test: Assert with custom message
+try {
+    assert(false, "custom error message");
+    print("This should not print");
+} catch (e) {
+    print("Caught: " + e);
+}
+
+try {
+    assert(0, "number was zero");
+    print("This should not print");
+} catch (e) {
+    print("Caught: " + e);
+}

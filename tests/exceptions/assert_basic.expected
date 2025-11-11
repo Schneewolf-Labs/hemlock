@@ -1,0 +1,10 @@
+assert(true) passed
+assert(1) passed
+assert(42) passed
+assert with non-empty string passed
+Caught: assertion failed
+Caught: assertion failed
+Caught: assertion failed
+Caught: assertion failed
+Caught: custom error message
+Caught: number was zero
