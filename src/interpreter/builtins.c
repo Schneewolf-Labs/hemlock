@@ -1,0 +1,1264 @@
+#include "internal.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+
+// ========== BUILTIN FUNCTIONS ==========
+
+// Helper: Get the size of a type
+static int get_type_size(TypeKind kind) {
+    switch (kind) {
+        case TYPE_I8:
+        case TYPE_U8:
+            return 1;
+        case TYPE_I16:
+        case TYPE_U16:
+            return 2;
+        case TYPE_I32:
+        case TYPE_U32:
+        case TYPE_F32:
+            return 4;
+        case TYPE_F64:
+            return 8;
+        case TYPE_PTR:
+        case TYPE_BUFFER:
+            return sizeof(void*);  // 8 on 64-bit systems
+        case TYPE_BOOL:
+            return sizeof(int);    // bool is stored as int
+        case TYPE_STRING:
+            return sizeof(String*); // pointer to String struct
+        default:
+            fprintf(stderr, "Runtime error: Cannot get size of this type\n");
+            exit(1);
+    }
+}
+
+
+static Value builtin_print(Value *args, int num_args) {
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: print() expects 1 argument\n");
+        exit(1);
+    }
+
+    print_value(args[0]);
+    printf("\n");
+    return val_null();
+}
+
+static Value builtin_alloc(Value *args, int num_args) {
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: alloc() expects 1 argument (size in bytes)\n");
+        exit(1);
+    }
+
+    if (!is_integer(args[0])) {
+        fprintf(stderr, "Runtime error: alloc() size must be an integer\n");
+        exit(1);
+    }
+
+    int32_t size = value_to_int(args[0]);
+
+    if (size <= 0) {
+        fprintf(stderr, "Runtime error: alloc() size must be positive\n");
+        exit(1);
+    }
+
+    void *ptr = malloc(size);
+    if (ptr == NULL) {
+        fprintf(stderr, "Runtime error: alloc() failed to allocate memory\n");
+        exit(1);
+    }
+
+    return val_ptr(ptr);
+}
+
+static Value builtin_free(Value *args, int num_args) {
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: free() expects 1 argument (pointer or buffer)\n");
+        exit(1);
+    }
+
+    if (args[0].type == VAL_PTR) {
+        free(args[0].as.as_ptr);
+        return val_null();
+    } else if (args[0].type == VAL_BUFFER) {
+        buffer_free(args[0].as.as_buffer);
+        return val_null();
+    } else {
+        fprintf(stderr, "Runtime error: free() requires a pointer or buffer\n");
+        exit(1);
+    }
+}
+
+static Value builtin_memset(Value *args, int num_args) {
+    if (num_args != 3) {
+        fprintf(stderr, "Runtime error: memset() expects 3 arguments (ptr, byte, size)\n");
+        exit(1);
+    }
+
+    if (args[0].type != VAL_PTR) {
+        fprintf(stderr, "Runtime error: memset() requires pointer as first argument\n");
+        exit(1);
+    }
+
+    if (!is_integer(args[1]) || !is_integer(args[2])) {
+        fprintf(stderr, "Runtime error: memset() byte and size must be integers\n");
+        exit(1);
+    }
+
+    void *ptr = args[0].as.as_ptr;
+    int byte = value_to_int(args[1]);
+    int size = value_to_int(args[2]);
+
+    memset(ptr, byte, size);
+    return val_null();
+}
+
+static Value builtin_memcpy(Value *args, int num_args) {
+    if (num_args != 3) {
+        fprintf(stderr, "Runtime error: memcpy() expects 3 arguments (dest, src, size)\n");
+        exit(1);
+    }
+
+    if (args[0].type != VAL_PTR || args[1].type != VAL_PTR) {
+        fprintf(stderr, "Runtime error: memcpy() requires pointers for dest and src\n");
+        exit(1);
+    }
+
+    if (!is_integer(args[2])) {
+        fprintf(stderr, "Runtime error: memcpy() size must be an integer\n");
+        exit(1);
+    }
+
+    void *dest = args[0].as.as_ptr;
+    void *src = args[1].as.as_ptr;
+    int size = value_to_int(args[2]);
+
+    memcpy(dest, src, size);
+    return val_null();
+}
+
+static Value builtin_sizeof(Value *args, int num_args) {
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: sizeof() expects 1 argument (type)\n");
+        exit(1);
+    }
+
+    if (args[0].type != VAL_TYPE) {
+        fprintf(stderr, "Runtime error: sizeof() requires a type argument\n");
+        exit(1);
+    }
+
+    TypeKind kind = args[0].as.as_type;
+    int size = get_type_size(kind);
+    return val_i32(size);
+}
+
+static Value builtin_buffer(Value *args, int num_args) {
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: buffer() expects 1 argument (size in bytes)\n");
+        exit(1);
+    }
+
+    if (!is_integer(args[0])) {
+        fprintf(stderr, "Runtime error: buffer() size must be an integer\n");
+        exit(1);
+    }
+
+    int32_t size = value_to_int(args[0]);
+    return val_buffer(size);
+}
+
+static Value builtin_talloc(Value *args, int num_args) {
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: talloc() expects 2 arguments (type, count)\n");
+        exit(1);
+    }
+
+    if (args[0].type != VAL_TYPE) {
+        fprintf(stderr, "Runtime error: talloc() first argument must be a type\n");
+        exit(1);
+    }
+
+    if (!is_integer(args[1])) {
+        fprintf(stderr, "Runtime error: talloc() count must be an integer\n");
+        exit(1);
+    }
+
+    TypeKind type = args[0].as.as_type;
+    int32_t count = value_to_int(args[1]);
+
+    if (count <= 0) {
+        fprintf(stderr, "Runtime error: talloc() count must be positive\n");
+        exit(1);
+    }
+
+    int elem_size = get_type_size(type);
+    size_t total_size = (size_t)elem_size * (size_t)count;
+
+    void *ptr = malloc(total_size);
+    if (ptr == NULL) {
+        fprintf(stderr, "Runtime error: talloc() failed to allocate memory\n");
+        exit(1);
+    }
+
+    return val_ptr(ptr);
+}
+
+static Value builtin_realloc(Value *args, int num_args) {
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: realloc() expects 2 arguments (ptr, new_size)\n");
+        exit(1);
+    }
+
+    if (args[0].type != VAL_PTR) {
+        fprintf(stderr, "Runtime error: realloc() first argument must be a pointer\n");
+        exit(1);
+    }
+
+    if (!is_integer(args[1])) {
+        fprintf(stderr, "Runtime error: realloc() new_size must be an integer\n");
+        exit(1);
+    }
+
+    void *old_ptr = args[0].as.as_ptr;
+    int32_t new_size = value_to_int(args[1]);
+
+    if (new_size <= 0) {
+        fprintf(stderr, "Runtime error: realloc() new_size must be positive\n");
+        exit(1);
+    }
+
+    void *new_ptr = realloc(old_ptr, new_size);
+    if (new_ptr == NULL) {
+        fprintf(stderr, "Runtime error: realloc() failed to allocate memory\n");
+        exit(1);
+    }
+
+    return val_ptr(new_ptr);
+}
+
+// Cycle detection for serialization
+typedef struct {
+    Object **visited;
+    int count;
+    int capacity;
+} VisitedSet;
+
+static void visited_init(VisitedSet *set) {
+    set->capacity = 16;
+    set->count = 0;
+    set->visited = malloc(sizeof(Object*) * set->capacity);
+}
+
+static int visited_contains(VisitedSet *set, Object *obj) {
+    for (int i = 0; i < set->count; i++) {
+        if (set->visited[i] == obj) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void visited_add(VisitedSet *set, Object *obj) {
+    if (set->count >= set->capacity) {
+        set->capacity *= 2;
+        set->visited = realloc(set->visited, sizeof(Object*) * set->capacity);
+    }
+    set->visited[set->count++] = obj;
+}
+
+static void visited_free(VisitedSet *set) {
+    free(set->visited);
+}
+
+// Helper to escape strings for JSON
+static char* escape_json_string(const char *str) {
+    // Count how many chars need escaping
+    int escape_count = 0;
+    for (const char *p = str; *p; p++) {
+        if (*p == '"' || *p == '\\' || *p == '\n' || *p == '\r' || *p == '\t') {
+            escape_count++;
+        }
+    }
+
+    // Allocate new string with room for escapes
+    int len = strlen(str);
+    char *escaped = malloc(len + escape_count + 1);
+    char *out = escaped;
+
+    for (const char *p = str; *p; p++) {
+        if (*p == '"') {
+            *out++ = '\\';
+            *out++ = '"';
+        } else if (*p == '\\') {
+            *out++ = '\\';
+            *out++ = '\\';
+        } else if (*p == '\n') {
+            *out++ = '\\';
+            *out++ = 'n';
+        } else if (*p == '\r') {
+            *out++ = '\\';
+            *out++ = 'r';
+        } else if (*p == '\t') {
+            *out++ = '\\';
+            *out++ = 't';
+        } else {
+            *out++ = *p;
+        }
+    }
+    *out = '\0';
+    return escaped;
+}
+
+// Recursive serialization helper
+static char* serialize_value(Value val, VisitedSet *visited) {
+    char buffer[256];
+
+    switch (val.type) {
+        case VAL_I8:
+            snprintf(buffer, sizeof(buffer), "%d", val.as.as_i8);
+            return strdup(buffer);
+        case VAL_I16:
+            snprintf(buffer, sizeof(buffer), "%d", val.as.as_i16);
+            return strdup(buffer);
+        case VAL_I32:
+            snprintf(buffer, sizeof(buffer), "%d", val.as.as_i32);
+            return strdup(buffer);
+        case VAL_U8:
+            snprintf(buffer, sizeof(buffer), "%u", val.as.as_u8);
+            return strdup(buffer);
+        case VAL_U16:
+            snprintf(buffer, sizeof(buffer), "%u", val.as.as_u16);
+            return strdup(buffer);
+        case VAL_U32:
+            snprintf(buffer, sizeof(buffer), "%u", val.as.as_u32);
+            return strdup(buffer);
+        case VAL_F32:
+            snprintf(buffer, sizeof(buffer), "%g", val.as.as_f32);
+            return strdup(buffer);
+        case VAL_F64:
+            snprintf(buffer, sizeof(buffer), "%g", val.as.as_f64);
+            return strdup(buffer);
+        case VAL_BOOL:
+            return strdup(val.as.as_bool ? "true" : "false");
+        case VAL_STRING: {
+            char *escaped = escape_json_string(val.as.as_string->data);
+            int len = strlen(escaped) + 3;  // quotes + null
+            char *result = malloc(len);
+            snprintf(result, len, "\"%s\"", escaped);
+            free(escaped);
+            return result;
+        }
+        case VAL_NULL:
+            return strdup("null");
+        case VAL_OBJECT: {
+            Object *obj = val.as.as_object;
+
+            // Check for cycles
+            if (visited_contains(visited, obj)) {
+                fprintf(stderr, "Runtime error: serialize() detected circular reference\n");
+                exit(1);
+            }
+
+            // Mark as visited
+            visited_add(visited, obj);
+
+            // Build JSON object
+            size_t capacity = 256;
+            size_t len = 0;
+            char *json = malloc(capacity);
+            json[len++] = '{';
+
+            for (int i = 0; i < obj->num_fields; i++) {
+                // Escape field name
+                char *escaped_name = escape_json_string(obj->field_names[i]);
+
+                // Serialize field value
+                char *value_str = serialize_value(obj->field_values[i], visited);
+
+                // Calculate space needed
+                size_t needed = len + strlen(escaped_name) + strlen(value_str) + 10;
+                if (needed > capacity) {
+                    capacity *= 2;
+                    json = realloc(json, capacity);
+                }
+
+                // Add field to JSON
+                len += snprintf(json + len, capacity - len, "\"%s\":%s",
+                               escaped_name, value_str);
+
+                if (i < obj->num_fields - 1) {
+                    json[len++] = ',';
+                }
+
+                free(escaped_name);
+                free(value_str);
+            }
+
+            json[len++] = '}';
+            json[len] = '\0';
+
+            return json;
+        }
+        case VAL_ARRAY: {
+            Array *arr = val.as.as_array;
+
+            // Check for cycles (cast array pointer to object pointer for visited set)
+            if (visited_contains(visited, (Object*)arr)) {
+                fprintf(stderr, "Runtime error: serialize() detected circular reference\n");
+                exit(1);
+            }
+
+            // Mark as visited
+            visited_add(visited, (Object*)arr);
+
+            // Build JSON array
+            size_t capacity = 256;
+            size_t len = 0;
+            char *json = malloc(capacity);
+            json[len++] = '[';
+
+            for (int i = 0; i < arr->length; i++) {
+                // Serialize element
+                char *elem_str = serialize_value(arr->elements[i], visited);
+
+                // Calculate space needed
+                size_t needed = len + strlen(elem_str) + 2;
+                if (needed > capacity) {
+                    capacity *= 2;
+                    json = realloc(json, capacity);
+                }
+
+                // Add element to JSON
+                len += snprintf(json + len, capacity - len, "%s", elem_str);
+
+                if (i < arr->length - 1) {
+                    json[len++] = ',';
+                }
+
+                free(elem_str);
+            }
+
+            json[len++] = ']';
+            json[len] = '\0';
+
+            return json;
+        }
+        default:
+            fprintf(stderr, "Runtime error: Cannot serialize value of this type\n");
+            exit(1);
+    }
+}
+
+static Value builtin_serialize(Value *args, int num_args) {
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: serialize() expects 1 argument\n");
+        exit(1);
+    }
+
+    VisitedSet visited;
+    visited_init(&visited);
+
+    char *json = serialize_value(args[0], &visited);
+    Value result = val_string(json);
+
+    visited_free(&visited);
+    free(json);
+
+    return result;
+}
+
+// JSON deserialization
+typedef struct {
+    const char *input;
+    int pos;
+} JSONParser;
+
+static void json_skip_whitespace(JSONParser *p) {
+    while (p->input[p->pos] == ' ' || p->input[p->pos] == '\t' ||
+           p->input[p->pos] == '\n' || p->input[p->pos] == '\r') {
+        p->pos++;
+    }
+}
+
+static Value json_parse_value(JSONParser *p);
+static Value json_parse_array(JSONParser *p);
+
+static Value json_parse_string(JSONParser *p) {
+    if (p->input[p->pos] != '"') {
+        fprintf(stderr, "Runtime error: Expected '\"' in JSON\n");
+        exit(1);
+    }
+    p->pos++;  // skip opening quote
+
+    int start = p->pos;
+    int len = 0;
+    char *buf = malloc(256);
+    int capacity = 256;
+
+    while (p->input[p->pos] != '"' && p->input[p->pos] != '\0') {
+        if (len >= capacity - 1) {
+            capacity *= 2;
+            buf = realloc(buf, capacity);
+        }
+
+        if (p->input[p->pos] == '\\') {
+            p->pos++;
+            switch (p->input[p->pos]) {
+                case 'n': buf[len++] = '\n'; break;
+                case 'r': buf[len++] = '\r'; break;
+                case 't': buf[len++] = '\t'; break;
+                case '"': buf[len++] = '"'; break;
+                case '\\': buf[len++] = '\\'; break;
+                default:
+                    fprintf(stderr, "Runtime error: Invalid escape sequence in JSON string\n");
+                    exit(1);
+            }
+            p->pos++;
+        } else {
+            buf[len++] = p->input[p->pos++];
+        }
+    }
+
+    if (p->input[p->pos] != '"') {
+        fprintf(stderr, "Runtime error: Unterminated string in JSON\n");
+        exit(1);
+    }
+    p->pos++;  // skip closing quote
+
+    buf[len] = '\0';
+    Value result = val_string(buf);
+    free(buf);
+    return result;
+}
+
+static Value json_parse_number(JSONParser *p) {
+    int start = p->pos;
+    int is_float = 0;
+
+    // Handle negative sign
+    if (p->input[p->pos] == '-') {
+        p->pos++;
+    }
+
+    // Parse digits
+    while (p->input[p->pos] >= '0' && p->input[p->pos] <= '9') {
+        p->pos++;
+    }
+
+    // Check for decimal point
+    if (p->input[p->pos] == '.') {
+        is_float = 1;
+        p->pos++;
+        while (p->input[p->pos] >= '0' && p->input[p->pos] <= '9') {
+            p->pos++;
+        }
+    }
+
+    // Parse the number
+    char *num_str = strndup(p->input + start, p->pos - start);
+    Value result;
+    if (is_float) {
+        result = val_f64(atof(num_str));
+    } else {
+        result = val_i32(atoi(num_str));
+    }
+    free(num_str);
+    return result;
+}
+
+static Value json_parse_object(JSONParser *p) {
+    if (p->input[p->pos] != '{') {
+        fprintf(stderr, "Runtime error: Expected '{' in JSON\n");
+        exit(1);
+    }
+    p->pos++;  // skip opening brace
+
+    char **field_names = malloc(sizeof(char*) * 32);
+    Value *field_values = malloc(sizeof(Value) * 32);
+    int num_fields = 0;
+
+    json_skip_whitespace(p);
+
+    // Handle empty object
+    if (p->input[p->pos] == '}') {
+        p->pos++;
+        Object *obj = malloc(sizeof(Object));
+        obj->field_names = field_names;
+        obj->field_values = field_values;
+        obj->num_fields = 0;
+        obj->capacity = 32;
+        obj->type_name = NULL;
+        return val_object(obj);
+    }
+
+    while (p->input[p->pos] != '}' && p->input[p->pos] != '\0') {
+        json_skip_whitespace(p);
+
+        // Parse field name (must be a string)
+        Value name_val = json_parse_string(p);
+        field_names[num_fields] = strdup(name_val.as.as_string->data);
+
+        json_skip_whitespace(p);
+
+        // Expect colon
+        if (p->input[p->pos] != ':') {
+            fprintf(stderr, "Runtime error: Expected ':' in JSON object\n");
+            exit(1);
+        }
+        p->pos++;
+
+        json_skip_whitespace(p);
+
+        // Parse field value
+        field_values[num_fields] = json_parse_value(p);
+        num_fields++;
+
+        json_skip_whitespace(p);
+
+        // Check for comma
+        if (p->input[p->pos] == ',') {
+            p->pos++;
+        } else if (p->input[p->pos] != '}') {
+            fprintf(stderr, "Runtime error: Expected ',' or '}' in JSON object\n");
+            exit(1);
+        }
+    }
+
+    if (p->input[p->pos] != '}') {
+        fprintf(stderr, "Runtime error: Unterminated object in JSON\n");
+        exit(1);
+    }
+    p->pos++;  // skip closing brace
+
+    Object *obj = malloc(sizeof(Object));
+    obj->field_names = field_names;
+    obj->field_values = field_values;
+    obj->num_fields = num_fields;
+    obj->capacity = 32;
+    obj->type_name = NULL;
+    return val_object(obj);
+}
+
+static Value json_parse_array(JSONParser *p) {
+    if (p->input[p->pos] != '[') {
+        fprintf(stderr, "Runtime error: Expected '[' in JSON\n");
+        exit(1);
+    }
+    p->pos++;  // skip opening bracket
+
+    Array *arr = array_new();
+
+    json_skip_whitespace(p);
+
+    // Handle empty array
+    if (p->input[p->pos] == ']') {
+        p->pos++;
+        return val_array(arr);
+    }
+
+    while (p->input[p->pos] != ']' && p->input[p->pos] != '\0') {
+        json_skip_whitespace(p);
+
+        // Parse element value
+        Value element = json_parse_value(p);
+        array_push(arr, element);
+
+        json_skip_whitespace(p);
+
+        // Check for comma
+        if (p->input[p->pos] == ',') {
+            p->pos++;
+        } else if (p->input[p->pos] != ']') {
+            fprintf(stderr, "Runtime error: Expected ',' or ']' in JSON array\n");
+            exit(1);
+        }
+    }
+
+    if (p->input[p->pos] != ']') {
+        fprintf(stderr, "Runtime error: Unterminated array in JSON\n");
+        exit(1);
+    }
+    p->pos++;  // skip closing bracket
+
+    return val_array(arr);
+}
+
+static Value json_parse_value(JSONParser *p) {
+    json_skip_whitespace(p);
+
+    // Check first character to determine type
+    char c = p->input[p->pos];
+
+    if (c == '"') {
+        return json_parse_string(p);
+    } else if (c == '{') {
+        return json_parse_object(p);
+    } else if (c == '[') {
+        return json_parse_array(p);
+    } else if (c == '-' || (c >= '0' && c <= '9')) {
+        return json_parse_number(p);
+    } else if (strncmp(p->input + p->pos, "true", 4) == 0) {
+        p->pos += 4;
+        return val_bool(1);
+    } else if (strncmp(p->input + p->pos, "false", 5) == 0) {
+        p->pos += 5;
+        return val_bool(0);
+    } else if (strncmp(p->input + p->pos, "null", 4) == 0) {
+        p->pos += 4;
+        return val_null();
+    } else {
+        fprintf(stderr, "Runtime error: Unexpected character in JSON: '%c'\n", c);
+        exit(1);
+    }
+}
+
+static Value builtin_deserialize(Value *args, int num_args) {
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: deserialize() expects 1 argument (JSON string)\n");
+        exit(1);
+    }
+
+    if (args[0].type != VAL_STRING) {
+        fprintf(stderr, "Runtime error: deserialize() requires a string argument\n");
+        exit(1);
+    }
+
+    JSONParser parser;
+    parser.input = args[0].as.as_string->data;
+    parser.pos = 0;
+
+    Value result = json_parse_value(&parser);
+
+    // Check that we consumed all the input
+    json_skip_whitespace(&parser);
+    if (parser.input[parser.pos] != '\0') {
+        fprintf(stderr, "Runtime error: Unexpected trailing characters in JSON\n");
+        exit(1);
+    }
+
+    return result;
+}
+
+static Value builtin_typeof(Value *args, int num_args) {
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: typeof() expects 1 argument\n");
+        exit(1);
+    }
+
+    const char *type_name;
+    switch (args[0].type) {
+        case VAL_I8:
+        case VAL_I16:
+        case VAL_I32:
+            type_name = "i32";
+            break;
+        case VAL_U8:
+        case VAL_U16:
+        case VAL_U32:
+            type_name = "u32";
+            break;
+        case VAL_F32:
+        case VAL_F64:
+            type_name = "f64";
+            break;
+        case VAL_BOOL:
+            type_name = "bool";
+            break;
+        case VAL_STRING:
+            type_name = "string";
+            break;
+        case VAL_PTR:
+            type_name = "ptr";
+            break;
+        case VAL_BUFFER:
+            type_name = "buffer";
+            break;
+        case VAL_ARRAY:
+            type_name = "array";
+            break;
+        case VAL_FILE:
+            type_name = "file";
+            break;
+        case VAL_NULL:
+            type_name = "null";
+            break;
+        case VAL_FUNCTION:
+            type_name = "function";
+            break;
+        case VAL_BUILTIN_FN:
+            type_name = "builtin";
+            break;
+        case VAL_OBJECT:
+            // Check if object has a custom type name
+            if (args[0].as.as_object->type_name) {
+                type_name = args[0].as.as_object->type_name;
+            } else {
+                type_name = "object";
+            }
+            break;
+        case VAL_TYPE:
+            type_name = "type";
+            break;
+        default:
+            type_name = "unknown";
+            break;
+    }
+
+    return val_string(type_name);
+}
+
+// ========== I/O BUILTIN FUNCTIONS ==========
+// Note: File/array method handlers are in io.c
+
+static Value builtin_read_file(Value *args, int num_args) {
+    if (num_args != 1 || args[0].type != VAL_STRING) {
+        fprintf(stderr, "Runtime error: read_file() expects 1 string argument (path)\n");
+        exit(1);
+    }
+
+    const char *path = args[0].as.as_string->data;
+
+    FILE *fp = fopen(path, "rb");
+    if (!fp) {
+        fprintf(stderr, "Runtime error: Failed to open '%s': %s\n",
+                path, strerror(errno));
+        exit(1);
+    }
+
+    // Get file size
+    fseek(fp, 0, SEEK_END);
+    long size = ftell(fp);
+    rewind(fp);
+
+    // Read entire file
+    char *buffer = malloc(size + 1);
+    size_t read = fread(buffer, 1, size, fp);
+    buffer[read] = '\0';
+    fclose(fp);
+
+    String *str = malloc(sizeof(String));
+    str->data = buffer;
+    str->length = read;
+    str->capacity = size + 1;
+
+    return (Value){ .type = VAL_STRING, .as.as_string = str };
+}
+
+static Value builtin_write_file(Value *args, int num_args) {
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: write_file() expects 2 arguments (path, content)\n");
+        exit(1);
+    }
+
+    if (args[0].type != VAL_STRING) {
+        fprintf(stderr, "Runtime error: write_file() path must be a string\n");
+        exit(1);
+    }
+
+    const char *path = args[0].as.as_string->data;
+
+    FILE *fp = fopen(path, "wb");
+    if (!fp) {
+        fprintf(stderr, "Runtime error: Failed to open '%s': %s\n",
+                path, strerror(errno));
+        exit(1);
+    }
+
+    // Write string or buffer
+    if (args[1].type == VAL_STRING) {
+        String *str = args[1].as.as_string;
+        fwrite(str->data, 1, str->length, fp);
+    } else if (args[1].type == VAL_BUFFER) {
+        Buffer *buf = args[1].as.as_buffer;
+        fwrite(buf->data, 1, buf->length, fp);
+    } else {
+        fclose(fp);
+        fprintf(stderr, "Runtime error: write_file() content must be string or buffer\n");
+        exit(1);
+    }
+
+    fclose(fp);
+    return val_null();
+}
+
+static Value builtin_append_file(Value *args, int num_args) {
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: append_file() expects 2 arguments (path, content)\n");
+        exit(1);
+    }
+
+    if (args[0].type != VAL_STRING) {
+        fprintf(stderr, "Runtime error: append_file() path must be a string\n");
+        exit(1);
+    }
+
+    const char *path = args[0].as.as_string->data;
+
+    FILE *fp = fopen(path, "ab");
+    if (!fp) {
+        fprintf(stderr, "Runtime error: Failed to open '%s': %s\n",
+                path, strerror(errno));
+        exit(1);
+    }
+
+    // Write string or buffer
+    if (args[1].type == VAL_STRING) {
+        String *str = args[1].as.as_string;
+        fwrite(str->data, 1, str->length, fp);
+    } else if (args[1].type == VAL_BUFFER) {
+        Buffer *buf = args[1].as.as_buffer;
+        fwrite(buf->data, 1, buf->length, fp);
+    } else {
+        fclose(fp);
+        fprintf(stderr, "Runtime error: append_file() content must be string or buffer\n");
+        exit(1);
+    }
+
+    fclose(fp);
+    return val_null();
+}
+
+static Value builtin_read_bytes(Value *args, int num_args) {
+    if (num_args != 1 || args[0].type != VAL_STRING) {
+        fprintf(stderr, "Runtime error: read_bytes() expects 1 string argument (path)\n");
+        exit(1);
+    }
+
+    const char *path = args[0].as.as_string->data;
+
+    FILE *fp = fopen(path, "rb");
+    if (!fp) {
+        fprintf(stderr, "Runtime error: Failed to open '%s': %s\n",
+                path, strerror(errno));
+        exit(1);
+    }
+
+    // Get file size
+    fseek(fp, 0, SEEK_END);
+    long size = ftell(fp);
+    rewind(fp);
+
+    // Read entire file into buffer
+    void *data = malloc(size);
+    size_t read = fread(data, 1, size, fp);
+    fclose(fp);
+
+    Buffer *buf = malloc(sizeof(Buffer));
+    buf->data = data;
+    buf->length = read;
+    buf->capacity = size;
+
+    return (Value){ .type = VAL_BUFFER, .as.as_buffer = buf };
+}
+
+static Value builtin_write_bytes(Value *args, int num_args) {
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: write_bytes() expects 2 arguments (path, data)\n");
+        exit(1);
+    }
+
+    if (args[0].type != VAL_STRING) {
+        fprintf(stderr, "Runtime error: write_bytes() path must be a string\n");
+        exit(1);
+    }
+
+    if (args[1].type != VAL_BUFFER) {
+        fprintf(stderr, "Runtime error: write_bytes() data must be a buffer\n");
+        exit(1);
+    }
+
+    const char *path = args[0].as.as_string->data;
+    Buffer *buf = args[1].as.as_buffer;
+
+    FILE *fp = fopen(path, "wb");
+    if (!fp) {
+        fprintf(stderr, "Runtime error: Failed to open '%s': %s\n",
+                path, strerror(errno));
+        exit(1);
+    }
+
+    fwrite(buf->data, 1, buf->length, fp);
+    fclose(fp);
+    return val_null();
+}
+
+static Value builtin_file_exists(Value *args, int num_args) {
+    if (num_args != 1 || args[0].type != VAL_STRING) {
+        fprintf(stderr, "Runtime error: file_exists() expects 1 string argument\n");
+        exit(1);
+    }
+
+    const char *path = args[0].as.as_string->data;
+
+    FILE *fp = fopen(path, "r");
+    if (fp) {
+        fclose(fp);
+        return val_bool(1);
+    }
+    return val_bool(0);
+}
+
+static Value builtin_read_line(Value *args, int num_args) {
+    (void)args;
+    if (num_args != 0) {
+        fprintf(stderr, "Runtime error: read_line() expects no arguments\n");
+        exit(1);
+    }
+
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read = getline(&line, &len, stdin);
+
+    if (read == -1) {
+        free(line);
+        return val_null();  // EOF
+    }
+
+    // Strip newline
+    if (read > 0 && line[read - 1] == '\n') {
+        line[read - 1] = '\0';
+        read--;
+    }
+    if (read > 0 && line[read - 1] == '\r') {
+        line[read - 1] = '\0';
+        read--;
+    }
+
+    String *str = malloc(sizeof(String));
+    str->data = line;
+    str->length = read;
+    str->capacity = len;
+
+    return (Value){ .type = VAL_STRING, .as.as_string = str };
+}
+
+static Value builtin_eprint(Value *args, int num_args) {
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: eprint() expects 1 argument\n");
+        exit(1);
+    }
+
+    // Print to stderr
+    switch (args[0].type) {
+        case VAL_I8:
+            fprintf(stderr, "%d", args[0].as.as_i8);
+            break;
+        case VAL_I16:
+            fprintf(stderr, "%d", args[0].as.as_i16);
+            break;
+        case VAL_I32:
+            fprintf(stderr, "%d", args[0].as.as_i32);
+            break;
+        case VAL_U8:
+            fprintf(stderr, "%u", args[0].as.as_u8);
+            break;
+        case VAL_U16:
+            fprintf(stderr, "%u", args[0].as.as_u16);
+            break;
+        case VAL_U32:
+            fprintf(stderr, "%u", args[0].as.as_u32);
+            break;
+        case VAL_F32:
+            fprintf(stderr, "%g", args[0].as.as_f32);
+            break;
+        case VAL_F64:
+            fprintf(stderr, "%g", args[0].as.as_f64);
+            break;
+        case VAL_BOOL:
+            fprintf(stderr, "%s", args[0].as.as_bool ? "true" : "false");
+            break;
+        case VAL_STRING:
+            fprintf(stderr, "%s", args[0].as.as_string->data);
+            break;
+        case VAL_NULL:
+            fprintf(stderr, "null");
+            break;
+        default:
+            // For complex types, use simpler representation
+            fprintf(stderr, "<value>");
+            break;
+    }
+    fprintf(stderr, "\n");
+    return val_null();
+}
+
+static Value builtin_open(Value *args, int num_args) {
+    if (num_args < 1 || num_args > 2) {
+        fprintf(stderr, "Runtime error: open() expects 1-2 arguments (path, [mode])\n");
+        exit(1);
+    }
+
+    if (args[0].type != VAL_STRING) {
+        fprintf(stderr, "Runtime error: open() path must be a string\n");
+        exit(1);
+    }
+
+    const char *path = args[0].as.as_string->data;
+    const char *mode = "r";  // Default mode
+
+    if (num_args == 2) {
+        if (args[1].type != VAL_STRING) {
+            fprintf(stderr, "Runtime error: open() mode must be a string\n");
+            exit(1);
+        }
+        mode = args[1].as.as_string->data;
+    }
+
+    FILE *fp = fopen(path, mode);
+    if (!fp) {
+        fprintf(stderr, "Runtime error: Failed to open '%s' with mode '%s': %s\n",
+                path, mode, strerror(errno));
+        exit(1);
+    }
+
+    FileHandle *file = malloc(sizeof(FileHandle));
+    file->fp = fp;
+    file->path = strdup(path);
+    file->mode = strdup(mode);
+    file->closed = 0;
+
+    return val_file(file);
+}
+
+static Value builtin_assert(Value *args, int num_args) {
+    if (num_args < 1 || num_args > 2) {
+        fprintf(stderr, "Runtime error: assert() expects 1-2 arguments (condition, [message])\n");
+        exit(1);
+    }
+
+    // Check if condition is truthy
+    int is_truthy = 0;
+    switch (args[0].type) {
+        case VAL_I8:
+            is_truthy = args[0].as.as_i8 != 0;
+            break;
+        case VAL_I16:
+            is_truthy = args[0].as.as_i16 != 0;
+            break;
+        case VAL_I32:
+            is_truthy = args[0].as.as_i32 != 0;
+            break;
+        case VAL_U8:
+            is_truthy = args[0].as.as_u8 != 0;
+            break;
+        case VAL_U16:
+            is_truthy = args[0].as.as_u16 != 0;
+            break;
+        case VAL_U32:
+            is_truthy = args[0].as.as_u32 != 0;
+            break;
+        case VAL_F32:
+            is_truthy = args[0].as.as_f32 != 0.0f;
+            break;
+        case VAL_F64:
+            is_truthy = args[0].as.as_f64 != 0.0;
+            break;
+        case VAL_BOOL:
+            is_truthy = args[0].as.as_bool;
+            break;
+        case VAL_NULL:
+            is_truthy = 0;
+            break;
+        case VAL_STRING:
+            // Non-empty string is truthy
+            is_truthy = args[0].as.as_string->length > 0;
+            break;
+        case VAL_PTR:
+            is_truthy = args[0].as.as_ptr != NULL;
+            break;
+        default:
+            // All other types (objects, arrays, functions, etc.) are truthy
+            is_truthy = 1;
+            break;
+    }
+
+    // If condition is false, throw exception
+    if (!is_truthy) {
+        Value exception_msg;
+        if (num_args == 2) {
+            // Use provided message
+            exception_msg = args[1];
+        } else {
+            // Use default message
+            exception_msg = val_string("assertion failed");
+        }
+
+        exception_state.exception_value = exception_msg;
+        exception_state.is_throwing = 1;
+    }
+
+    return val_null();
+}
+
+// Structure to hold builtin function info
+typedef struct {
+    const char *name;
+    BuiltinFn fn;
+} BuiltinInfo;
+
+static BuiltinInfo builtins[] = {
+    {"print", builtin_print},
+    {"alloc", builtin_alloc},
+    {"talloc", builtin_talloc},
+    {"realloc", builtin_realloc},
+    {"free", builtin_free},
+    {"memset", builtin_memset},
+    {"memcpy", builtin_memcpy},
+    {"sizeof", builtin_sizeof},
+    {"buffer", builtin_buffer},
+    {"typeof", builtin_typeof},
+    {"serialize", builtin_serialize},
+    {"deserialize", builtin_deserialize},
+    {"read_file", builtin_read_file},
+    {"write_file", builtin_write_file},
+    {"append_file", builtin_append_file},
+    {"read_bytes", builtin_read_bytes},
+    {"write_bytes", builtin_write_bytes},
+    {"file_exists", builtin_file_exists},
+    {"read_line", builtin_read_line},
+    {"eprint", builtin_eprint},
+    {"open", builtin_open},
+    {"assert", builtin_assert},
+    {NULL, NULL}  // Sentinel
+};
+
+Value val_builtin_fn(BuiltinFn fn) {
+    Value v;
+    v.type = VAL_BUILTIN_FN;
+    v.as.as_builtin_fn = fn;
+    return v;
+}
+
+void register_builtins(Environment *env, int argc, char **argv) {
+    // Register type constants FIRST for use with sizeof() and talloc()
+    // These must be registered before builtin functions to avoid conflicts
+    env_set(env, "i8", val_type(TYPE_I8));
+    env_set(env, "i16", val_type(TYPE_I16));
+    env_set(env, "i32", val_type(TYPE_I32));
+    env_set(env, "u8", val_type(TYPE_U8));
+    env_set(env, "u16", val_type(TYPE_U16));
+    env_set(env, "u32", val_type(TYPE_U32));
+    env_set(env, "f32", val_type(TYPE_F32));
+    env_set(env, "f64", val_type(TYPE_F64));
+    env_set(env, "ptr", val_type(TYPE_PTR));
+
+    // Type aliases
+    env_set(env, "integer", val_type(TYPE_I32));
+    env_set(env, "number", val_type(TYPE_F64));
+    env_set(env, "char", val_type(TYPE_U8));
+
+    // Register builtin functions (may overwrite some type names if there are conflicts)
+    for (int i = 0; builtins[i].name != NULL; i++) {
+        env_set(env, builtins[i].name, val_builtin_fn(builtins[i].fn));
+    }
+
+    // Register command-line arguments as 'args' array
+    Array *args_array = array_new();
+    for (int i = 0; i < argc; i++) {
+        array_push(args_array, val_string(argv[i]));
+    }
+    env_set(env, "args", val_array(args_array));
+}

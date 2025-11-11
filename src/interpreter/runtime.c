@@ -1,0 +1,865 @@
+#include "internal.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+// ========== CONTROL FLOW STATE ==========
+
+ReturnState return_state = {0};
+LoopState loop_state = {0};
+ExceptionState exception_state = {0};
+
+// ========== EXPRESSION EVALUATION ==========
+
+Value eval_expr(Expr *expr, Environment *env) {
+    switch (expr->type) {
+        case EXPR_NUMBER:
+            if (expr->as.number.is_float) {
+                return val_float(expr->as.number.float_value);
+            } else {
+                return val_int(expr->as.number.int_value);
+            }
+            break;
+
+        case EXPR_BOOL:
+            return val_bool(expr->as.boolean);
+
+        case EXPR_NULL:
+            return val_null();
+
+        case EXPR_STRING:
+            return val_string(expr->as.string);
+
+        case EXPR_UNARY: {
+            Value operand = eval_expr(expr->as.unary.operand, env);
+
+            switch (expr->as.unary.op) {
+                case UNARY_NOT:
+                    return val_bool(!value_is_truthy(operand));
+
+                case UNARY_NEGATE:
+                    if (is_float(operand)) {
+                        return val_f64(-value_to_float(operand));
+                    } else if (is_integer(operand)) {
+                        return val_i32(-value_to_int(operand));
+                    }
+                    fprintf(stderr, "Runtime error: Cannot negate non-numeric value\n");
+                    exit(1);
+            }
+            break;
+        }
+
+        case EXPR_IDENT:
+            return env_get(env, expr->as.ident);
+
+        case EXPR_ASSIGN: {
+            Value value = eval_expr(expr->as.assign.value, env);
+            env_set(env, expr->as.assign.name, value);
+            return value;
+        }
+
+        case EXPR_BINARY: {
+            // Handle && and || with short-circuit evaluation
+            if (expr->as.binary.op == OP_AND) {
+                Value left = eval_expr(expr->as.binary.left, env);
+                if (!value_is_truthy(left)) return val_bool(0);
+
+                Value right = eval_expr(expr->as.binary.right, env);
+                return val_bool(value_is_truthy(right));
+            }
+
+            if (expr->as.binary.op == OP_OR) {
+                Value left = eval_expr(expr->as.binary.left, env);
+                if (value_is_truthy(left)) return val_bool(1);
+
+                Value right = eval_expr(expr->as.binary.right, env);
+                return val_bool(value_is_truthy(right));
+            }
+
+            // Evaluate both operands
+            Value left = eval_expr(expr->as.binary.left, env);
+            Value right = eval_expr(expr->as.binary.right, env);
+
+            // String concatenation
+            if (expr->as.binary.op == OP_ADD && left.type == VAL_STRING && right.type == VAL_STRING) {
+                String *result = string_concat(left.as.as_string, right.as.as_string);
+                return (Value){ .type = VAL_STRING, .as.as_string = result };
+            }
+
+            // Pointer arithmetic
+            if (left.type == VAL_PTR && is_integer(right)) {
+                if (expr->as.binary.op == OP_ADD) {
+                    void *ptr = left.as.as_ptr;
+                    int32_t offset = value_to_int(right);
+                    return val_ptr((char *)ptr + offset);
+                } else if (expr->as.binary.op == OP_SUB) {
+                    void *ptr = left.as.as_ptr;
+                    int32_t offset = value_to_int(right);
+                    return val_ptr((char *)ptr - offset);
+                }
+            }
+
+            if (is_integer(left) && right.type == VAL_PTR) {
+                if (expr->as.binary.op == OP_ADD) {
+                    int32_t offset = value_to_int(left);
+                    void *ptr = right.as.as_ptr;
+                    return val_ptr((char *)ptr + offset);
+                }
+            }
+
+            // Numeric operations
+            if (!is_numeric(left) || !is_numeric(right)) {
+                fprintf(stderr, "Runtime error: Binary operation requires numeric operands\n");
+                exit(1);
+            }
+
+            // Determine result type and promote operands
+            ValueType result_type = promote_types(left.type, right.type);
+            left = promote_value(left, result_type);
+            right = promote_value(right, result_type);
+
+            // Perform operation based on result type
+            if (is_float(left)) {
+                // Float operation
+                double l = value_to_float(left);
+                double r = value_to_float(right);
+
+                switch (expr->as.binary.op) {
+                    case OP_ADD:
+                        return (result_type == VAL_F32) ? val_f32((float)(l + r)) : val_f64(l + r);
+                    case OP_SUB:
+                        return (result_type == VAL_F32) ? val_f32((float)(l - r)) : val_f64(l - r);
+                    case OP_MUL:
+                        return (result_type == VAL_F32) ? val_f32((float)(l * r)) : val_f64(l * r);
+                    case OP_DIV:
+                        if (r == 0.0) {
+                            fprintf(stderr, "Runtime error: Division by zero\n");
+                            exit(1);
+                        }
+                        return (result_type == VAL_F32) ? val_f32((float)(l / r)) : val_f64(l / r);
+                    case OP_EQUAL: return val_bool(l == r);
+                    case OP_NOT_EQUAL: return val_bool(l != r);
+                    case OP_LESS: return val_bool(l < r);
+                    case OP_LESS_EQUAL: return val_bool(l <= r);
+                    case OP_GREATER: return val_bool(l > r);
+                    case OP_GREATER_EQUAL: return val_bool(l >= r);
+                    default: break;
+                }
+            } else {
+                // Integer operation - use the promoted type
+                int64_t l = value_to_int(left);
+                int64_t r = value_to_int(right);
+
+                switch (expr->as.binary.op) {
+                    case OP_ADD:
+                        return promote_value(val_i32((int32_t)(l + r)), result_type);
+                    case OP_SUB:
+                        return promote_value(val_i32((int32_t)(l - r)), result_type);
+                    case OP_MUL:
+                        return promote_value(val_i32((int32_t)(l * r)), result_type);
+                    case OP_DIV:
+                        if (r == 0) {
+                            fprintf(stderr, "Runtime error: Division by zero\n");
+                            exit(1);
+                        }
+                        return promote_value(val_i32((int32_t)(l / r)), result_type);
+                    case OP_EQUAL: return val_bool(l == r);
+                    case OP_NOT_EQUAL: return val_bool(l != r);
+                    case OP_LESS: return val_bool(l < r);
+                    case OP_LESS_EQUAL: return val_bool(l <= r);
+                    case OP_GREATER: return val_bool(l > r);
+                    case OP_GREATER_EQUAL: return val_bool(l >= r);
+                    default: break;
+                }
+            }
+
+            fprintf(stderr, "Runtime error: Unknown binary operator\n");
+            exit(1);
+        }
+
+        case EXPR_CALL: {
+            // Check if this is a method call (obj.method(...))
+            int is_method_call = 0;
+            Value method_self;
+
+            if (expr->as.call.func->type == EXPR_GET_PROPERTY) {
+                is_method_call = 1;
+                method_self = eval_expr(expr->as.call.func->as.get_property.object, env);
+
+                // Special handling for file methods
+                if (method_self.type == VAL_FILE) {
+                    const char *method = expr->as.call.func->as.get_property.property;
+
+                    // Evaluate arguments
+                    Value *args = NULL;
+                    if (expr->as.call.num_args > 0) {
+                        args = malloc(sizeof(Value) * expr->as.call.num_args);
+                        for (int i = 0; i < expr->as.call.num_args; i++) {
+                            args[i] = eval_expr(expr->as.call.args[i], env);
+                        }
+                    }
+
+                    Value result = call_file_method(method_self.as.as_file, method, args, expr->as.call.num_args);
+                    if (args) free(args);
+                    return result;
+                }
+
+                // Special handling for array methods
+                if (method_self.type == VAL_ARRAY) {
+                    const char *method = expr->as.call.func->as.get_property.property;
+
+                    // Evaluate arguments
+                    Value *args = NULL;
+                    if (expr->as.call.num_args > 0) {
+                        args = malloc(sizeof(Value) * expr->as.call.num_args);
+                        for (int i = 0; i < expr->as.call.num_args; i++) {
+                            args[i] = eval_expr(expr->as.call.args[i], env);
+                        }
+                    }
+
+                    Value result = call_array_method(method_self.as.as_array, method, args, expr->as.call.num_args);
+                    if (args) free(args);
+                    return result;
+                }
+            }
+
+            // Evaluate the function expression
+            Value func = eval_expr(expr->as.call.func, env);
+
+            // Evaluate arguments
+            Value *args = NULL;
+            if (expr->as.call.num_args > 0) {
+                args = malloc(sizeof(Value) * expr->as.call.num_args);
+                for (int i = 0; i < expr->as.call.num_args; i++) {
+                    args[i] = eval_expr(expr->as.call.args[i], env);
+                }
+            }
+
+            Value result;
+
+            if (func.type == VAL_BUILTIN_FN) {
+                // Call builtin function
+                BuiltinFn fn = func.as.as_builtin_fn;
+                result = fn(args, expr->as.call.num_args);
+            } else if (func.type == VAL_FUNCTION) {
+                // Call user-defined function
+                Function *fn = func.as.as_function;
+
+                // Check argument count
+                if (expr->as.call.num_args != fn->num_params) {
+                    fprintf(stderr, "Runtime error: Function expects %d arguments, got %d\n",
+                            fn->num_params, expr->as.call.num_args);
+                    exit(1);
+                }
+
+                // Create call environment with closure_env as parent
+                Environment *call_env = env_new(fn->closure_env);
+
+                // Inject 'self' if this is a method call
+                if (is_method_call) {
+                    env_set(call_env, "self", method_self);
+                }
+
+                // Bind parameters
+                for (int i = 0; i < fn->num_params; i++) {
+                    Value arg_value = args[i];
+
+                    // Type check if parameter has type annotation
+                    if (fn->param_types[i]) {
+                        arg_value = convert_to_type(arg_value, fn->param_types[i], call_env);
+                    }
+
+                    env_set(call_env, fn->param_names[i], arg_value);
+                }
+
+                // Execute body
+                return_state.is_returning = 0;
+                eval_stmt(fn->body, call_env);
+
+                // Get result
+                result = return_state.return_value;
+
+                // Check return type if specified
+                if (fn->return_type) {
+                    if (!return_state.is_returning) {
+                        fprintf(stderr, "Runtime error: Function with return type must return a value\n");
+                        exit(1);
+                    }
+                    result = convert_to_type(result, fn->return_type, call_env);
+                }
+
+                // Reset return state
+                return_state.is_returning = 0;
+
+                // Cleanup
+                // NOTE: We don't free call_env here because closures might reference it
+                // This is a known memory leak in v0.1, to be fixed with refcounting in v0.2
+                // env_free(call_env);
+            } else {
+                fprintf(stderr, "Runtime error: Value is not a function\n");
+                exit(1);
+            }
+
+            if (args) free(args);
+            return result;
+        }
+
+        case EXPR_GET_PROPERTY: {
+            Value object = eval_expr(expr->as.get_property.object, env);
+            const char *property = expr->as.get_property.property;
+
+            if (object.type == VAL_STRING) {
+                if (strcmp(property, "length") == 0) {
+                    return val_int(object.as.as_string->length);
+                }
+                fprintf(stderr, "Runtime error: Unknown property '%s' for string\n", property);
+                exit(1);
+            } else if (object.type == VAL_BUFFER) {
+                if (strcmp(property, "length") == 0) {
+                    return val_int(object.as.as_buffer->length);
+                } else if (strcmp(property, "capacity") == 0) {
+                    return val_int(object.as.as_buffer->capacity);
+                }
+                fprintf(stderr, "Runtime error: Unknown property '%s' for buffer\n", property);
+                exit(1);
+            } else if (object.type == VAL_FILE) {
+                FileHandle *file = object.as.as_file;
+                if (strcmp(property, "mode") == 0) {
+                    return val_string(file->mode);
+                } else if (strcmp(property, "closed") == 0) {
+                    return val_bool(file->closed);
+                }
+                fprintf(stderr, "Runtime error: Unknown property '%s' for file\n", property);
+                exit(1);
+            } else if (object.type == VAL_ARRAY) {
+                // Array properties
+                if (strcmp(property, "length") == 0) {
+                    return val_i32(object.as.as_array->length);
+                }
+                fprintf(stderr, "Runtime error: Array has no property '%s'\n", property);
+                exit(1);
+            } else if (object.type == VAL_OBJECT) {
+                // Look up field in object
+                Object *obj = object.as.as_object;
+                for (int i = 0; i < obj->num_fields; i++) {
+                    if (strcmp(obj->field_names[i], property) == 0) {
+                        return obj->field_values[i];
+                    }
+                }
+                fprintf(stderr, "Runtime error: Object has no field '%s'\n", property);
+                exit(1);
+            } else {
+                fprintf(stderr, "Runtime error: Only strings, buffers, arrays, and objects have properties\n");
+                exit(1);
+            }
+        }
+
+        case EXPR_INDEX: {
+            Value object = eval_expr(expr->as.index.object, env);
+            Value index_val = eval_expr(expr->as.index.index, env);
+
+            if (!is_integer(index_val)) {
+                fprintf(stderr, "Runtime error: Index must be an integer\n");
+                exit(1);
+            }
+
+            int32_t index = value_to_int(index_val);
+
+            if (object.type == VAL_STRING) {
+                String *str = object.as.as_string;
+
+                if (index < 0 || index >= str->length) {
+                    fprintf(stderr, "Runtime error: String index %d out of bounds (length %d)\n",
+                            index, str->length);
+                    exit(1);
+                }
+
+                // Return the byte as an integer (u8/char)
+                return val_u8((unsigned char)str->data[index]);
+            } else if (object.type == VAL_BUFFER) {
+                Buffer *buf = object.as.as_buffer;
+
+                if (index < 0 || index >= buf->length) {
+                    fprintf(stderr, "Runtime error: Buffer index %d out of bounds (length %d)\n",
+                            index, buf->length);
+                    exit(1);
+                }
+
+                // Return the byte as an integer (u8)
+                return val_u8(((unsigned char *)buf->data)[index]);
+            } else if (object.type == VAL_ARRAY) {
+                // Array indexing
+                return array_get(object.as.as_array, index);
+            } else {
+                fprintf(stderr, "Runtime error: Only strings, buffers, and arrays can be indexed\n");
+                exit(1);
+            }
+        }
+
+        case EXPR_INDEX_ASSIGN: {
+            Value object = eval_expr(expr->as.index_assign.object, env);
+            Value index_val = eval_expr(expr->as.index_assign.index, env);
+            Value value = eval_expr(expr->as.index_assign.value, env);
+
+            if (!is_integer(index_val)) {
+                fprintf(stderr, "Runtime error: Index must be an integer\n");
+                exit(1);
+            }
+
+            int32_t index = value_to_int(index_val);
+
+            if (object.type == VAL_ARRAY) {
+                // Array assignment - value can be any type
+                array_set(object.as.as_array, index, value);
+                return value;
+            }
+
+            // For strings and buffers, value must be an integer (byte)
+            if (!is_integer(value)) {
+                fprintf(stderr, "Runtime error: Index value must be an integer (byte) for strings/buffers\n");
+                exit(1);
+            }
+
+            if (object.type == VAL_STRING) {
+                String *str = object.as.as_string;
+
+                if (index < 0 || index >= str->length) {
+                    fprintf(stderr, "Runtime error: String index %d out of bounds (length %d)\n",
+                            index, str->length);
+                    exit(1);
+                }
+
+                // Strings are mutable - set the byte
+                str->data[index] = (char)value_to_int(value);
+                return value;
+            } else if (object.type == VAL_BUFFER) {
+                Buffer *buf = object.as.as_buffer;
+
+                if (index < 0 || index >= buf->length) {
+                    fprintf(stderr, "Runtime error: Buffer index %d out of bounds (length %d)\n",
+                            index, buf->length);
+                    exit(1);
+                }
+
+                // Buffers are mutable - set the byte
+                ((unsigned char *)buf->data)[index] = (unsigned char)value_to_int(value);
+                return value;
+            } else {
+                fprintf(stderr, "Runtime error: Only strings, buffers, and arrays support index assignment\n");
+                exit(1);
+            }
+        }
+
+        case EXPR_FUNCTION: {
+            // Create function object and capture current environment
+            Function *fn = malloc(sizeof(Function));
+
+            // Copy parameter names
+            fn->param_names = malloc(sizeof(char*) * expr->as.function.num_params);
+            for (int i = 0; i < expr->as.function.num_params; i++) {
+                fn->param_names[i] = strdup(expr->as.function.param_names[i]);
+            }
+
+            // Copy parameter types (may be NULL)
+            fn->param_types = malloc(sizeof(Type*) * expr->as.function.num_params);
+            for (int i = 0; i < expr->as.function.num_params; i++) {
+                if (expr->as.function.param_types[i]) {
+                    fn->param_types[i] = type_new(expr->as.function.param_types[i]->kind);
+                } else {
+                    fn->param_types[i] = NULL;
+                }
+            }
+
+            fn->num_params = expr->as.function.num_params;
+
+            // Copy return type (may be NULL)
+            if (expr->as.function.return_type) {
+                fn->return_type = type_new(expr->as.function.return_type->kind);
+            } else {
+                fn->return_type = NULL;
+            }
+
+            // Store body AST (shared, not copied)
+            fn->body = expr->as.function.body;
+
+            // CRITICAL: Capture current environment
+            fn->closure_env = env;
+
+            return val_function(fn);
+        }
+
+        case EXPR_ARRAY_LITERAL: {
+            // Create array and evaluate elements
+            Array *arr = array_new();
+
+            for (int i = 0; i < expr->as.array_literal.num_elements; i++) {
+                Value element = eval_expr(expr->as.array_literal.elements[i], env);
+                array_push(arr, element);
+            }
+
+            return val_array(arr);
+        }
+
+        case EXPR_OBJECT_LITERAL: {
+            // Create anonymous object
+            Object *obj = object_new(NULL, expr->as.object_literal.num_fields);
+
+            // Evaluate and store fields
+            for (int i = 0; i < expr->as.object_literal.num_fields; i++) {
+                obj->field_names[i] = strdup(expr->as.object_literal.field_names[i]);
+                obj->field_values[i] = eval_expr(expr->as.object_literal.field_values[i], env);
+                obj->num_fields++;
+            }
+
+            return val_object(obj);
+        }
+
+        case EXPR_SET_PROPERTY: {
+            Value object = eval_expr(expr->as.set_property.object, env);
+            const char *property = expr->as.set_property.property;
+            Value value = eval_expr(expr->as.set_property.value, env);
+
+            if (object.type != VAL_OBJECT) {
+                fprintf(stderr, "Runtime error: Only objects can have properties set\n");
+                exit(1);
+            }
+
+            Object *obj = object.as.as_object;
+
+            // Look for existing field
+            for (int i = 0; i < obj->num_fields; i++) {
+                if (strcmp(obj->field_names[i], property) == 0) {
+                    obj->field_values[i] = value;
+                    return value;
+                }
+            }
+
+            // Field doesn't exist - add it dynamically!
+            if (obj->num_fields >= obj->capacity) {
+                // Grow arrays
+                obj->capacity *= 2;
+                obj->field_names = realloc(obj->field_names, sizeof(char*) * obj->capacity);
+                obj->field_values = realloc(obj->field_values, sizeof(Value) * obj->capacity);
+            }
+
+            obj->field_names[obj->num_fields] = strdup(property);
+            obj->field_values[obj->num_fields] = value;
+            obj->num_fields++;
+
+            return value;
+        }
+    }
+
+    return val_null();
+}
+
+// ========== STATEMENT EVALUATION ==========
+
+void eval_stmt(Stmt *stmt, Environment *env) {
+    switch (stmt->type) {
+        case STMT_LET: {
+            Value value = eval_expr(stmt->as.let.value, env);
+            // If there's a type annotation, convert/check the value
+            if (stmt->as.let.type_annotation != NULL) {
+                value = convert_to_type(value, stmt->as.let.type_annotation, env);
+            }
+            env_define(env, stmt->as.let.name, value, 0);  // 0 = mutable
+            break;
+        }
+
+        case STMT_CONST: {
+            Value value = eval_expr(stmt->as.const_stmt.value, env);
+            // If there's a type annotation, convert/check the value
+            if (stmt->as.const_stmt.type_annotation != NULL) {
+                value = convert_to_type(value, stmt->as.const_stmt.type_annotation, env);
+            }
+            env_define(env, stmt->as.const_stmt.name, value, 1);  // 1 = const
+            break;
+        }
+
+        case STMT_EXPR: {
+            eval_expr(stmt->as.expr, env);
+            break;
+        }
+
+        case STMT_IF: {
+            Value condition = eval_expr(stmt->as.if_stmt.condition, env);
+
+            if (value_is_truthy(condition)) {
+                eval_stmt(stmt->as.if_stmt.then_branch, env);
+            } else if (stmt->as.if_stmt.else_branch != NULL) {
+                eval_stmt(stmt->as.if_stmt.else_branch, env);
+            }
+            // No need to check return here, it propagates automatically
+            break;
+        }
+
+        case STMT_WHILE: {
+            for (;;) {
+                Value condition = eval_expr(stmt->as.while_stmt.condition, env);
+
+                if (!value_is_truthy(condition)) break;
+
+                eval_stmt(stmt->as.while_stmt.body, env);
+
+                // Check for break/continue/return/exception
+                if (loop_state.is_breaking) {
+                    loop_state.is_breaking = 0;
+                    break;
+                }
+                if (loop_state.is_continuing) {
+                    loop_state.is_continuing = 0;
+                    continue;
+                }
+                if (return_state.is_returning || exception_state.is_throwing) {
+                    break;
+                }
+            }
+            break;
+        }
+
+        case STMT_FOR: {
+            // Create new environment for loop scope
+            Environment *loop_env = env_new(env);
+
+            // Execute initializer
+            if (stmt->as.for_loop.initializer) {
+                eval_stmt(stmt->as.for_loop.initializer, loop_env);
+            }
+
+            // Loop
+            for (;;) {
+                // Check condition
+                if (stmt->as.for_loop.condition) {
+                    Value cond = eval_expr(stmt->as.for_loop.condition, loop_env);
+                    if (!value_is_truthy(cond)) {
+                        break;
+                    }
+                }
+
+                // Execute body
+                eval_stmt(stmt->as.for_loop.body, loop_env);
+
+                // Check for break/continue/return/exception
+                if (loop_state.is_breaking) {
+                    loop_state.is_breaking = 0;
+                    break;
+                }
+                if (loop_state.is_continuing) {
+                    loop_state.is_continuing = 0;
+                    // Fall through to increment
+                }
+                if (return_state.is_returning || exception_state.is_throwing) {
+                    break;
+                }
+
+                // Execute increment
+                if (stmt->as.for_loop.increment) {
+                    eval_expr(stmt->as.for_loop.increment, loop_env);
+                }
+            }
+
+            env_free(loop_env);
+            break;
+        }
+
+        case STMT_FOR_IN: {
+            Value iterable = eval_expr(stmt->as.for_in.iterable, env);
+
+            Environment *loop_env = env_new(env);
+
+            if (iterable.type == VAL_ARRAY) {
+                Array *arr = iterable.as.as_array;
+
+                for (int i = 0; i < arr->length; i++) {
+                    // Bind variables
+                    if (stmt->as.for_in.key_var) {
+                        env_set(loop_env, stmt->as.for_in.key_var, val_i32(i));
+                    }
+                    env_set(loop_env, stmt->as.for_in.value_var, arr->elements[i]);
+
+                    // Execute body
+                    eval_stmt(stmt->as.for_in.body, loop_env);
+
+                    // Check break/continue/return/exception
+                    if (loop_state.is_breaking) {
+                        loop_state.is_breaking = 0;
+                        break;
+                    }
+                    if (loop_state.is_continuing) {
+                        loop_state.is_continuing = 0;
+                        continue;
+                    }
+                    if (return_state.is_returning || exception_state.is_throwing) {
+                        break;
+                    }
+                }
+            } else if (iterable.type == VAL_OBJECT) {
+                Object *obj = iterable.as.as_object;
+
+                for (int i = 0; i < obj->num_fields; i++) {
+                    // Bind variables
+                    if (stmt->as.for_in.key_var) {
+                        env_set(loop_env, stmt->as.for_in.key_var, val_string(obj->field_names[i]));
+                    }
+                    env_set(loop_env, stmt->as.for_in.value_var, obj->field_values[i]);
+
+                    // Execute body
+                    eval_stmt(stmt->as.for_in.body, loop_env);
+
+                    // Check break/continue/return/exception
+                    if (loop_state.is_breaking) {
+                        loop_state.is_breaking = 0;
+                        break;
+                    }
+                    if (loop_state.is_continuing) {
+                        loop_state.is_continuing = 0;
+                        continue;
+                    }
+                    if (return_state.is_returning || exception_state.is_throwing) {
+                        break;
+                    }
+                }
+            } else {
+                fprintf(stderr, "Runtime error: for-in requires array or object\n");
+                exit(1);
+            }
+
+            env_free(loop_env);
+            break;
+        }
+
+        case STMT_BREAK:
+            loop_state.is_breaking = 1;
+            break;
+
+        case STMT_CONTINUE:
+            loop_state.is_continuing = 1;
+            break;
+
+        case STMT_BLOCK: {
+            for (int i = 0; i < stmt->as.block.count; i++) {
+                eval_stmt(stmt->as.block.statements[i], env);
+                // Check if a return/break/continue/exception happened
+                if (return_state.is_returning || loop_state.is_breaking ||
+                    loop_state.is_continuing || exception_state.is_throwing) {
+                    break;
+                }
+            }
+            break;
+        }
+
+        case STMT_RETURN: {
+            // Evaluate return value (or null if none)
+            if (stmt->as.return_stmt.value) {
+                return_state.return_value = eval_expr(stmt->as.return_stmt.value, env);
+            } else {
+                return_state.return_value = val_null();
+            }
+            return_state.is_returning = 1;
+            break;
+        }
+
+        case STMT_DEFINE_OBJECT: {
+            // Create object type definition
+            ObjectType *type = malloc(sizeof(ObjectType));
+            type->name = strdup(stmt->as.define_object.name);
+            type->num_fields = stmt->as.define_object.num_fields;
+
+            // Copy field information
+            type->field_names = malloc(sizeof(char*) * type->num_fields);
+            type->field_types = malloc(sizeof(Type*) * type->num_fields);
+            type->field_optional = malloc(sizeof(int) * type->num_fields);
+            type->field_defaults = malloc(sizeof(Expr*) * type->num_fields);
+
+            for (int i = 0; i < type->num_fields; i++) {
+                type->field_names[i] = strdup(stmt->as.define_object.field_names[i]);
+                type->field_types[i] = stmt->as.define_object.field_types[i];
+                type->field_optional[i] = stmt->as.define_object.field_optional[i];
+                type->field_defaults[i] = stmt->as.define_object.field_defaults[i];
+            }
+
+            // Register the type
+            register_object_type(type);
+            break;
+        }
+
+        case STMT_TRY: {
+            // Execute try block
+            eval_stmt(stmt->as.try_stmt.try_block, env);
+
+            // Check if exception was thrown
+            if (exception_state.is_throwing) {
+                // Exception thrown - execute catch block if present
+                if (stmt->as.try_stmt.catch_block != NULL) {
+                    // Create new scope for catch parameter
+                    Environment *catch_env = env_new(env);
+                    env_set(catch_env, stmt->as.try_stmt.catch_param, exception_state.exception_value);
+
+                    // Clear exception state
+                    exception_state.is_throwing = 0;
+
+                    // Execute catch block
+                    eval_stmt(stmt->as.try_stmt.catch_block, catch_env);
+
+                    env_free(catch_env);
+                }
+            }
+
+            // Execute finally block if present (always executes)
+            if (stmt->as.try_stmt.finally_block != NULL) {
+                // Save current state (return/exception/break/continue)
+                int was_returning = return_state.is_returning;
+                Value saved_return = return_state.return_value;
+                int was_throwing = exception_state.is_throwing;
+                Value saved_exception = exception_state.exception_value;
+                int was_breaking = loop_state.is_breaking;
+                int was_continuing = loop_state.is_continuing;
+
+                // Clear states before finally
+                return_state.is_returning = 0;
+                exception_state.is_throwing = 0;
+                loop_state.is_breaking = 0;
+                loop_state.is_continuing = 0;
+
+                // Execute finally block
+                eval_stmt(stmt->as.try_stmt.finally_block, env);
+
+                // If finally didn't throw/return/break/continue, restore previous state
+                if (!return_state.is_returning && !exception_state.is_throwing &&
+                    !loop_state.is_breaking && !loop_state.is_continuing) {
+                    return_state.is_returning = was_returning;
+                    return_state.return_value = saved_return;
+                    exception_state.is_throwing = was_throwing;
+                    exception_state.exception_value = saved_exception;
+                    loop_state.is_breaking = was_breaking;
+                    loop_state.is_continuing = was_continuing;
+                }
+            }
+            break;
+        }
+
+        case STMT_THROW: {
+            // Evaluate the value to throw
+            exception_state.exception_value = eval_expr(stmt->as.throw_stmt.value, env);
+            exception_state.is_throwing = 1;
+            break;
+        }
+    }
+}
+
+void eval_program(Stmt **stmts, int count, Environment *env) {
+    for (int i = 0; i < count; i++) {
+        eval_stmt(stmts[i], env);
+
+        // Check for uncaught exception
+        if (exception_state.is_throwing) {
+            fprintf(stderr, "Runtime error: ");
+            print_value(exception_state.exception_value);
+            fprintf(stderr, "\n");
+            // TODO: Add stack trace here
+            exit(1);
+        }
+    }
+}
