@@ -22,10 +22,24 @@ typedef struct {
     Value exception_value;
 } ExceptionState;
 
+// ========== CALL STACK (for error reporting) ==========
+
+typedef struct {
+    char *function_name;
+    int line;  // Future: add line number tracking
+} CallFrame;
+
+typedef struct {
+    CallFrame *frames;
+    int count;
+    int capacity;
+} CallStack;
+
 // Global control flow state (shared across modules)
 extern ReturnState return_state;
 extern LoopState loop_state;
 extern ExceptionState exception_state;
+extern CallStack call_stack;
 
 // ========== OBJECT TYPE REGISTRY ==========
 
@@ -157,5 +171,12 @@ Value builtin_open(Value *args, int num_args);
 Value eval_expr(Expr *expr, Environment *env);
 void eval_stmt(Stmt *stmt, Environment *env);
 void eval_program(Stmt **stmts, int count, Environment *env);
+
+// Call stack helpers
+void call_stack_init(void);
+void call_stack_push(const char *function_name);
+void call_stack_pop(void);
+void call_stack_print(void);
+void call_stack_free(void);
 
 #endif // HEMLOCK_INTERPRETER_INTERNAL_H

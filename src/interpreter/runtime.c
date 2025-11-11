@@ -9,6 +9,67 @@
 ReturnState return_state = {0};
 LoopState loop_state = {0};
 ExceptionState exception_state = {0};
+CallStack call_stack = {0};
+
+// ========== CALL STACK IMPLEMENTATION ==========
+
+void call_stack_init(void) {
+    call_stack.capacity = 64;
+    call_stack.count = 0;
+    call_stack.frames = malloc(sizeof(CallFrame) * call_stack.capacity);
+    if (!call_stack.frames) {
+        fprintf(stderr, "Fatal error: Failed to initialize call stack\n");
+        exit(1);
+    }
+}
+
+void call_stack_push(const char *function_name) {
+    if (call_stack.capacity == 0) {
+        call_stack_init();
+    }
+
+    if (call_stack.count >= call_stack.capacity) {
+        call_stack.capacity *= 2;
+        CallFrame *new_frames = realloc(call_stack.frames, sizeof(CallFrame) * call_stack.capacity);
+        if (!new_frames) {
+            fprintf(stderr, "Fatal error: Failed to grow call stack\n");
+            exit(1);
+        }
+        call_stack.frames = new_frames;
+    }
+
+    call_stack.frames[call_stack.count].function_name = strdup(function_name);
+    call_stack.frames[call_stack.count].line = 0;  // TODO: Add line tracking
+    call_stack.count++;
+}
+
+void call_stack_pop(void) {
+    if (call_stack.count > 0) {
+        call_stack.count--;
+        free(call_stack.frames[call_stack.count].function_name);
+    }
+}
+
+void call_stack_print(void) {
+    if (call_stack.count == 0) {
+        return;
+    }
+
+    fprintf(stderr, "\nStack trace (most recent call first):\n");
+    for (int i = call_stack.count - 1; i >= 0; i--) {
+        fprintf(stderr, "  at %s()\n", call_stack.frames[i].function_name);
+    }
+}
+
+void call_stack_free(void) {
+    for (int i = 0; i < call_stack.count; i++) {
+        free(call_stack.frames[i].function_name);
+    }
+    free(call_stack.frames);
+    call_stack.frames = NULL;
+    call_stack.count = 0;
+    call_stack.capacity = 0;
+}
 
 // ========== HELPER FUNCTIONS ==========
 
@@ -312,6 +373,17 @@ Value eval_expr(Expr *expr, Environment *env) {
                     exit(1);
                 }
 
+                // Determine function name for stack trace
+                const char *fn_name = "<anonymous>";
+                if (is_method_call && expr->as.call.func->type == EXPR_GET_PROPERTY) {
+                    fn_name = expr->as.call.func->as.get_property.property;
+                } else if (expr->as.call.func->type == EXPR_IDENT) {
+                    fn_name = expr->as.call.func->as.ident;
+                }
+
+                // Push call onto stack trace
+                call_stack_push(fn_name);
+
                 // Create call environment with closure_env as parent
                 Environment *call_env = env_new(fn->closure_env);
 
@@ -350,6 +422,11 @@ Value eval_expr(Expr *expr, Environment *env) {
 
                 // Reset return state
                 return_state.is_returning = 0;
+
+                // Pop call from stack trace (but not if exception is active - preserve stack for error reporting)
+                if (!exception_state.is_throwing) {
+                    call_stack_pop();
+                }
 
                 // Cleanup
                 // NOTE: We don't free call_env here because closures might reference it
@@ -1128,7 +1205,10 @@ void eval_program(Stmt **stmts, int count, Environment *env) {
             fprintf(stderr, "Runtime error: ");
             print_value(exception_state.exception_value);
             fprintf(stderr, "\n");
-            // TODO: Add stack trace here
+            // Print stack trace
+            call_stack_print();
+            // Clear stack for next execution (REPL mode)
+            call_stack_free();
             exit(1);
         }
     }
