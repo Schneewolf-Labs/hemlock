@@ -1,0 +1,5 @@
+let s = "hello world";
+print(s.find("world"));
+print(s.find("hello"));
+print(s.find("foo"));
+print(s.find("o"));

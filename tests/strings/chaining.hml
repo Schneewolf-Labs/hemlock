@@ -1,0 +1,7 @@
+let s = "  Hello World  ";
+let result = s.trim().to_lower().replace("world", "hemlock");
+print(result);
+
+let s2 = "foo";
+let result2 = s2.repeat(3).to_upper();
+print(result2);

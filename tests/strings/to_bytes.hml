@@ -1,0 +1,6 @@
+let s = "hello";
+let buf = s.to_bytes();
+print(typeof(buf));
+print(typeof(buf.length));
+print(buf[0]);
+print(buf[4]);

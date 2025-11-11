@@ -1,0 +1,9 @@
+let s = "hello world";
+let sub1 = s.slice(0, 5);
+print(sub1);
+
+let sub2 = s.slice(6, 11);
+print(sub2);
+
+let sub3 = s.slice(0, 0);
+print(sub3);

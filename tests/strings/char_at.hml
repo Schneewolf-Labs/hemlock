@@ -1,0 +1,5 @@
+let s = "hello";
+print(s.char_at(0));
+print(s.char_at(4));
+print(s[0]);
+print(s[4]);

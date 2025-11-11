@@ -1,0 +1,11 @@
+let s1 = "  hello  ";
+print(s1.trim());
+
+let s2 = "\t\nhello\r\n";
+print(s2.trim());
+
+let s3 = "no spaces";
+print(s3.trim());
+
+let s4 = "   ";
+print(s4.trim());

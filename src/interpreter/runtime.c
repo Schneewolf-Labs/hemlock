@@ -263,6 +263,24 @@ Value eval_expr(Expr *expr, Environment *env) {
                     if (args) free(args);
                     return result;
                 }
+
+                // Special handling for string methods
+                if (method_self.type == VAL_STRING) {
+                    const char *method = expr->as.call.func->as.get_property.property;
+
+                    // Evaluate arguments
+                    Value *args = NULL;
+                    if (expr->as.call.num_args > 0) {
+                        args = malloc(sizeof(Value) * expr->as.call.num_args);
+                        for (int i = 0; i < expr->as.call.num_args; i++) {
+                            args[i] = eval_expr(expr->as.call.args[i], env);
+                        }
+                    }
+
+                    Value result = call_string_method(method_self.as.as_string, method, args, expr->as.call.num_args);
+                    if (args) free(args);
+                    return result;
+                }
             }
 
             // Evaluate the function expression

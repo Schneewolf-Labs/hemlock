@@ -1,0 +1,7 @@
+let s = "hello world";
+print(s.replace("world", "there"));
+print(s.replace("foo", "bar"));
+
+let s2 = "foo foo foo";
+print(s2.replace("foo", "bar"));
+print(s2.replace_all("foo", "bar"));

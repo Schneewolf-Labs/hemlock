@@ -1,0 +1,12 @@
+let s = "a,b,c";
+let parts = s.split(",");
+print(parts[0]);
+print(parts[1]);
+print(parts[2]);
+print(typeof(parts.length));
+
+let s2 = "hello world foo";
+let parts2 = s2.split(" ");
+print(parts2[0]);
+print(parts2[1]);
+print(parts2[2]);

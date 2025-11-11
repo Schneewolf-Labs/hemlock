@@ -1,0 +1,8 @@
+let s = "ha";
+print(s.repeat(3));
+
+let s2 = "abc";
+print(s2.repeat(2));
+
+let s3 = "x";
+print(s3.repeat(0));

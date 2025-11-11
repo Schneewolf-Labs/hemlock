@@ -1,0 +1,7 @@
+let s = "Hello World";
+print(s.to_upper());
+print(s.to_lower());
+
+let s2 = "ABC123xyz";
+print(s2.to_upper());
+print(s2.to_lower());
