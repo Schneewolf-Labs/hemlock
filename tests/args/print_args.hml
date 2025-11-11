@@ -1,0 +1,6 @@
+// Test: Print all command line arguments
+let i = 0;
+while (i < args.length) {
+    print(args[i]);
+    i = i + 1;
+}

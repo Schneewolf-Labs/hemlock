@@ -180,6 +180,6 @@ void file_free(FileHandle *file);
 void object_free(Object *obj);
 Object* object_new(char *type_name, int initial_capacity);
 
-void register_builtins(Environment *env);
+void register_builtins(Environment *env, int argc, char **argv);
 
 #endif // HEMLOCK_INTERPRETER_H

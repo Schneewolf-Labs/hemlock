@@ -1,0 +1,10 @@
+// Test: Access arguments by index
+if (args.length > 0) {
+    print(args[0]);
+}
+if (args.length > 1) {
+    print(args[1]);
+}
+if (args.length > 2) {
+    print(args[2]);
+}

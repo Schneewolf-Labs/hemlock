@@ -1,0 +1,8 @@
+// Test: Perform operations with arguments
+if (args.length >= 3) {
+    let a = args[1];
+    let b = args[2];
+    print("First arg: " + a);
+    print("Second arg: " + b);
+    print("Combined: " + a + " " + b);
+}

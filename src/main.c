@@ -41,27 +41,27 @@ static char* read_file(const char *path) {
     return buffer;
 }
 
-static void run_source(const char *source) {
+static void run_source(const char *source, int argc, char **argv) {
     // Parse
     Lexer lexer;
     lexer_init(&lexer, source);
-    
+
     Parser parser;
     parser_init(&parser, &lexer);
-    
+
     int stmt_count;
     Stmt **statements = parse_program(&parser, &stmt_count);
-    
+
     if (parser.had_error) {
         fprintf(stderr, "Parse failed!\n");
         exit(1);
     }
-    
+
     // Interpret
     Environment *env = env_new(NULL);
-    register_builtins(env);
+    register_builtins(env, argc, argv);
     eval_program(statements, stmt_count, env);
-    
+
     // Cleanup
     env_free(env);
     for (int i = 0; i < stmt_count; i++) {
@@ -70,21 +70,21 @@ static void run_source(const char *source) {
     free(statements);
 }
 
-static void run_file(const char *path) {
+static void run_file(const char *path, int argc, char **argv) {
     char *source = read_file(path);
     if (source == NULL) {
         exit(1);
     }
-    
-    run_source(source);
+
+    run_source(source, argc, argv);
     free(source);
 }
 
 static void run_repl(void) {
     char line[1024];
     Environment *env = env_new(NULL);
-    register_builtins(env);
-    
+    register_builtins(env, 0, NULL);
+
     printf("Hemlock v0.1 REPL\n");
     printf("Type 'exit' to quit\n\n");
     
@@ -140,8 +140,8 @@ static void run_repl(void) {
 
 static void print_usage(const char *program) {
     fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "  %s [file.hml]    Run a hemlock file\n", program);
-    fprintf(stderr, "  %s               Start REPL\n", program);
+    fprintf(stderr, "  %s [file.hml] [args...]    Run a hemlock file with optional arguments\n", program);
+    fprintf(stderr, "  %s                          Start REPL\n", program);
 }
 
 int main(int argc, char **argv) {
@@ -150,14 +150,15 @@ int main(int argc, char **argv) {
         run_repl();
         return 0;
     }
-    
-    if (argc == 2) {
-        // One argument - run file
-        run_file(argv[1]);
+
+    if (argc >= 2) {
+        // Run file with arguments
+        // Pass script name and all following args to the Hemlock program
+        run_file(argv[1], argc - 1, &argv[1]);
         exit(0);  // Explicitly exit with success code after file execution
     }
-    
-    // Too many arguments
+
+    // Should never reach here, but keep for safety
     print_usage(argv[0]);
     return 1;
 }

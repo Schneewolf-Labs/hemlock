@@ -2989,7 +2989,7 @@ Value val_builtin_fn(BuiltinFn fn) {
     return v;
 }
 
-void register_builtins(Environment *env) {
+void register_builtins(Environment *env, int argc, char **argv) {
     // Register type constants FIRST for use with sizeof() and talloc()
     // These must be registered before builtin functions to avoid conflicts
     env_set(env, "i8", val_type(TYPE_I8));
@@ -3011,4 +3011,11 @@ void register_builtins(Environment *env) {
     for (int i = 0; builtins[i].name != NULL; i++) {
         env_set(env, builtins[i].name, val_builtin_fn(builtins[i].fn));
     }
+
+    // Register command-line arguments as 'args' array
+    Array *args_array = array_new();
+    for (int i = 0; i < argc; i++) {
+        array_push(args_array, val_string(argv[i]));
+    }
+    env_set(env, "args", val_array(args_array));
 }

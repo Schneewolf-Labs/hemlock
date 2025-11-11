@@ -1,0 +1,6 @@
+// Test: Verify script name is in args[0] even with no extra arguments
+if (args.length >= 1) {
+    print("Script name: " + args[0]);
+} else {
+    print("ERROR: args should always have at least the script name");
+}

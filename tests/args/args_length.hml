@@ -1,0 +1,2 @@
+// Test: Print the number of arguments
+print(args.length);
