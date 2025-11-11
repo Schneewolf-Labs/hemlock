@@ -204,12 +204,41 @@ let msg = s + " world"; // concatenation
 ## Control Flow
 
 ### Current Features
-- `if`/`else` with mandatory braces
+- `if`/`else`/`else if` with mandatory braces
 - `while` loops
 - `for` loops (C-style and for-in iteration)
 - `break`/`continue`
 - Boolean operators: `&&`, `||`, `!`
 - Comparisons: `==`, `!=`, `<`, `>`, `<=`, `>=`
+
+### If Statements
+
+**Basic if/else:**
+```hemlock
+if (x > 10) {
+    print("large");
+} else {
+    print("small");
+}
+```
+
+**Else-if chains:**
+```hemlock
+if (x > 100) {
+    print("very large");
+} else if (x > 50) {
+    print("large");
+} else if (x > 10) {
+    print("medium");
+} else {
+    print("small");
+}
+```
+
+**Notes:**
+- Braces are always required for all branches
+- Conditions must be enclosed in parentheses
+- `else if` is supported for cleaner chaining (syntactic sugar for nested if statements)
 
 ---
 

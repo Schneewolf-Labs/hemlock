@@ -545,8 +545,15 @@ static Stmt* if_statement(Parser *p) {
     
     Stmt *else_branch = NULL;
     if (match(p, TOK_ELSE)) {
-        consume(p, TOK_LBRACE, "Expect '{' after 'else'");
-        else_branch = block_statement(p);
+        if (check(p, TOK_IF)) {
+            // else if - recursively parse the if statement
+            advance(p);  // consume the IF token
+            else_branch = if_statement(p);
+        } else {
+            // regular else - parse block
+            consume(p, TOK_LBRACE, "Expect '{' after 'else'");
+            else_branch = block_statement(p);
+        }
     }
     
     return stmt_if(condition, then_branch, else_branch);
