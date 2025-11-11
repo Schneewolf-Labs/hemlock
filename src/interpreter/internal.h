@@ -103,6 +103,9 @@ Value val_object(Object *obj);
 Value val_file(FileHandle *file);
 void file_free(FileHandle *file);
 
+// Value cleanup
+void value_free(Value val);
+
 // Printing
 void print_value(Value val);
 

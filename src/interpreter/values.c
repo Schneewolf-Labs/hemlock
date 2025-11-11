@@ -15,9 +15,18 @@ void string_free(String *str) {
 String* string_new(const char *cstr) {
     int len = strlen(cstr);
     String *str = malloc(sizeof(String));
+    if (!str) {
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     str->length = len;
     str->capacity = len + 1;
     str->data = malloc(str->capacity);
+    if (!str->data) {
+        free(str);
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     memcpy(str->data, cstr, len);
     str->data[len] = '\0';
     return str;
@@ -25,9 +34,18 @@ String* string_new(const char *cstr) {
 
 String* string_copy(String *str) {
     String *copy = malloc(sizeof(String));
+    if (!copy) {
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     copy->length = str->length;
     copy->capacity = str->capacity;
     copy->data = malloc(copy->capacity);
+    if (!copy->data) {
+        free(copy);
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     memcpy(copy->data, str->data, str->length + 1);
     return copy;
 }
@@ -35,9 +53,18 @@ String* string_copy(String *str) {
 String* string_concat(String *a, String *b) {
     int new_len = a->length + b->length;
     String *result = malloc(sizeof(String));
+    if (!result) {
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     result->length = new_len;
     result->capacity = new_len + 1;
     result->data = malloc(result->capacity);
+    if (!result->data) {
+        free(result);
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
 
     memcpy(result->data, a->data, a->length);
     memcpy(result->data + a->length, b->data, b->length);
@@ -57,6 +84,10 @@ Value val_string_take(char *data, int length, int capacity) {
     Value v;
     v.type = VAL_STRING;
     String *str = malloc(sizeof(String));
+    if (!str) {
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     str->data = data;
     str->length = length;
     str->capacity = capacity;
@@ -82,8 +113,13 @@ Value val_buffer(int size) {
     Value v;
     v.type = VAL_BUFFER;
     Buffer *buf = malloc(sizeof(Buffer));
+    if (!buf) {
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     buf->data = malloc(size);
     if (buf->data == NULL) {
+        free(buf);
         fprintf(stderr, "Runtime error: Failed to allocate buffer\n");
         exit(1);
     }
@@ -104,9 +140,18 @@ Value val_file(FileHandle *file) {
 
 Array* array_new(void) {
     Array *arr = malloc(sizeof(Array));
+    if (!arr) {
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     arr->capacity = 8;
     arr->length = 0;
     arr->elements = malloc(sizeof(Value) * arr->capacity);
+    if (!arr->elements) {
+        free(arr);
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     return arr;
 }
 
@@ -119,7 +164,12 @@ void array_free(Array *arr) {
 
 static void array_grow(Array *arr) {
     arr->capacity *= 2;
-    arr->elements = realloc(arr->elements, sizeof(Value) * arr->capacity);
+    Value *new_elements = realloc(arr->elements, sizeof(Value) * arr->capacity);
+    if (!new_elements) {
+        fprintf(stderr, "Runtime error: Memory allocation failed during array growth\n");
+        exit(1);
+    }
+    arr->elements = new_elements;
 }
 
 void array_push(Array *arr, Value val) {
@@ -186,7 +236,9 @@ void object_free(Object *obj) {
         if (obj->type_name) free(obj->type_name);
         for (int i = 0; i < obj->num_fields; i++) {
             free(obj->field_names[i]);
-            // Note: field values are NOT freed (memory leak in v0.1)
+            // Recursively free field values
+            // WARNING: This will cause infinite recursion on circular references
+            value_free(obj->field_values[i]);
         }
         free(obj->field_names);
         free(obj->field_values);
@@ -196,9 +248,24 @@ void object_free(Object *obj) {
 
 Object* object_new(char *type_name, int initial_capacity) {
     Object *obj = malloc(sizeof(Object));
+    if (!obj) {
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     obj->type_name = type_name ? strdup(type_name) : NULL;
     obj->field_names = malloc(sizeof(char*) * initial_capacity);
+    if (!obj->field_names) {
+        free(obj);
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     obj->field_values = malloc(sizeof(Value) * initial_capacity);
+    if (!obj->field_values) {
+        free(obj->field_names);
+        free(obj);
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     obj->num_fields = 0;
     obj->capacity = initial_capacity;
     return obj;
@@ -389,6 +456,82 @@ void print_value(Value val) {
             break;
         case VAL_NULL:
             printf("null");
+            break;
+    }
+}
+
+// ========== VALUE CLEANUP ==========
+
+// Recursively free a Value and all its heap-allocated contents
+// WARNING: Does not handle circular references - will cause infinite recursion
+void value_free(Value val) {
+    switch (val.type) {
+        case VAL_STRING:
+            if (val.as.as_string) {
+                string_free(val.as.as_string);
+            }
+            break;
+        case VAL_BUFFER:
+            if (val.as.as_buffer) {
+                buffer_free(val.as.as_buffer);
+            }
+            break;
+        case VAL_ARRAY:
+            if (val.as.as_array) {
+                Array *arr = val.as.as_array;
+                // Recursively free each element
+                for (int i = 0; i < arr->length; i++) {
+                    value_free(arr->elements[i]);
+                }
+                array_free(arr);
+            }
+            break;
+        case VAL_FILE:
+            if (val.as.as_file) {
+                file_free(val.as.as_file);
+            }
+            break;
+        case VAL_OBJECT:
+            if (val.as.as_object) {
+                // object_free will handle field values recursively
+                object_free(val.as.as_object);
+            }
+            break;
+        case VAL_FUNCTION:
+            if (val.as.as_function) {
+                Function *fn = val.as.as_function;
+                // Free parameter names and types
+                if (fn->param_names) {
+                    for (int i = 0; i < fn->num_params; i++) {
+                        if (fn->param_names[i]) free(fn->param_names[i]);
+                    }
+                    free(fn->param_names);
+                }
+                if (fn->param_types) {
+                    // Note: Type structs are not freed (shared/owned by AST)
+                    free(fn->param_types);
+                }
+                // Note: closure_env and body are not freed (shared/owned by AST)
+                // This is a known limitation in v0.1
+                free(fn);
+            }
+            break;
+        case VAL_PTR:
+            // Raw pointers are user-managed - do not free
+            break;
+        case VAL_I8:
+        case VAL_I16:
+        case VAL_I32:
+        case VAL_U8:
+        case VAL_U16:
+        case VAL_U32:
+        case VAL_F32:
+        case VAL_F64:
+        case VAL_BOOL:
+        case VAL_NULL:
+        case VAL_TYPE:
+        case VAL_BUILTIN_FN:
+            // These types have no heap allocation
             break;
     }
 }

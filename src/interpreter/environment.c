@@ -7,11 +7,33 @@
 
 Environment* env_new(Environment *parent) {
     Environment *env = malloc(sizeof(Environment));
+    if (!env) {
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     env->capacity = 16;
     env->count = 0;
     env->names = malloc(sizeof(char*) * env->capacity);
+    if (!env->names) {
+        free(env);
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     env->values = malloc(sizeof(Value) * env->capacity);
+    if (!env->values) {
+        free(env->names);
+        free(env);
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     env->is_const = malloc(sizeof(int) * env->capacity);
+    if (!env->is_const) {
+        free(env->values);
+        free(env->names);
+        free(env);
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
     env->parent = parent;
     return env;
 }
@@ -28,9 +50,26 @@ void env_free(Environment *env) {
 
 static void env_grow(Environment *env) {
     env->capacity *= 2;
-    env->names = realloc(env->names, sizeof(char*) * env->capacity);
-    env->values = realloc(env->values, sizeof(Value) * env->capacity);
-    env->is_const = realloc(env->is_const, sizeof(int) * env->capacity);
+    char **new_names = realloc(env->names, sizeof(char*) * env->capacity);
+    if (!new_names) {
+        fprintf(stderr, "Runtime error: Memory allocation failed during environment growth\n");
+        exit(1);
+    }
+    env->names = new_names;
+
+    Value *new_values = realloc(env->values, sizeof(Value) * env->capacity);
+    if (!new_values) {
+        fprintf(stderr, "Runtime error: Memory allocation failed during environment growth\n");
+        exit(1);
+    }
+    env->values = new_values;
+
+    int *new_is_const = realloc(env->is_const, sizeof(int) * env->capacity);
+    if (!new_is_const) {
+        fprintf(stderr, "Runtime error: Memory allocation failed during environment growth\n");
+        exit(1);
+    }
+    env->is_const = new_is_const;
 }
 
 // Define a new variable (for let/const declarations)
@@ -38,8 +77,12 @@ void env_define(Environment *env, const char *name, Value value, int is_const) {
     // Check if variable already exists in current scope
     for (int i = 0; i < env->count; i++) {
         if (strcmp(env->names[i], name) == 0) {
-            fprintf(stderr, "Runtime error: Variable '%s' already defined in this scope\n", name);
-            exit(1);
+            // Throw exception instead of exiting
+            char error_msg[256];
+            snprintf(error_msg, sizeof(error_msg), "Variable '%s' already defined in this scope", name);
+            exception_state.exception_value = val_string(error_msg);
+            exception_state.is_throwing = 1;
+            return;
         }
     }
 
@@ -61,8 +104,12 @@ void env_set(Environment *env, const char *name, Value value) {
         if (strcmp(env->names[i], name) == 0) {
             // Check if variable is const
             if (env->is_const[i]) {
-                fprintf(stderr, "Runtime error: Cannot assign to const variable '%s'\n", name);
-                exit(1);
+                // Throw exception instead of exiting
+                char error_msg[256];
+                snprintf(error_msg, sizeof(error_msg), "Cannot assign to const variable '%s'", name);
+                exception_state.exception_value = val_string(error_msg);
+                exception_state.is_throwing = 1;
+                return;
             }
             env->values[i] = value;
             return;
@@ -78,8 +125,12 @@ void env_set(Environment *env, const char *name, Value value) {
                 if (strcmp(search_env->names[i], name) == 0) {
                     // Found in parent scope - check if const
                     if (search_env->is_const[i]) {
-                        fprintf(stderr, "Runtime error: Cannot assign to const variable '%s'\n", name);
-                        exit(1);
+                        // Throw exception instead of exiting
+                        char error_msg[256];
+                        snprintf(error_msg, sizeof(error_msg), "Cannot assign to const variable '%s'", name);
+                        exception_state.exception_value = val_string(error_msg);
+                        exception_state.is_throwing = 1;
+                        return;
                     }
                     // Update parent scope variable
                     search_env->values[i] = value;
@@ -115,7 +166,10 @@ Value env_get(Environment *env, const char *name) {
         return env_get(env->parent, name);
     }
 
-    // Variable not found
-    fprintf(stderr, "Runtime error: Undefined variable '%s'\n", name);
-    exit(1);
+    // Variable not found - throw exception instead of exiting
+    char error_msg[256];
+    snprintf(error_msg, sizeof(error_msg), "Undefined variable '%s'", name);
+    exception_state.exception_value = val_string(error_msg);
+    exception_state.is_throwing = 1;
+    return val_null();  // Return dummy value when exception is thrown
 }

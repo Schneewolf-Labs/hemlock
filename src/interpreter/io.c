@@ -337,39 +337,54 @@ Value call_array_method(Array *arr, const char *method, Value *args, int num_arg
         }
 
         char *result = malloc(total_len + 1);
+        if (!result) {
+            fprintf(stderr, "Runtime error: Memory allocation failed in join()\n");
+            exit(1);
+        }
         size_t pos = 0;
 
         for (int i = 0; i < arr->length; i++) {
             // Convert element to string
+            size_t remaining = total_len + 1 - pos;
+
             if (arr->elements[i].type == VAL_STRING) {
                 String *s = arr->elements[i].as.as_string;
                 memcpy(result + pos, s->data, s->length);
                 pos += s->length;
             } else if (arr->elements[i].type == VAL_I8) {
-                pos += sprintf(result + pos, "%d", arr->elements[i].as.as_i8);
+                int written = snprintf(result + pos, remaining, "%d", arr->elements[i].as.as_i8);
+                pos += (written > 0) ? written : 0;
             } else if (arr->elements[i].type == VAL_I16) {
-                pos += sprintf(result + pos, "%d", arr->elements[i].as.as_i16);
+                int written = snprintf(result + pos, remaining, "%d", arr->elements[i].as.as_i16);
+                pos += (written > 0) ? written : 0;
             } else if (arr->elements[i].type == VAL_I32) {
-                pos += sprintf(result + pos, "%d", arr->elements[i].as.as_i32);
+                int written = snprintf(result + pos, remaining, "%d", arr->elements[i].as.as_i32);
+                pos += (written > 0) ? written : 0;
             } else if (arr->elements[i].type == VAL_U8) {
-                pos += sprintf(result + pos, "%u", arr->elements[i].as.as_u8);
+                int written = snprintf(result + pos, remaining, "%u", arr->elements[i].as.as_u8);
+                pos += (written > 0) ? written : 0;
             } else if (arr->elements[i].type == VAL_U16) {
-                pos += sprintf(result + pos, "%u", arr->elements[i].as.as_u16);
+                int written = snprintf(result + pos, remaining, "%u", arr->elements[i].as.as_u16);
+                pos += (written > 0) ? written : 0;
             } else if (arr->elements[i].type == VAL_U32) {
-                pos += sprintf(result + pos, "%u", arr->elements[i].as.as_u32);
+                int written = snprintf(result + pos, remaining, "%u", arr->elements[i].as.as_u32);
+                pos += (written > 0) ? written : 0;
             } else if (arr->elements[i].type == VAL_F32) {
-                pos += sprintf(result + pos, "%g", arr->elements[i].as.as_f32);
+                int written = snprintf(result + pos, remaining, "%g", arr->elements[i].as.as_f32);
+                pos += (written > 0) ? written : 0;
             } else if (arr->elements[i].type == VAL_F64) {
-                pos += sprintf(result + pos, "%g", arr->elements[i].as.as_f64);
+                int written = snprintf(result + pos, remaining, "%g", arr->elements[i].as.as_f64);
+                pos += (written > 0) ? written : 0;
             } else if (arr->elements[i].type == VAL_BOOL) {
                 const char *s = arr->elements[i].as.as_bool ? "true" : "false";
-                strcpy(result + pos, s);
-                pos += strlen(s);
+                size_t len = strlen(s);
+                memcpy(result + pos, s, len);
+                pos += len;
             } else if (arr->elements[i].type == VAL_NULL) {
-                strcpy(result + pos, "null");
+                memcpy(result + pos, "null", 4);
                 pos += 4;
             } else {
-                strcpy(result + pos, "[object]");
+                memcpy(result + pos, "[object]", 8);
                 pos += 8;
             }
 
