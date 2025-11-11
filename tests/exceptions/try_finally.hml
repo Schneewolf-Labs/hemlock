@@ -1,0 +1,7 @@
+// Test: Try with finally (no catch)
+try {
+    print("try");
+} finally {
+    print("finally");
+}
+print("after");

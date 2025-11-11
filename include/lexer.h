@@ -26,6 +26,10 @@ typedef enum {
     TOK_DEFINE,
     TOK_OBJECT,
     TOK_SELF,
+    TOK_TRY,
+    TOK_CATCH,
+    TOK_FINALLY,
+    TOK_THROW,
 
     // Type keywords
     TOK_TYPE_I8,

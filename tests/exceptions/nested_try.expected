@@ -1,0 +1,5 @@
+outer try
+inner try
+inner catch: inner error
+between
+outer catch: outer error

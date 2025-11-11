@@ -1,0 +1,8 @@
+// Test: Catch parameter is scoped to catch block
+let e = "outer";
+try {
+    throw "inner";
+} catch (e) {
+    print("In catch: " + e);
+}
+print("After catch: " + e);

@@ -1,0 +1,6 @@
+// Test: Basic try/catch
+try {
+    throw "error message";
+} catch (e) {
+    print(e);
+}

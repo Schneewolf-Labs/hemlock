@@ -24,6 +24,15 @@ typedef struct {
 
 static LoopState loop_state = {0};
 
+// ========== EXCEPTION STATE ==========
+
+typedef struct {
+    int is_throwing;
+    Value exception_value;
+} ExceptionState;
+
+static ExceptionState exception_state = {0};
+
 // ========== OBJECT TYPE REGISTRY ==========
 
 typedef struct {
@@ -1514,7 +1523,7 @@ void eval_stmt(Stmt *stmt, Environment *env) {
 
                 eval_stmt(stmt->as.while_stmt.body, env);
 
-                // Check for break/continue/return
+                // Check for break/continue/return/exception
                 if (loop_state.is_breaking) {
                     loop_state.is_breaking = 0;
                     break;
@@ -1523,7 +1532,7 @@ void eval_stmt(Stmt *stmt, Environment *env) {
                     loop_state.is_continuing = 0;
                     continue;
                 }
-                if (return_state.is_returning) {
+                if (return_state.is_returning || exception_state.is_throwing) {
                     break;
                 }
             }
@@ -1552,7 +1561,7 @@ void eval_stmt(Stmt *stmt, Environment *env) {
                 // Execute body
                 eval_stmt(stmt->as.for_loop.body, loop_env);
 
-                // Check for break/continue/return
+                // Check for break/continue/return/exception
                 if (loop_state.is_breaking) {
                     loop_state.is_breaking = 0;
                     break;
@@ -1561,7 +1570,7 @@ void eval_stmt(Stmt *stmt, Environment *env) {
                     loop_state.is_continuing = 0;
                     // Fall through to increment
                 }
-                if (return_state.is_returning) {
+                if (return_state.is_returning || exception_state.is_throwing) {
                     break;
                 }
 
@@ -1593,7 +1602,7 @@ void eval_stmt(Stmt *stmt, Environment *env) {
                     // Execute body
                     eval_stmt(stmt->as.for_in.body, loop_env);
 
-                    // Check break/continue/return
+                    // Check break/continue/return/exception
                     if (loop_state.is_breaking) {
                         loop_state.is_breaking = 0;
                         break;
@@ -1602,7 +1611,7 @@ void eval_stmt(Stmt *stmt, Environment *env) {
                         loop_state.is_continuing = 0;
                         continue;
                     }
-                    if (return_state.is_returning) {
+                    if (return_state.is_returning || exception_state.is_throwing) {
                         break;
                     }
                 }
@@ -1619,7 +1628,7 @@ void eval_stmt(Stmt *stmt, Environment *env) {
                     // Execute body
                     eval_stmt(stmt->as.for_in.body, loop_env);
 
-                    // Check break/continue/return
+                    // Check break/continue/return/exception
                     if (loop_state.is_breaking) {
                         loop_state.is_breaking = 0;
                         break;
@@ -1628,7 +1637,7 @@ void eval_stmt(Stmt *stmt, Environment *env) {
                         loop_state.is_continuing = 0;
                         continue;
                     }
-                    if (return_state.is_returning) {
+                    if (return_state.is_returning || exception_state.is_throwing) {
                         break;
                     }
                 }
@@ -1652,8 +1661,9 @@ void eval_stmt(Stmt *stmt, Environment *env) {
         case STMT_BLOCK: {
             for (int i = 0; i < stmt->as.block.count; i++) {
                 eval_stmt(stmt->as.block.statements[i], env);
-                // Check if a return/break/continue happened
-                if (return_state.is_returning || loop_state.is_breaking || loop_state.is_continuing) {
+                // Check if a return/break/continue/exception happened
+                if (return_state.is_returning || loop_state.is_breaking ||
+                    loop_state.is_continuing || exception_state.is_throwing) {
                     break;
                 }
             }
@@ -1694,12 +1704,83 @@ void eval_stmt(Stmt *stmt, Environment *env) {
             register_object_type(type);
             break;
         }
+
+        case STMT_TRY: {
+            // Execute try block
+            eval_stmt(stmt->as.try_stmt.try_block, env);
+
+            // Check if exception was thrown
+            if (exception_state.is_throwing) {
+                // Exception thrown - execute catch block if present
+                if (stmt->as.try_stmt.catch_block != NULL) {
+                    // Create new scope for catch parameter
+                    Environment *catch_env = env_new(env);
+                    env_set(catch_env, stmt->as.try_stmt.catch_param, exception_state.exception_value);
+
+                    // Clear exception state
+                    exception_state.is_throwing = 0;
+
+                    // Execute catch block
+                    eval_stmt(stmt->as.try_stmt.catch_block, catch_env);
+
+                    env_free(catch_env);
+                }
+            }
+
+            // Execute finally block if present (always executes)
+            if (stmt->as.try_stmt.finally_block != NULL) {
+                // Save current state (return/exception/break/continue)
+                int was_returning = return_state.is_returning;
+                Value saved_return = return_state.return_value;
+                int was_throwing = exception_state.is_throwing;
+                Value saved_exception = exception_state.exception_value;
+                int was_breaking = loop_state.is_breaking;
+                int was_continuing = loop_state.is_continuing;
+
+                // Clear states before finally
+                return_state.is_returning = 0;
+                exception_state.is_throwing = 0;
+                loop_state.is_breaking = 0;
+                loop_state.is_continuing = 0;
+
+                // Execute finally block
+                eval_stmt(stmt->as.try_stmt.finally_block, env);
+
+                // If finally didn't throw/return/break/continue, restore previous state
+                if (!return_state.is_returning && !exception_state.is_throwing &&
+                    !loop_state.is_breaking && !loop_state.is_continuing) {
+                    return_state.is_returning = was_returning;
+                    return_state.return_value = saved_return;
+                    exception_state.is_throwing = was_throwing;
+                    exception_state.exception_value = saved_exception;
+                    loop_state.is_breaking = was_breaking;
+                    loop_state.is_continuing = was_continuing;
+                }
+            }
+            break;
+        }
+
+        case STMT_THROW: {
+            // Evaluate the value to throw
+            exception_state.exception_value = eval_expr(stmt->as.throw_stmt.value, env);
+            exception_state.is_throwing = 1;
+            break;
+        }
     }
 }
 
 void eval_program(Stmt **stmts, int count, Environment *env) {
     for (int i = 0; i < count; i++) {
         eval_stmt(stmts[i], env);
+
+        // Check for uncaught exception
+        if (exception_state.is_throwing) {
+            fprintf(stderr, "Runtime error: ");
+            print_value(exception_state.exception_value);
+            fprintf(stderr, "\n");
+            // TODO: Add stack trace here
+            exit(1);
+        }
     }
 }
 

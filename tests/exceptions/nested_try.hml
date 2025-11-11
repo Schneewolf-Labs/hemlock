@@ -1,0 +1,14 @@
+// Test: Nested try/catch blocks
+try {
+    print("outer try");
+    try {
+        print("inner try");
+        throw "inner error";
+    } catch (e) {
+        print("inner catch: " + e);
+    }
+    print("between");
+    throw "outer error";
+} catch (e) {
+    print("outer catch: " + e);
+}

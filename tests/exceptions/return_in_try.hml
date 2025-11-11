@@ -1,0 +1,12 @@
+// Test: Return in try block - finally still executes
+fn test() {
+    try {
+        print("try");
+        return 42;
+    } finally {
+        print("finally");
+    }
+}
+
+let result = test();
+print(result);

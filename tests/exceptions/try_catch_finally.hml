@@ -1,0 +1,10 @@
+// Test: Try/catch/finally all together
+try {
+    print("try");
+    throw "error";
+} catch (e) {
+    print("catch: " + e);
+} finally {
+    print("finally");
+}
+print("after");

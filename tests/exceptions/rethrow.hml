@@ -1,0 +1,11 @@
+// Test: Re-throwing exceptions
+try {
+    try {
+        throw "inner error";
+    } catch (e) {
+        print("Inner caught: " + e);
+        throw e;
+    }
+} catch (e) {
+    print("Outer caught: " + e);
+}

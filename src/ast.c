@@ -264,6 +264,23 @@ Stmt* stmt_define_object(const char *name, char **field_names, Type **field_type
     return stmt;
 }
 
+Stmt* stmt_try(Stmt *try_block, char *catch_param, Stmt *catch_block, Stmt *finally_block) {
+    Stmt *stmt = malloc(sizeof(Stmt));
+    stmt->type = STMT_TRY;
+    stmt->as.try_stmt.try_block = try_block;
+    stmt->as.try_stmt.catch_param = catch_param;
+    stmt->as.try_stmt.catch_block = catch_block;
+    stmt->as.try_stmt.finally_block = finally_block;
+    return stmt;
+}
+
+Stmt* stmt_throw(Expr *value) {
+    Stmt *stmt = malloc(sizeof(Stmt));
+    stmt->type = STMT_THROW;
+    stmt->as.throw_stmt.value = value;
+    return stmt;
+}
+
 // ========== CLEANUP ==========
 
 void expr_free(Expr *expr) {
@@ -416,6 +433,15 @@ void stmt_free(Stmt *stmt) {
             free(stmt->as.define_object.field_types);
             free(stmt->as.define_object.field_optional);
             free(stmt->as.define_object.field_defaults);
+            break;
+        case STMT_TRY:
+            stmt_free(stmt->as.try_stmt.try_block);
+            free(stmt->as.try_stmt.catch_param);
+            stmt_free(stmt->as.try_stmt.catch_block);
+            stmt_free(stmt->as.try_stmt.finally_block);
+            break;
+        case STMT_THROW:
+            expr_free(stmt->as.throw_stmt.value);
             break;
     }
 

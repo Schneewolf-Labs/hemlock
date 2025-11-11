@@ -147,6 +147,7 @@ static TokenType identifier_type(Lexer *lex) {
             break;
         case 'c':
             if (len == 4) return check_keyword(lex->start, 4, "char", TOK_TYPE_CHAR);
+            if (len == 5) return check_keyword(lex->start, 5, "catch", TOK_CATCH);
             if (len == 8) return check_keyword(lex->start, 8, "continue", TOK_CONTINUE);
             break;
         case 'd':
@@ -164,6 +165,7 @@ static TokenType identifier_type(Lexer *lex) {
                 if (strncmp(lex->start, "f64", 3) == 0) return TOK_TYPE_F64;
             }
             if (len == 5) return check_keyword(lex->start, 5, "false", TOK_FALSE);
+            if (len == 7) return check_keyword(lex->start, 7, "finally", TOK_FINALLY);
             break;
         case 'i':
             if (len == 2) {
@@ -199,7 +201,9 @@ static TokenType identifier_type(Lexer *lex) {
             if (len == 6) return check_keyword(lex->start, 6, "string", TOK_TYPE_STRING);
             break;
         case 't':
+            if (len == 3) return check_keyword(lex->start, 3, "try", TOK_TRY);
             if (len == 4) return check_keyword(lex->start, 4, "true", TOK_TRUE);
+            if (len == 5) return check_keyword(lex->start, 5, "throw", TOK_THROW);
             break;
         case 'u':
             if (len == 2) {

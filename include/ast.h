@@ -154,6 +154,8 @@ typedef enum {
     STMT_BLOCK,
     STMT_RETURN,
     STMT_DEFINE_OBJECT,
+    STMT_TRY,
+    STMT_THROW,
 } StmtType;
 
 // Statement node
@@ -203,6 +205,15 @@ struct Stmt {
             Expr **field_defaults;    // NULL or default value expression
             int num_fields;
         } define_object;
+        struct {
+            Stmt *try_block;
+            char *catch_param;        // NULL if no catch block
+            Stmt *catch_block;        // NULL if no catch block
+            Stmt *finally_block;      // NULL if no finally block
+        } try_stmt;
+        struct {
+            Expr *value;
+        } throw_stmt;
     } as;
 };
 
@@ -242,6 +253,8 @@ Stmt* stmt_expr(Expr *expr);
 Stmt* stmt_return(Expr *value);
 Stmt* stmt_define_object(const char *name, char **field_names, Type **field_types,
                          int *field_optional, Expr **field_defaults, int num_fields);
+Stmt* stmt_try(Stmt *try_block, char *catch_param, Stmt *catch_block, Stmt *finally_block);
+Stmt* stmt_throw(Expr *value);
 Type* type_new(TypeKind kind);
 void type_free(Type *type);
 

@@ -1,0 +1,14 @@
+// Test: Exception breaks out of loop
+let i = 0;
+try {
+    while (i < 10) {
+        print(i);
+        i = i + 1;
+        if (i == 3) {
+            throw "break at 3";
+        }
+    }
+} catch (e) {
+    print("Caught: " + e);
+}
+print("Final i: " + typeof(i));

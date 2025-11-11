@@ -825,6 +825,44 @@ static Stmt* statement(Parser *p) {
         return return_statement(p);
     }
 
+    if (match(p, TOK_TRY)) {
+        // Parse try block
+        consume(p, TOK_LBRACE, "Expect '{' after 'try'");
+        Stmt *try_block = block_statement(p);
+
+        // Parse optional catch block
+        char *catch_param = NULL;
+        Stmt *catch_block = NULL;
+        if (match(p, TOK_CATCH)) {
+            consume(p, TOK_LPAREN, "Expect '(' after 'catch'");
+            consume(p, TOK_IDENT, "Expect parameter name");
+            catch_param = token_text(&p->previous);
+            consume(p, TOK_RPAREN, "Expect ')' after catch parameter");
+            consume(p, TOK_LBRACE, "Expect '{' before catch block");
+            catch_block = block_statement(p);
+        }
+
+        // Parse optional finally block
+        Stmt *finally_block = NULL;
+        if (match(p, TOK_FINALLY)) {
+            consume(p, TOK_LBRACE, "Expect '{' after 'finally'");
+            finally_block = block_statement(p);
+        }
+
+        // Must have either catch or finally
+        if (catch_block == NULL && finally_block == NULL) {
+            error(p, "Try statement must have either 'catch' or 'finally' block");
+        }
+
+        return stmt_try(try_block, catch_param, catch_block, finally_block);
+    }
+
+    if (match(p, TOK_THROW)) {
+        Expr *value = expression(p);
+        consume(p, TOK_SEMICOLON, "Expect ';' after throw statement");
+        return stmt_throw(value);
+    }
+
     return expression_statement(p);
 }
 
