@@ -16,6 +16,7 @@ typedef enum {
     EXPR_NULL,
     EXPR_BINARY,
     EXPR_UNARY,
+    EXPR_TERNARY,
     EXPR_CALL,
     EXPR_ASSIGN,
     EXPR_GET_PROPERTY,
@@ -68,6 +69,11 @@ struct Expr {
             Expr *operand;
             UnaryOp op;
         } unary;
+        struct {
+            Expr *condition;
+            Expr *true_expr;
+            Expr *false_expr;
+        } ternary;
         struct {
             Expr *func;  // Changed from char *name to support method calls
             Expr **args;
@@ -235,6 +241,7 @@ Expr* expr_ident(const char *name);
 Expr* expr_null(void);
 Expr* expr_binary(Expr *left, BinaryOp op, Expr *right);
 Expr* expr_unary(UnaryOp op, Expr *operand);
+Expr* expr_ternary(Expr *condition, Expr *true_expr, Expr *false_expr);
 Expr* expr_call(Expr *func, Expr **args, int num_args);
 Expr* expr_assign(const char *name, Expr *value);
 Expr* expr_get_property(Expr *object, const char *property);

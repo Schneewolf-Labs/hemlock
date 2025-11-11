@@ -1,0 +1,42 @@
+// Ternary operator with complex expressions
+
+// Test 1: Arithmetic in condition
+let result1 = (5 + 3) > 7 ? 100 : 200;
+print(typeof(result1));
+
+// Test 2: Arithmetic in branches
+let a = 10;
+let result2 = a > 5 ? a * 2 : a + 5;
+print(typeof(result2));
+
+// Test 3: Logical operators in condition
+let b = true;
+let c = false;
+let result3 = b && c ? "both true" : "not both";
+print(result3);
+
+let result4 = b || c ? "at least one" : "none";
+print(result4);
+
+// Test 4: String concatenation in branches
+let is_alice = true;
+let name = "Alice";
+let greeting = is_alice ? "Hello, " + name : "Who are you?";
+print(greeting);
+
+// Test 5: Ternary in assignment
+let x = 0;
+x = x == 0 ? 1 : 0;
+print(typeof(x));
+
+// Test 6: Ternary with null
+let val = null;
+let is_null = true;
+let result6 = is_null ? "is null" : "not null";
+print(result6);
+
+// Test 7: Multiple ternaries in one statement (independent)
+let p = 5;
+let q = 10;
+let sum = (p > 3 ? p : 0) + (q > 8 ? q : 0);
+print(typeof(sum));

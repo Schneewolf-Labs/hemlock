@@ -1,0 +1,26 @@
+// Nested ternary operator tests
+
+// Test 1: Simple nesting (right associative)
+let a = 5;
+let result1 = a > 10 ? "very big" : a > 3 ? "big" : "small";
+print(result1);
+
+// Test 2: Different nesting level
+let b = 15;
+let result2 = b > 10 ? "very big" : b > 3 ? "big" : "small";
+print(result2);
+
+// Test 3: Another nesting level
+let c = 2;
+let result3 = c > 10 ? "very big" : c > 3 ? "big" : "small";
+print(result3);
+
+// Test 4: Multiple levels
+let d = 25;
+let result4 = d > 30 ? "huge" : d > 20 ? "very big" : d > 10 ? "big" : "small";
+print(result4);
+
+// Test 5: Nested in true branch (using parens for clarity)
+let e = 15;
+let result5 = e > 10 ? (e > 20 ? "huge" : "big") : "small";
+print(result5);

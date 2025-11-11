@@ -68,6 +68,15 @@ Expr* expr_unary(UnaryOp op, Expr *operand) {
     return expr;
 }
 
+Expr* expr_ternary(Expr *condition, Expr *true_expr, Expr *false_expr) {
+    Expr *expr = malloc(sizeof(Expr));
+    expr->type = EXPR_TERNARY;
+    expr->as.ternary.condition = condition;
+    expr->as.ternary.true_expr = true_expr;
+    expr->as.ternary.false_expr = false_expr;
+    return expr;
+}
+
 Expr* expr_call(Expr *func, Expr **args, int num_args) {
     Expr *expr = malloc(sizeof(Expr));
     expr->type = EXPR_CALL;
@@ -312,6 +321,11 @@ void expr_free(Expr *expr) {
             break;
         case EXPR_UNARY:
             expr_free(expr->as.unary.operand);
+            break;
+        case EXPR_TERNARY:
+            expr_free(expr->as.ternary.condition);
+            expr_free(expr->as.ternary.true_expr);
+            expr_free(expr->as.ternary.false_expr);
             break;
         case EXPR_CALL:
             expr_free(expr->as.call.func);

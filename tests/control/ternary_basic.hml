@@ -1,0 +1,29 @@
+// Basic ternary operator tests
+
+// Test 1: Simple true condition
+let a = true ? 1 : 2;
+print(typeof(a));
+
+// Test 2: Simple false condition
+let b = false ? 1 : 2;
+print(typeof(b));
+
+// Test 3: With comparison
+let c = 10 > 5 ? "big" : "small";
+print(c);
+
+// Test 4: With comparison (false)
+let d = 3 > 5 ? "big" : "small";
+print(d);
+
+// Test 5: With variables
+let x = 7;
+let result = x > 5 ? "yes" : "no";
+print(result);
+
+// Test 6: Different types in branches
+let type_test = true ? 42 : "string";
+print(typeof(type_test));
+
+let type_test2 = false ? 42 : "string";
+print(type_test2);

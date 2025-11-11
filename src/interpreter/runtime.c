@@ -50,6 +50,15 @@ Value eval_expr(Expr *expr, Environment *env) {
             break;
         }
 
+        case EXPR_TERNARY: {
+            Value condition = eval_expr(expr->as.ternary.condition, env);
+            if (value_is_truthy(condition)) {
+                return eval_expr(expr->as.ternary.true_expr, env);
+            } else {
+                return eval_expr(expr->as.ternary.false_expr, env);
+            }
+        }
+
         case EXPR_IDENT:
             return env_get(env, expr->as.ident);
 

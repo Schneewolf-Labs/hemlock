@@ -90,6 +90,7 @@ static int match(Parser *p, TokenType type) {
 // Forward declarations
 static Expr* expression(Parser *p);
 static Expr* assignment(Parser *p);
+static Expr* ternary(Parser *p);
 static Expr* equality(Parser *p);
 static Expr* comparison(Parser *p);
 static Expr* term(Parser *p);
@@ -369,17 +370,30 @@ static Expr* logical_and(Parser *p) {
 
 static Expr* logical_or(Parser *p) {
     Expr *expr = logical_and(p);
-    
+
     while (match(p, TOK_PIPE_PIPE)) {
         Expr *right = logical_and(p);
         expr = expr_binary(expr, OP_OR, right);
     }
-    
+
+    return expr;
+}
+
+static Expr* ternary(Parser *p) {
+    Expr *expr = logical_or(p);
+
+    if (match(p, TOK_QUESTION)) {
+        Expr *true_expr = expression(p);
+        consume(p, TOK_COLON, "Expect ':' after true expression in ternary operator");
+        Expr *false_expr = ternary(p);  // Right-associative
+        return expr_ternary(expr, true_expr, false_expr);
+    }
+
     return expr;
 }
 
 static Expr* assignment(Parser *p) {
-    Expr *expr = logical_or(p);
+    Expr *expr = ternary(p);
 
     if (match(p, TOK_EQUAL)) {
         // Check what kind of assignment target we have
