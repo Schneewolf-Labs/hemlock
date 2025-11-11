@@ -206,12 +206,235 @@ let msg = s + " world"; // concatenation
 ### Current Features
 - `if`/`else` with mandatory braces
 - `while` loops
+- `for` loops (C-style and for-in iteration)
+- `break`/`continue`
 - Boolean operators: `&&`, `||`, `!`
 - Comparisons: `==`, `!=`, `<`, `>`, `<=`, `>=`
 
-### Planned Features
-- `for` loops
-- `break`/`continue`
+---
+
+## Error Handling
+
+Hemlock supports exception-based error handling with `try`, `catch`, `finally`, and `throw` statements.
+
+### Syntax
+
+**Basic try/catch:**
+```hemlock
+try {
+    // risky code
+} catch (e) {
+    // handle error, e contains the thrown value
+}
+```
+
+**Try/finally:**
+```hemlock
+try {
+    // risky code
+} finally {
+    // always executes, even if exception thrown
+}
+```
+
+**Try/catch/finally:**
+```hemlock
+try {
+    // risky code
+} catch (e) {
+    // handle error
+} finally {
+    // cleanup code
+}
+```
+
+**Throw statement:**
+```hemlock
+throw expression;
+```
+
+### Semantics
+
+**1. Throw Statement**
+- `throw <expr>;` evaluates `<expr>` and throws it as an exception
+- Any value can be thrown: strings, numbers, objects, null, etc.
+- Execution immediately jumps to the nearest enclosing `catch` block
+- If no `catch` exists, propagates up the call stack
+
+```hemlock
+throw "file not found";
+throw 404;
+throw { code: 500, message: "Internal error" };
+throw null;
+```
+
+**2. Try Block**
+- Executes statements sequentially
+- If exception thrown, immediately jumps to `catch` (if present) or `finally` (if no catch)
+- If no exception, executes `finally` (if present) then continues
+
+**3. Catch Block**
+- Receives thrown value in the parameter variable (e.g., `e`)
+- Can use the caught value however needed
+- Can re-throw: `throw e;`
+- Can throw new exception: `throw "different error";`
+- Catch parameter is scoped to the catch block only
+
+```hemlock
+try {
+    throw "oops";
+} catch (error) {
+    print("Caught: " + error);
+    // error only accessible here
+}
+// error not accessible here
+```
+
+**4. Finally Block**
+- **Always executes**, regardless of whether exception was thrown
+- Runs after try block (if no exception) or after catch block (if exception caught)
+- Runs even if try/catch contains `return`, `break`, or `continue`
+- If finally block throws, that exception replaces any previous exception
+
+**Execution order example:**
+```hemlock
+try {
+    print("1: try");
+    throw "error";
+} catch (e) {
+    print("2: catch");
+} finally {
+    print("3: finally");
+}
+print("4: after");
+
+// Output: 1: try, 2: catch, 3: finally, 4: after
+```
+
+**5. Uncaught Exceptions**
+- If exception propagates to top of call stack without being caught: **crash**
+- Print error message (stack trace to be added)
+- Exit with non-zero status code
+
+```hemlock
+fn foo() {
+    throw "uncaught!";
+}
+
+foo();  // Crashes with: Runtime error: uncaught!
+```
+
+### Control Flow Interactions
+
+**Return inside try/catch/finally:**
+```hemlock
+fn example() {
+    try {
+        return 1;  // ✅ Returns 1 after finally runs
+    } finally {
+        print("cleanup");
+    }
+}
+
+fn example2() {
+    try {
+        return 1;
+    } finally {
+        return 2;  // ⚠️ Finally return overrides try return - returns 2
+    }
+}
+```
+
+**Rule:** Finally block return values override try/catch return values.
+
+**Break/continue inside try/catch/finally:**
+```hemlock
+for (let i = 0; i < 10; i = i + 1) {
+    try {
+        if (i == 5) { break; }  // ✅ Breaks after finally runs
+    } finally {
+        print("cleanup " + typeof(i));
+    }
+}
+```
+
+**Rule:** Break/continue execute after finally block.
+
+**Nested try/catch:**
+```hemlock
+try {
+    try {
+        throw "inner";
+    } catch (e) {
+        print("Caught: " + e);  // Prints: Caught: inner
+        throw "outer";  // Re-throw different error
+    }
+} catch (e) {
+    print("Caught: " + e);  // Prints: Caught: outer
+}
+```
+
+**Rule:** Nested try/catch blocks work as expected, inner catches happen first.
+
+### Examples
+
+**Basic error handling:**
+```hemlock
+fn divide(a, b) {
+    if (b == 0) {
+        throw "division by zero";
+    }
+    return a / b;
+}
+
+try {
+    print(divide(10, 0));
+} catch (e) {
+    print("Error: " + e);  // Prints: Error: division by zero
+}
+```
+
+**Resource cleanup:**
+```hemlock
+fn process_file(filename) {
+    let file = null;
+    try {
+        file = open(filename);
+        let content = read(file);
+        process(content);
+    } catch (e) {
+        print("Error processing file: " + e);
+    } finally {
+        if (file != null) {
+            close(file);  // Always closes, even on error
+        }
+    }
+}
+```
+
+**Re-throwing:**
+```hemlock
+fn wrapper() {
+    try {
+        risky_operation();
+    } catch (e) {
+        print("Logging error: " + e);
+        throw e;  // Re-throw to caller
+    }
+}
+
+try {
+    wrapper();
+} catch (e) {
+    print("Caught in main: " + e);
+}
+```
+
+### Current Limitations
+
+- No stack trace on uncaught exceptions (planned)
+- Some built-in functions still `exit()` instead of throwing (to be updated)
+- No custom exception types yet (any value can be thrown)
 
 ---
 
@@ -631,6 +854,7 @@ tests/
 ├── objects/          # Object, method, and serialization tests
 ├── arrays/           # Array operations tests
 ├── loops/            # For, while, break, continue tests
+├── exceptions/       # Try/catch/finally/throw tests
 ├── io/               # File I/O tests
 ├── args/             # Command-line argument tests
 └── run_tests.sh      # Test runner
@@ -640,10 +864,33 @@ tests/
 
 ## Common Patterns
 
-### Error Handling (Current)
+### Error Handling
 ```hemlock
-// Runtime errors just exit with message
-let x: u8 = 256;  // Exits: "Value 256 out of range for u8"
+// Use try/catch for recoverable errors
+fn safe_divide(a, b) {
+    try {
+        if (b == 0) {
+            throw "division by zero";
+        }
+        return a / b;
+    } catch (e) {
+        print("Error: " + e);
+        return null;
+    }
+}
+
+// Use finally for cleanup
+fn process_data(filename) {
+    let file = null;
+    try {
+        file = open(filename);
+        // ... process file
+    } finally {
+        if (file != null) {
+            close(file);
+        }
+    }
+}
 ```
 
 ### Memory Patterns
@@ -757,15 +1004,16 @@ When adding features to Hemlock:
 
 ## Version History
 
-- **v0.1** - Primitives, memory management, strings, control flow, functions, closures, recursion, objects, arrays, file I/O, command-line arguments (current)
+- **v0.1** - Primitives, memory management, strings, control flow, functions, closures, recursion, objects, arrays, error handling, file I/O, command-line arguments (current)
   - Type system: i8-i32, u8-u32, f32/f64, bool, string, null, ptr, buffer, array, object, file
   - Memory: alloc, free, memset, memcpy, realloc, talloc, sizeof
   - Objects: literals, methods, duck typing, optional fields, serialize/deserialize
   - Arrays: dynamic arrays with push/pop, indexing, length
   - Control flow: if/else, while, for, for-in, break, continue
+  - Error handling: try/catch/finally/throw
   - File I/O: open, read, write, close, seek, tell, file_exists
   - Command-line arguments: built-in `args` array
-  - 127 passing tests (119 + 8 expected error tests)
+  - 136 passing tests (128 + 8 expected error tests)
 - **v0.2** - Async/await, channels, structured concurrency (planned)
 - **v0.3** - FFI, C interop (planned)
 - **v0.4** - Compiler backend, optimization (planned)

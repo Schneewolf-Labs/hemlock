@@ -22,6 +22,7 @@ Hemlock is a systems scripting language that combines the power of C with the er
 - **Two pointer types** - Raw `ptr` for experts, safe `buffer` with bounds checking
 - **Memory API** - alloc, free, memset, memcpy, realloc, talloc, sizeof
 - **Mutable strings** - First-class UTF-8 strings with indexing and concatenation
+- **Error handling** - try/catch/finally/throw for exception-based error handling
 - **Command-line arguments** - Access program arguments via built-in `args` array
 - **Structured concurrency** - async/await, spawn/join/detach (coming soon)
 
@@ -139,6 +140,59 @@ Run with:
 ./hemlock script.hml arg1 arg2 "argument with spaces"
 ```
 
+### Error Handling
+```hemlock
+// Basic try/catch
+try {
+    throw "something went wrong";
+} catch (e) {
+    print("Error: " + e);
+}
+
+// Try/finally (cleanup always runs)
+try {
+    print("Attempting operation...");
+} finally {
+    print("Cleanup");
+}
+
+// Try/catch/finally
+fn divide(a, b) {
+    if (b == 0) {
+        throw "division by zero";
+    }
+    return a / b;
+}
+
+try {
+    let result = divide(10, 0);
+    print(result);
+} catch (e) {
+    print("Caught: " + e);
+} finally {
+    print("Done");
+}
+
+// Any value can be thrown
+try {
+    throw { code: 404, message: "Not found" };
+} catch (e) {
+    print(serialize(e));  // {"code":404,"message":"Not found"}
+}
+
+// Re-throwing
+try {
+    try {
+        throw "inner error";
+    } catch (e) {
+        print("Logging: " + e);
+        throw e;  // Re-throw to outer handler
+    }
+} catch (e) {
+    print("Outer: " + e);
+}
+```
+
 ## Building
 
 ```bash
@@ -175,6 +229,7 @@ Hemlock is currently in early development (v0.1). The following features are imp
 - ✅ Functions and closures (first-class, recursion, lexical scoping)
 - ✅ Objects (literals, methods, duck typing, optional fields, JSON serialization)
 - ✅ Arrays (dynamic arrays with push/pop operations)
+- ✅ Error handling (try/catch/finally/throw)
 - ✅ File I/O (open, read, write, close, seek, tell)
 - ✅ Command-line arguments (built-in `args` array)
 - 🚧 Async/await and structured concurrency
