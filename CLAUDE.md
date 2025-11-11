@@ -94,7 +94,8 @@ let q = p + 100;  // Way past allocation - allowed but dangerous
 
 ### Other Primitives
 - **bool:** `true`, `false`
-- **string:** UTF-8, mutable, heap-allocated with `.length` property
+- **string:** UTF-8, mutable, heap-allocated with `.length` property (see [Strings](#strings) section for 15 methods)
+- **array:** Dynamic arrays with mixed types, `.length` property (see [Arrays](#arrays) section for 15 methods)
 - **ptr:** Raw pointer (8 bytes, no bounds checking)
 - **buffer:** Safe wrapper (ptr + length + capacity, bounds checked)
 - **null:** The null value
@@ -183,7 +184,8 @@ free(b);                // still manual
 
 ## Strings
 
-Strings are **first-class mutable sequences**:
+Strings are **first-class mutable sequences** with a rich set of methods for text processing:
+
 ```hemlock
 let s = "hello";
 s[0] = 72;              // mutate to "Hello"
@@ -198,6 +200,82 @@ let msg = s + " world"; // concatenation
 - UTF-8 encoded
 - `.length` is a property, not a method
 - Heap-allocated with internal capacity tracking
+
+### String Methods
+
+**Substring & Slicing:**
+```hemlock
+let s = "hello world";
+let sub = s.substr(6, 5);       // "world" (start, length)
+let slice = s.slice(0, 5);      // "hello" (start, end exclusive)
+```
+
+**Search & Find:**
+```hemlock
+let pos = s.find("world");      // 6 (index of first occurrence)
+let pos2 = s.find("foo");       // -1 (not found)
+let has = s.contains("world");  // true
+```
+
+**Split & Trim:**
+```hemlock
+let parts = "a,b,c".split(",");  // ["a", "b", "c"]
+let clean = "  hello  ".trim();  // "hello"
+```
+
+**Case Conversion:**
+```hemlock
+let upper = s.to_upper();       // "HELLO WORLD"
+let lower = s.to_lower();       // "hello world"
+```
+
+**Prefix/Suffix:**
+```hemlock
+let starts = s.starts_with("hello");  // true
+let ends = s.ends_with("world");      // true
+```
+
+**Replacement:**
+```hemlock
+let s2 = s.replace("world", "there");      // "hello there"
+let s3 = "foo foo".replace_all("foo", "bar"); // "bar bar"
+```
+
+**Repetition:**
+```hemlock
+let repeated = "ha".repeat(3);  // "hahaha"
+```
+
+**Character & Byte Access:**
+```hemlock
+let byte = s.char_at(0);        // 104 (u8)
+let buf = s.to_bytes();         // Convert to buffer
+```
+
+**Method Chaining:**
+```hemlock
+let result = "  Hello World  "
+    .trim()
+    .to_lower()
+    .replace("world", "hemlock");  // "hello hemlock"
+```
+
+**Available String Methods:**
+- `substr(start, length)` - Extract substring by position and length
+- `slice(start, end)` - Extract substring by range (end exclusive)
+- `find(needle)` - Find first occurrence, returns index or -1
+- `contains(needle)` - Check if string contains substring
+- `split(delimiter)` - Split into array of strings
+- `trim()` - Remove leading/trailing whitespace
+- `to_upper()` - Convert to uppercase
+- `to_lower()` - Convert to lowercase
+- `starts_with(prefix)` - Check if starts with prefix
+- `ends_with(suffix)` - Check if ends with suffix
+- `replace(old, new)` - Replace first occurrence
+- `replace_all(old, new)` - Replace all occurrences
+- `repeat(count)` - Repeat string n times
+- `char_at(index)` - Get byte value at index (returns u8)
+- `to_bytes()` - Convert to buffer for low-level access
 
 ---
 
@@ -715,6 +793,128 @@ serialize(obj);  // ERROR: serialize() detected circular reference
 
 ---
 
+## Arrays
+
+Hemlock provides **dynamic arrays** with comprehensive methods for data manipulation and processing:
+
+```hemlock
+// Array literals
+let arr = [1, 2, 3, 4, 5];
+print(arr[0]);         // 1
+print(arr.length);     // 5
+
+// Mixed types allowed
+let mixed = [1, "hello", true, null];
+```
+
+**Properties:**
+- Dynamic sizing (grow automatically)
+- Zero-indexed
+- Mixed types allowed
+- `.length` property
+- Heap-allocated
+
+### Array Methods
+
+**Stack & Queue Operations:**
+```hemlock
+let arr = [1, 2, 3];
+arr.push(4);           // Add to end: [1, 2, 3, 4]
+let last = arr.pop();  // Remove from end: 4
+
+let first = arr.shift();   // Remove from start: 1
+arr.unshift(0);            // Add to start: [0, 2, 3]
+```
+
+**Array Manipulation:**
+```hemlock
+let arr = [1, 2, 4, 5];
+arr.insert(2, 3);      // Insert at index: [1, 2, 3, 4, 5]
+let removed = arr.remove(0);  // Remove at index: 1
+
+arr.reverse();         // Reverse in-place: [5, 4, 3, 2]
+arr.clear();           // Remove all elements: []
+```
+
+**Slicing & Extraction:**
+```hemlock
+let arr = [1, 2, 3, 4, 5];
+let sub = arr.slice(1, 4);   // [2, 3, 4] (end exclusive)
+let f = arr.first();         // 1 (without removing)
+let l = arr.last();          // 5 (without removing)
+```
+
+**Search & Find:**
+```hemlock
+let arr = [10, 20, 30, 40];
+let idx = arr.find(30);      // 2 (index of first occurrence)
+let idx2 = arr.find(99);     // -1 (not found)
+let has = arr.contains(20);  // true
+```
+
+**Array Combination:**
+```hemlock
+let a = [1, 2, 3];
+let b = [4, 5, 6];
+let combined = a.concat(b);  // [1, 2, 3, 4, 5, 6] (new array)
+```
+
+**String Conversion:**
+```hemlock
+let words = ["hello", "world", "foo"];
+let joined = words.join(" ");  // "hello world foo"
+
+let numbers = [1, 2, 3];
+let csv = numbers.join(",");   // "1,2,3"
+
+// Works with mixed types
+let mixed = [1, "hello", true, null];
+print(mixed.join(" | "));  // "1 | hello | true | null"
+```
+
+**Method Chaining:**
+```hemlock
+let result = [1, 2, 3]
+    .concat([4, 5, 6])
+    .slice(2, 5);  // [3, 4, 5]
+
+let text = ["apple", "banana", "cherry"]
+    .slice(0, 2)
+    .join(" and ");  // "apple and banana"
+```
+
+**Available Array Methods:**
+- `push(value)` - Add element to end
+- `pop()` - Remove and return last element
+- `shift()` - Remove and return first element
+- `unshift(value)` - Add element to beginning
+- `insert(index, value)` - Insert element at index
+- `remove(index)` - Remove and return element at index
+- `find(value)` - Find first occurrence, returns index or -1
+- `contains(value)` - Check if array contains value
+- `slice(start, end)` - Extract subarray (end exclusive, returns new array)
+- `join(delimiter)` - Join elements into string
+- `concat(other)` - Concatenate with another array (returns new array)
+- `reverse()` - Reverse array in-place
+- `first()` - Get first element (without removing)
+- `last()` - Get last element (without removing)
+- `clear()` - Remove all elements
+
+### Implementation Details
+- Arrays are heap-allocated with dynamic capacity
+- Automatic growth when capacity exceeded (doubles capacity)
+- Value comparison for `find()` and `contains()` works correctly for primitives and strings
+- `join()` converts all elements to strings automatically
+- Methods like `slice()` and `concat()` return new arrays (no mutation)
+- Methods like `reverse()`, `push()`, `insert()` mutate in-place
+
+**Current Limitations:**
+- No reference counting (arrays are never freed automatically)
+- No bounds checking on direct index access (use methods for safety)
+- Comparing objects/arrays in `find()` uses reference equality
+
+---
+
 ## Command-Line Arguments
 
 Hemlock programs can access command-line arguments via a built-in **`args` array** that is automatically populated at program startup.
@@ -1051,13 +1251,14 @@ When adding features to Hemlock:
   - Type system: i8-i32, u8-u32, f32/f64, bool, string, null, ptr, buffer, array, object, file
   - Memory: alloc, free, memset, memcpy, realloc, talloc, sizeof
   - Objects: literals, methods, duck typing, optional fields, serialize/deserialize
-  - Arrays: dynamic arrays with push/pop, indexing, length
+  - **Strings:** 15 methods including substr, slice, find, contains, split, trim, to_upper, to_lower, starts_with, ends_with, replace, replace_all, repeat, char_at, to_bytes
+  - **Arrays:** 15 methods including push, pop, shift, unshift, insert, remove, find, contains, slice, join, concat, reverse, first, last, clear
   - Control flow: if/else, while, for, for-in, break, continue
   - Error handling: try/catch/finally/throw
   - File I/O: open, read, write, close, seek, tell, file_exists
   - Command-line arguments: built-in `args` array
   - **Architecture:** Modular interpreter (environment, values, types, builtins, io, runtime)
-  - 147 tests (136 passing + 11 expected errors)
+  - 170+ tests (all string and array method tests passing)
 - **v0.2** - Async/await, channels, structured concurrency (planned)
 - **v0.3** - FFI, C interop (planned)
 - **v0.4** - Compiler backend, optimization (planned)
