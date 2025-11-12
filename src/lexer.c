@@ -77,29 +77,32 @@ static Token number(Lexer *lex) {
     while (isdigit(peek(lex))) {
         advance(lex);
     }
-    
+
     // Look for decimal point
     int is_float = 0;
     if (peek(lex) == '.' && isdigit(peek_next(lex))) {
         is_float = 1;
         advance(lex);  // consume '.'
-        
+
         while (isdigit(peek(lex))) {
             advance(lex);
         }
     }
-    
+
     Token token = make_token(lex, TOK_NUMBER);
     token.is_float = is_float;
-    
+
     char *text = token_text(&token);
-    
+
     if (is_float) {
         token.float_value = atof(text);
     } else {
-        token.int_value = atoi(text);
+        // Use strtoll to parse 64-bit integers
+        char *endptr;
+        token.int_value = strtoll(text, &endptr, 10);
+        // Note: strtoll will handle negative numbers correctly
     }
-    
+
     free(text);
     return token;
 }

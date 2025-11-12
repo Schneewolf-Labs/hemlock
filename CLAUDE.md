@@ -49,14 +49,18 @@ free(ptr);  // You allocated it, you free it
 
 ### 2. **Dynamic by Default, Typed by Choice**
 - Every value has a runtime type tag
-- Literals infer types: `42` → `i32`, `3.14` → `f64`
+- Literals infer types intelligently:
+  - Small integers (fits in i32): `42` → `i32`
+  - Large integers (> i32 range): `9223372036854775807` → `i64`
+  - Floats: `3.14` → `f64`
 - Optional type annotations enforce runtime checks
 - Implicit type conversions follow clear promotion rules
 
 ```hemlock
-let x = 42;              // i32 inferred
+let x = 42;              // i32 inferred (small value)
 let y: u8 = 255;         // explicit u8
 let z = x + y;           // promotes to i32
+let big = 5000000000;    // i64 inferred (> i32 max)
 ```
 
 ### 3. **Unsafe is a Feature, Not a Bug**
@@ -145,7 +149,18 @@ let b: u64 = 4294967295;   // OK
 let c: u64 = -1;           // ERROR: u64 cannot be negative
 ```
 
-**Note:** Large integer literals (> 32-bit) are not yet supported by the parser. Use type annotations with values that fit in 32-bit range, or compute larger values through arithmetic.
+### Integer Literal Inference
+Integer literals are automatically typed based on their value range:
+- Values in i32 range (-2147483648 to 2147483647): infer as `i32`
+- Values outside i32 range but within i64 range: infer as `i64`
+- Use explicit type annotations for other types (i8, i16, u8, u16, u32, u64)
+
+```hemlock
+let small = 42;                    // i32 (fits in i32)
+let large = 5000000000;            // i64 (> i32 max)
+let max_i64 = 9223372036854775807; // i64 (INT64_MAX)
+let explicit: u32 = 100;           // u32 (type annotation overrides)
+```
 
 ---
 

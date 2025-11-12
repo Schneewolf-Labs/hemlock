@@ -1,6 +1,8 @@
 #ifndef HEMLOCK_AST_H
 #define HEMLOCK_AST_H
 
+#include <stdint.h>  // For int64_t
+
 // Forward declarations
 typedef struct Expr Expr;
 typedef struct Stmt Stmt;
@@ -58,7 +60,7 @@ struct Expr {
     ExprType type;
     union {
         struct {           // ← Number can be int or float
-            int int_value;
+            int64_t int_value;  // Changed to int64_t to support 64-bit literals
             double float_value;
             int is_float;  // flag: which one to use
         } number;
@@ -294,7 +296,7 @@ struct Stmt {
 
 // Expression constructors
 Expr* expr_number(int value);
-Expr* expr_number_int(int value);
+Expr* expr_number_int(int64_t value);  // Changed to int64_t to support 64-bit literals
 Expr* expr_number_float(double value);
 Expr* expr_bool(int value);
 Expr* expr_string(const char *str);

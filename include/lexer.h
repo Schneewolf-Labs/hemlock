@@ -1,6 +1,8 @@
 #ifndef HEMLOCK_LEXER_H
 #define HEMLOCK_LEXER_H
 
+#include <stdint.h>  // For int64_t
+
 // Token types
 typedef enum {
     // Literals
@@ -109,9 +111,9 @@ typedef struct {
     const char *start;  // Points into source (don't free!)
     int length;
     int line;
-    
+
     // For numbers
-    int int_value;
+    int64_t int_value;  // Changed to int64_t to support 64-bit literals
     double float_value;
     int is_float;
 
