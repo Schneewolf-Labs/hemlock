@@ -87,8 +87,8 @@ let q = p + 100;  // Way past allocation - allowed but dangerous
 ## Type System
 
 ### Numeric Types
-- **Signed integers:** `i8`, `i16`, `i32`
-- **Unsigned integers:** `u8`, `u16`, `u32`
+- **Signed integers:** `i8`, `i16`, `i32`, `i64`
+- **Unsigned integers:** `u8`, `u16`, `u32`, `u64`
 - **Floats:** `f32`, `f64`
 - **Aliases:** `integer` (i32), `number` (f64), `char` (u8)
 
@@ -107,6 +107,10 @@ f64 (highest precision)
  ↑
 f32
  ↑
+u64
+ ↑
+i64
+ ↑
 u32
  ↑
 i32
@@ -122,7 +126,10 @@ i8 (lowest)
 
 **Examples:**
 - `u8 + i32` → `i32` (larger size wins)
+- `i32 + i64` → `i64` (larger size wins)
+- `u32 + u64` → `u64` (larger size wins)
 - `i32 + f32` → `f32` (float always wins)
+- `i64 + f64` → `f64` (float always wins)
 - `i8 + f64` → `f64` (float + largest wins)
 
 ### Range Checking
@@ -131,7 +138,14 @@ Type annotations enforce range checks at assignment:
 let x: u8 = 255;   // OK
 let y: u8 = 256;   // ERROR: out of range
 let z: i8 = 128;   // ERROR: max is 127
+
+// 64-bit types
+let a: i64 = 2147483647;   // OK
+let b: u64 = 4294967295;   // OK
+let c: u64 = -1;           // ERROR: u64 cannot be negative
 ```
+
+**Note:** Large integer literals (> 32-bit) are not yet supported by the parser. Use type annotations with values that fit in 32-bit range, or compute larger values through arithmetic.
 
 ---
 
@@ -1467,7 +1481,8 @@ When adding features to Hemlock:
 ## Version History
 
 - **v0.1** - Primitives, memory management, strings, control flow, functions, closures, recursion, objects, arrays, error handling, file I/O, command-line arguments, async/await, structured concurrency, FFI (current)
-  - Type system: i8-i32, u8-u32, f32/f64, bool, string, null, ptr, buffer, array, object, file, task, channel, void
+  - Type system: i8-i64, u8-u64, f32/f64, bool, string, null, ptr, buffer, array, object, file, task, channel, void
+  - **64-bit integer support:** i64 and u64 types with full type promotion, conversion, and FFI support
   - Memory: alloc, free, memset, memcpy, realloc, talloc, sizeof
   - Objects: literals, methods, duck typing, optional fields, serialize/deserialize
   - **Strings:** 15 methods including substr, slice, find, contains, split, trim, to_upper, to_lower, starts_with, ends_with, replace, replace_all, repeat, char_at, to_bytes
@@ -1479,7 +1494,7 @@ When adding features to Hemlock:
   - **Async/Concurrency:** async/await syntax, spawn/join/detach, channels with send/recv/close, pthread-based true parallelism, exception propagation
   - **FFI (Foreign Function Interface):** Call C functions from shared libraries using libffi, support for all primitive types, automatic type conversion
   - **Architecture:** Modular interpreter (environment, values, types, builtins, io, runtime, ffi)
-  - 216 tests (all tests passing including 10 async/concurrency tests and 3 FFI tests)
+  - 221 tests (all tests passing including 10 async/concurrency tests, 3 FFI tests, and 5 i64/u64 tests)
 - **v0.2** - Compiler backend, optimization (planned)
 - **v0.3** - Advanced features (planned)
 

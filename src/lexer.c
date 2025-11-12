@@ -195,6 +195,7 @@ static TokenType identifier_type(Lexer *lex) {
             if (len == 3) {
                 if (strncmp(lex->start, "i16", 3) == 0) return TOK_TYPE_I16;
                 if (strncmp(lex->start, "i32", 3) == 0) return TOK_TYPE_I32;
+                if (strncmp(lex->start, "i64", 3) == 0) return TOK_TYPE_I64;
             }
             if (len == 6) return check_keyword(lex->start, 6, "import", TOK_IMPORT);
             if (len == 7) return check_keyword(lex->start, 7, "integer", TOK_TYPE_INTEGER);
@@ -235,6 +236,7 @@ static TokenType identifier_type(Lexer *lex) {
             if (len == 3) {
                 if (strncmp(lex->start, "u16", 3) == 0) return TOK_TYPE_U16;
                 if (strncmp(lex->start, "u32", 3) == 0) return TOK_TYPE_U32;
+                if (strncmp(lex->start, "u64", 3) == 0) return TOK_TYPE_U64;
             }
             break;
         case 'v':
