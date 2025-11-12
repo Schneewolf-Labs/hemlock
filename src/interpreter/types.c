@@ -454,6 +454,22 @@ Value convert_to_type(Value value, Type *target_type, Environment *env, Executio
             fprintf(stderr, "Runtime error: Cannot convert to string\n");
             exit(1);
 
+        case TYPE_RUNE:
+            if (value.type == VAL_RUNE) {
+                return value;
+            }
+            // Allow conversion from integers to rune
+            if (is_integer(value)) {
+                int64_t codepoint = value_to_int(value);
+                if (codepoint < 0 || codepoint > 0x10FFFF) {
+                    fprintf(stderr, "Runtime error: Value %ld out of range for rune [0, 0x10FFFF]\n", codepoint);
+                    exit(1);
+                }
+                return val_rune((uint32_t)codepoint);
+            }
+            fprintf(stderr, "Runtime error: Cannot convert to rune\n");
+            exit(1);
+
         case TYPE_PTR:
             if (value.type == VAL_PTR) {
                 return value;
