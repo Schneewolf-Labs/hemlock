@@ -47,8 +47,6 @@ void env_free(Environment *env) {
     // Free all variable names
     for (int i = 0; i < env->count; i++) {
         free(env->names[i]);
-        // Free the value contents
-        value_free(env->values[i]);
     }
     free(env->names);
     free(env->values);
