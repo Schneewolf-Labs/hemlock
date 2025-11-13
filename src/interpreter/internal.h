@@ -22,6 +22,14 @@ typedef struct {
     Value exception_value;
 } ExceptionState;
 
+// Defer stack - stores deferred expressions (function calls) to execute later
+typedef struct {
+    Expr **calls;       // Array of deferred expressions
+    Environment **envs; // Array of environments (captured for each defer)
+    int count;
+    int capacity;
+} DeferStack;
+
 // ========== CALL STACK (for error reporting) ==========
 
 typedef struct {
@@ -45,6 +53,7 @@ struct ExecutionContext {
     LoopState loop_state;
     ExceptionState exception_state;
     CallStack call_stack;
+    DeferStack defer_stack;
 };
 
 // ========== OBJECT TYPE REGISTRY ==========
@@ -230,6 +239,12 @@ void call_stack_push(CallStack *stack, const char *function_name);
 void call_stack_pop(CallStack *stack);
 void call_stack_print(CallStack *stack);
 void call_stack_free(CallStack *stack);
+
+// Defer stack helpers
+void defer_stack_init(DeferStack *stack);
+void defer_stack_push(DeferStack *stack, Expr *call, Environment *env);
+void defer_stack_execute(DeferStack *stack, ExecutionContext *ctx);
+void defer_stack_free(DeferStack *stack);
 
 // Runtime error with stack trace (printf-style)
 void runtime_error(ExecutionContext *ctx, const char *format, ...);

@@ -1,0 +1,9 @@
+// Defer with return - defers should execute before return
+fn test_return(): i32 {
+    defer print("cleanup");
+    print("before return");
+    return 42;
+}
+
+let result = test_return();
+print("Result: " + typeof(result));

@@ -356,6 +356,13 @@ Stmt* stmt_switch(Expr *expr, Expr **case_values, Stmt **case_bodies, int num_ca
     return stmt;
 }
 
+Stmt* stmt_defer(Expr *call) {
+    Stmt *stmt = malloc(sizeof(Stmt));
+    stmt->type = STMT_DEFER;
+    stmt->as.defer_stmt.call = call;
+    return stmt;
+}
+
 Stmt* stmt_import_named(char **import_names, char **import_aliases, int num_imports, const char *module_path) {
     Stmt *stmt = malloc(sizeof(Stmt));
     stmt->type = STMT_IMPORT;
@@ -775,6 +782,9 @@ void stmt_free(Stmt *stmt) {
             }
             free(stmt->as.switch_stmt.case_values);
             free(stmt->as.switch_stmt.case_bodies);
+            break;
+        case STMT_DEFER:
+            expr_free(stmt->as.defer_stmt.call);
             break;
         case STMT_IMPORT:
             free(stmt->as.import_stmt.namespace_name);

@@ -23,7 +23,7 @@ echo ""
 
 # Build the project
 echo -e "${BLUE}Building hemlock...${NC}"
-if make clean > /dev/null 2>&1 && make > /dev/null 2>&1; then
+if cd .. && make clean > /dev/null 2>&1 && make > /dev/null && cd tests > /dev/null 2>&1; then
     echo -e "${GREEN}✓ Build successful${NC}"
 else
     echo -e "${RED}✗ Build failed${NC}"

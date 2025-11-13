@@ -701,6 +701,170 @@ let result3 = (5 & 3) | (2 << 1);  // 1 | 4 = 5
 
 ---
 
+## Defer Statement
+
+The `defer` statement schedules a function call to be executed when the surrounding function returns, providing explicit resource cleanup without RAII.
+
+### Syntax
+
+```hemlock
+defer expression;
+```
+
+The expression is typically a function call that performs cleanup (e.g., closing files, releasing resources).
+
+### Basic Usage
+
+```hemlock
+fn process_data() {
+    print("start");
+    defer print("cleanup");
+    print("work");
+    // "cleanup" executes here, before function returns
+}
+
+process_data();
+// Output: start, work, cleanup
+```
+
+### Multiple Defers (LIFO Order)
+
+When multiple `defer` statements are used, they execute in **LIFO (last-in, first-out)** order:
+
+```hemlock
+fn example() {
+    defer print("first");
+    defer print("second");
+    defer print("third");
+}
+
+example();
+// Output: third, second, first
+```
+
+### Defer with Return
+
+Deferred calls execute **before** the function returns, but **after** the return value is evaluated:
+
+```hemlock
+fn process(): i32 {
+    defer print("cleanup");
+    print("work");
+    return 42;
+    // "cleanup" executes here, then returns 42
+}
+```
+
+### Defer with Exceptions
+
+Deferred calls execute **even when exceptions are thrown**, making them ideal for cleanup:
+
+```hemlock
+fn risky() {
+    defer print("cleanup 1");
+    defer print("cleanup 2");
+    print("work");
+    throw "error";
+    // Both defers execute here, then exception propagates
+}
+
+try {
+    risky();
+} catch (e) {
+    print("Caught: " + e);
+}
+// Output: work, cleanup 2, cleanup 1, Caught: error
+```
+
+### Resource Cleanup Pattern
+
+The primary use case for `defer` is automatic resource cleanup:
+
+```hemlock
+fn process_file(filename: string) {
+    let file = open(filename, "r");
+    defer file.close();  // Guaranteed to execute
+
+    let content = file.read();
+    // Process content...
+
+    // File automatically closed when function returns
+}
+```
+
+### Defer with Closures
+
+Deferred expressions capture the environment at the time of deferral:
+
+```hemlock
+fn example() {
+    let x = 10;
+    defer print("x = " + typeof(x));  // Captures environment
+    x = 20;
+    // Defer sees x = 20 when it executes
+}
+```
+
+### Nested Functions
+
+Each function maintains its own defer stack:
+
+```hemlock
+fn inner() {
+    defer print("inner defer");
+    print("inner body");
+}
+
+fn outer() {
+    defer print("outer defer");
+    inner();
+    print("outer body");
+}
+
+outer();
+// Output: inner body, inner defer, outer body, outer defer
+```
+
+### Important Notes
+
+- **Explicit over implicit:** `defer` is visible in code, not hidden like RAII
+- **LIFO order:** Last defer executes first
+- **Always executes:** Runs on normal return, early return, or exception
+- **No implicit cleanup:** You must explicitly defer cleanup calls
+- **Scope:** Defers are tied to function scope, not block scope
+
+### When to Use Defer
+
+**Good use cases:**
+- Closing files and network connections
+- Releasing locks or other resources
+- Cleanup operations that must always run
+- Ensuring paired operations (open/close, lock/unlock)
+
+**Example patterns:**
+```hemlock
+// File I/O
+fn read_config(path: string) {
+    let f = open(path, "r");
+    defer f.close();
+    return f.read();
+}
+
+// Multiple cleanup steps
+fn complex_operation() {
+    let resource1 = acquire_resource1();
+    defer release_resource1(resource1);
+
+    let resource2 = acquire_resource2();
+    defer release_resource2(resource2);
+
+    // Use resources...
+    // Both resources guaranteed to be released in reverse order
+}
+```
+
+---
+
 ## Error Handling
 
 Hemlock supports exception-based error handling with `try`, `catch`, `finally`, and `throw` statements.
@@ -2346,9 +2510,7 @@ let p = create_thing()  // Does this increment a refcount? NO!
 ## Future Considerations
 
 ### Maybe Add (Under Discussion)
-- `defer` for cleanup (explicit, not automatic)
-- `break`/`continue` for loops
-- Array/list types (not just buffers)
+- Array/list types (not just buffers) - Note: Basic arrays are implemented
 - Pattern matching
 - Error types (`Result<T, E>`)
 
@@ -2401,15 +2563,15 @@ When adding features to Hemlock:
   - Objects: literals, methods, duck typing, optional fields, serialize/deserialize
   - **Strings:** 18 methods including substr, slice, find, contains, split, trim, to_upper, to_lower, starts_with, ends_with, replace, replace_all, repeat, char_at, byte_at, chars, bytes, to_bytes
   - **Arrays:** 15 methods including push, pop, shift, unshift, insert, remove, find, contains, slice, join, concat, reverse, first, last, clear
-  - Control flow: if/else, while, for, for-in, break, continue, switch, bitwise operators (&, |, ^, <<, >>, ~)
-  - Error handling: try/catch/finally/throw
+  - Control flow: if/else, while, for, for-in, break, continue, switch, bitwise operators (&, |, ^, <<, >>, ~), **defer**
+  - Error handling: try/catch/finally/throw, panic
   - **File I/O:** File object API with methods (read, read_bytes, write, write_bytes, seek, tell, close) and properties (path, mode, closed)
   - **Signal Handling:** POSIX signal handling with signal(signum, handler) and raise(signum), 15 signal constants (SIGINT, SIGTERM, SIGUSR1, SIGUSR2, etc.)
   - Command-line arguments: built-in `args` array
   - **Async/Concurrency:** async/await syntax, spawn/join/detach, channels with send/recv/close, pthread-based true parallelism, exception propagation
   - **FFI (Foreign Function Interface):** Call C functions from shared libraries using libffi, support for all primitive types, automatic type conversion
   - **Architecture:** Modular interpreter (environment, values, types, builtins, io, runtime, ffi)
-  - 251 tests (all tests passing including 10 async/concurrency tests, 3 FFI tests, 5 i64/u64 tests, and 5 signal handling tests)
+  - 288 tests (all tests passing including 10 async/concurrency tests, 3 FFI tests, 5 i64/u64 tests, 5 signal handling tests, and 6 defer tests)
 - **v0.2** - Compiler backend, optimization (planned)
 - **v0.3** - Advanced features (planned)
 

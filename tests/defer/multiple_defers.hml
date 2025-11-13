@@ -1,0 +1,9 @@
+// Multiple defers - should execute in LIFO order
+fn test_multiple() {
+    defer print("first");
+    defer print("second");
+    defer print("third");
+    print("body");
+}
+
+test_multiple();

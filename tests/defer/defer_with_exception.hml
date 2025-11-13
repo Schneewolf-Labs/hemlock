@@ -1,0 +1,14 @@
+// Defer with exception - defers should execute even when exception is thrown
+fn test_exception() {
+    defer print("cleanup 1");
+    defer print("cleanup 2");
+    print("before throw");
+    throw "error!";
+    print("after throw (should not print)");
+}
+
+try {
+    test_exception();
+} catch (e) {
+    print("Caught: " + e);
+}

@@ -290,6 +290,7 @@ static TokenType identifier_type(Lexer *lex) {
             if (len == 8) return check_keyword(lex->start, 8, "continue", TOK_CONTINUE);
             break;
         case 'd':
+            if (len == 5) return check_keyword(lex->start, 5, "defer", TOK_DEFER);
             if (len == 6) return check_keyword(lex->start, 6, "define", TOK_DEFINE);
             if (len == 7) return check_keyword(lex->start, 7, "default", TOK_DEFAULT);
             break;

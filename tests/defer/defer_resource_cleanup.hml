@@ -1,0 +1,22 @@
+// Practical example - resource cleanup with defer
+fn process_file(filename: string) {
+    print("Opening file: " + filename);
+    let file = open(filename, "r");
+    defer file.close();
+    defer print("File closed: " + filename);
+
+    print("Processing file...");
+    let content = file.read();
+    print("Content length: " + typeof(content.length));
+
+    // File automatically closed when function returns
+}
+
+// Create a test file
+let test_file = open("test_defer.txt", "w");
+test_file.write("Hello, defer!");
+test_file.close();
+
+// Process it
+process_file("test_defer.txt");
+print("Done!");
