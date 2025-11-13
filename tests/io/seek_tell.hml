@@ -6,6 +6,6 @@ print(f.tell());
 f.seek(5);
 print("After seek(5):");
 print(f.tell());
-let data = f.read_text(3);
+let data = f.read(3);
 print(data);
 f.close();
