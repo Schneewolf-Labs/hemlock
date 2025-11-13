@@ -43,19 +43,133 @@ Environment* env_new(Environment *parent) {
     return env;
 }
 
-// Break circular references by releasing closure environments from functions
-// This should be called on global/top-level environments before final env_release
-void env_break_cycles(Environment *env) {
-    for (int i = 0; i < env->count; i++) {
-        Value val = env->values[i];
-        if (val.type == VAL_FUNCTION && val.as.as_function) {
-            Function *fn = val.as.as_function;
-            if (fn->closure_env) {
-                env_release(fn->closure_env);
-                fn->closure_env = NULL;  // Prevent double-release in value_free
-            }
+// ========== CYCLE BREAKING ==========
+
+// Visited set for tracking processed pointers during cycle breaking
+typedef struct {
+    void **pointers;
+    int count;
+    int capacity;
+} VisitedSet;
+
+static VisitedSet* visited_set_new(void) {
+    VisitedSet *set = malloc(sizeof(VisitedSet));
+    if (!set) {
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
+    set->capacity = 16;
+    set->count = 0;
+    set->pointers = malloc(sizeof(void*) * set->capacity);
+    if (!set->pointers) {
+        free(set);
+        fprintf(stderr, "Runtime error: Memory allocation failed\n");
+        exit(1);
+    }
+    return set;
+}
+
+static void visited_set_free(VisitedSet *set) {
+    if (set) {
+        free(set->pointers);
+        free(set);
+    }
+}
+
+static int visited_set_contains(VisitedSet *set, void *ptr) {
+    for (int i = 0; i < set->count; i++) {
+        if (set->pointers[i] == ptr) {
+            return 1;
         }
     }
+    return 0;
+}
+
+static void visited_set_add(VisitedSet *set, void *ptr) {
+    // Grow if needed
+    if (set->count >= set->capacity) {
+        set->capacity *= 2;
+        void **new_pointers = realloc(set->pointers, sizeof(void*) * set->capacity);
+        if (!new_pointers) {
+            fprintf(stderr, "Runtime error: Memory allocation failed\n");
+            exit(1);
+        }
+        set->pointers = new_pointers;
+    }
+    set->pointers[set->count++] = ptr;
+}
+
+// Forward declaration
+static void value_break_cycles_internal(Value val, VisitedSet *visited);
+
+// Recursively break cycles in a value (handles nested objects/arrays)
+static void value_break_cycles_internal(Value val, VisitedSet *visited) {
+    switch (val.type) {
+        case VAL_FUNCTION:
+            if (val.as.as_function) {
+                Function *fn = val.as.as_function;
+                if (fn->closure_env) {
+                    env_release(fn->closure_env);
+                    fn->closure_env = NULL;  // Prevent double-release in value_free
+                }
+            }
+            break;
+
+        case VAL_OBJECT:
+            if (val.as.as_object) {
+                Object *obj = val.as.as_object;
+                // Check if already visited (cycle detection)
+                if (visited_set_contains(visited, obj)) {
+                    return;
+                }
+                visited_set_add(visited, obj);
+
+                // Recursively process all field values
+                // Note: This may crash if the object has been manually freed via builtin_free()
+                // while still being referenced in the environment. The proper solution is to
+                // not use manual free() on reference-counted objects that are still referenced.
+                for (int i = 0; i < obj->num_fields; i++) {
+                    value_break_cycles_internal(obj->field_values[i], visited);
+                }
+            }
+            break;
+
+        case VAL_ARRAY:
+            if (val.as.as_array) {
+                Array *arr = val.as.as_array;
+                // Check if already visited (cycle detection)
+                if (visited_set_contains(visited, arr)) {
+                    return;
+                }
+                visited_set_add(visited, arr);
+
+                // Recursively process all elements
+                // Note: This may crash if the array has been manually freed via builtin_free()
+                // while still being referenced in the environment. The proper solution is to
+                // not use manual free() on reference-counted arrays that are still referenced.
+                for (int i = 0; i < arr->length; i++) {
+                    value_break_cycles_internal(arr->elements[i], visited);
+                }
+            }
+            break;
+
+        default:
+            // Other types don't contain nested functions
+            break;
+    }
+}
+
+// Break circular references by releasing closure environments from functions
+// This now works recursively, finding functions nested in objects/arrays
+// This should be called on global/top-level environments before final env_release
+void env_break_cycles(Environment *env) {
+    VisitedSet *visited = visited_set_new();
+
+    for (int i = 0; i < env->count; i++) {
+        value_break_cycles_internal(env->values[i], visited);
+    }
+
+    visited_set_free(visited);
 }
 
 void env_free(Environment *env) {
