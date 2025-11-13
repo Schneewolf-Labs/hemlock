@@ -961,6 +961,9 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
             fn->closure_env = env;
             env_retain(env);  // Increment ref count since closure captures env
 
+            // Initialize reference count (first retain will bring to 1)
+            fn->ref_count = 0;
+
             return val_function(fn);
         }
 
