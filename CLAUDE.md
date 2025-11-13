@@ -1925,6 +1925,34 @@ try {
 }
 ```
 
+### Verifying True Parallelism
+
+You can verify that Hemlock's async implementation uses true multi-core parallelism by running CPU-intensive tasks:
+
+```bash
+# Run with time to measure CPU vs wall clock time
+time ./hemlock my_concurrent_program.hml
+```
+
+**Example output showing true parallelism:**
+```
+real    0m1.981s   # Wall clock time (actual elapsed time)
+user    0m7.160s   # CPU time (sum across all cores)
+sys     0m0.020s
+```
+
+**Interpretation:**
+- **Real time:** How long the program took to run (wall clock)
+- **User time:** Total CPU time spent across all cores
+- **Ratio (user/real):** 7.16 / 1.98 = **3.6x speedup**
+
+If `user time > real time`, this proves **true parallel execution**:
+- Single-threaded would show `user ≈ real`
+- Green threads would show `user ≈ real` (one core)
+- **True parallelism shows `user >> real`** (multiple cores working simultaneously)
+
+The ratio indicates how many cores were utilized: 3.6x means ~3-4 CPU cores were actively computing in parallel.
+
 ### Implementation Details
 
 **Threading Model:**
@@ -1940,7 +1968,8 @@ try {
 
 **Performance Characteristics:**
 - **True parallelism** - N spawned tasks can utilize N CPU cores simultaneously
-- **Proven speedup** - Stress tests show 8-9x CPU time vs wall time (multiple cores working)
+- **Proven speedup** - Stress tests show 3.6x-9x CPU time vs wall time (multiple cores working)
+- **Verified parallel execution** - CPU time exceeds wall clock time, proving multi-core utilization
 - **Thread overhead** - Each task has ~8KB stack + pthread overhead
 - **Blocking I/O safe** - Blocking operations in one task don't block others
 
