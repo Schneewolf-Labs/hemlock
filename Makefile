@@ -4,18 +4,21 @@ LDFLAGS = -lm -lpthread -lffi -ldl
 SRC_DIR = src
 BUILD_DIR = build
 
-# Source files from src/ and src/interpreter/
-SRCS = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/interpreter/*.c)
+# Source files from src/ and src/interpreter/ and src/interpreter/builtins/
+SRCS = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/interpreter/*.c) $(wildcard $(SRC_DIR)/interpreter/builtins/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 TARGET = hemlock
 
-all: $(BUILD_DIR) $(BUILD_DIR)/interpreter $(TARGET)
+all: $(BUILD_DIR) $(BUILD_DIR)/interpreter $(BUILD_DIR)/interpreter/builtins $(TARGET)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 $(BUILD_DIR)/interpreter:
 	mkdir -p $(BUILD_DIR)/interpreter
+
+$(BUILD_DIR)/interpreter/builtins:
+	mkdir -p $(BUILD_DIR)/interpreter/builtins
 
 $(TARGET): $(OBJS)
 	$(CC) $(OBJS) -o $(TARGET) $(LDFLAGS)
