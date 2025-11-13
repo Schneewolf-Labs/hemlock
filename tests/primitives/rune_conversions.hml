@@ -28,8 +28,8 @@ let heart: string = '❤';
 print(heart);  // "❤"
 
 // u8 (char) to rune
-let byte: u8 = 72;
-let byte_rune: rune = byte;
+let b: u8 = 72;
+let byte_rune: rune = b;
 print("\nu8 to rune:");
 print(byte_rune);  // 'H'
 
