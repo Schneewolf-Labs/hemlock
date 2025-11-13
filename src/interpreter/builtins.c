@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "internal.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +9,17 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <limits.h>
+#include <math.h>
+#include <time.h>
+#include <sys/time.h>
+
+// Define math constants if not available
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+#ifndef M_E
+#define M_E 2.71828182845904523536
+#endif
 
 // ========== BUILTIN FUNCTIONS ==========
 
@@ -1354,6 +1366,511 @@ static Value builtin_absolute_path(Value *args, int num_args, ExecutionContext *
     return val_string(buffer);
 }
 
+// ========== MATH BUILTIN FUNCTIONS ==========
+
+static Value builtin_sin(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: sin() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: sin() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(sin(value_to_float(args[0])));
+}
+
+static Value builtin_cos(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: cos() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: cos() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(cos(value_to_float(args[0])));
+}
+
+static Value builtin_tan(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: tan() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: tan() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(tan(value_to_float(args[0])));
+}
+
+static Value builtin_asin(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: asin() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: asin() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(asin(value_to_float(args[0])));
+}
+
+static Value builtin_acos(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: acos() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: acos() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(acos(value_to_float(args[0])));
+}
+
+static Value builtin_atan(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: atan() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: atan() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(atan(value_to_float(args[0])));
+}
+
+static Value builtin_atan2(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: atan2() expects 2 arguments\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0]) || !is_numeric(args[1])) {
+        fprintf(stderr, "Runtime error: atan2() arguments must be numeric\n");
+        exit(1);
+    }
+    return val_f64(atan2(value_to_float(args[0]), value_to_float(args[1])));
+}
+
+static Value builtin_sqrt(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: sqrt() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: sqrt() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(sqrt(value_to_float(args[0])));
+}
+
+static Value builtin_pow(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: pow() expects 2 arguments\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0]) || !is_numeric(args[1])) {
+        fprintf(stderr, "Runtime error: pow() arguments must be numeric\n");
+        exit(1);
+    }
+    return val_f64(pow(value_to_float(args[0]), value_to_float(args[1])));
+}
+
+static Value builtin_exp(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: exp() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: exp() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(exp(value_to_float(args[0])));
+}
+
+static Value builtin_log(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: log() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: log() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(log(value_to_float(args[0])));
+}
+
+static Value builtin_log10(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: log10() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: log10() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(log10(value_to_float(args[0])));
+}
+
+static Value builtin_log2(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: log2() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: log2() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(log2(value_to_float(args[0])));
+}
+
+static Value builtin_floor(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: floor() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: floor() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(floor(value_to_float(args[0])));
+}
+
+static Value builtin_ceil(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: ceil() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: ceil() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(ceil(value_to_float(args[0])));
+}
+
+static Value builtin_round(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: round() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: round() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(round(value_to_float(args[0])));
+}
+
+static Value builtin_trunc(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: trunc() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: trunc() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(trunc(value_to_float(args[0])));
+}
+
+static Value builtin_abs(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: abs() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: abs() argument must be numeric\n");
+        exit(1);
+    }
+    return val_f64(fabs(value_to_float(args[0])));
+}
+
+static Value builtin_min(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: min() expects 2 arguments\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0]) || !is_numeric(args[1])) {
+        fprintf(stderr, "Runtime error: min() arguments must be numeric\n");
+        exit(1);
+    }
+    double a = value_to_float(args[0]);
+    double b = value_to_float(args[1]);
+    return val_f64(a < b ? a : b);
+}
+
+static Value builtin_max(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: max() expects 2 arguments\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0]) || !is_numeric(args[1])) {
+        fprintf(stderr, "Runtime error: max() arguments must be numeric\n");
+        exit(1);
+    }
+    double a = value_to_float(args[0]);
+    double b = value_to_float(args[1]);
+    return val_f64(a > b ? a : b);
+}
+
+static Value builtin_clamp(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 3) {
+        fprintf(stderr, "Runtime error: clamp() expects 3 arguments (value, min, max)\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0]) || !is_numeric(args[1]) || !is_numeric(args[2])) {
+        fprintf(stderr, "Runtime error: clamp() arguments must be numeric\n");
+        exit(1);
+    }
+    double value = value_to_float(args[0]);
+    double min_val = value_to_float(args[1]);
+    double max_val = value_to_float(args[2]);
+    if (value < min_val) return val_f64(min_val);
+    if (value > max_val) return val_f64(max_val);
+    return val_f64(value);
+}
+
+static Value builtin_rand(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 0) {
+        fprintf(stderr, "Runtime error: rand() expects no arguments\n");
+        exit(1);
+    }
+    // Return random float between 0.0 and 1.0
+    return val_f64((double)rand() / RAND_MAX);
+}
+
+static Value builtin_rand_range(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: rand_range() expects 2 arguments (min, max)\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0]) || !is_numeric(args[1])) {
+        fprintf(stderr, "Runtime error: rand_range() arguments must be numeric\n");
+        exit(1);
+    }
+    double min_val = value_to_float(args[0]);
+    double max_val = value_to_float(args[1]);
+    double range = max_val - min_val;
+    return val_f64(min_val + (range * rand() / RAND_MAX));
+}
+
+static Value builtin_seed(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: seed() expects 1 argument\n");
+        exit(1);
+    }
+    if (!is_integer(args[0])) {
+        fprintf(stderr, "Runtime error: seed() argument must be an integer\n");
+        exit(1);
+    }
+    srand((unsigned int)value_to_int(args[0]));
+    return val_null();
+}
+
+// ========== TIME BUILTIN FUNCTIONS ==========
+
+static Value builtin_now(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 0) {
+        fprintf(stderr, "Runtime error: now() expects no arguments\n");
+        exit(1);
+    }
+    return val_i64((int64_t)time(NULL));
+}
+
+static Value builtin_time_ms(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 0) {
+        fprintf(stderr, "Runtime error: time_ms() expects no arguments\n");
+        exit(1);
+    }
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    int64_t ms = (int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+    return val_i64(ms);
+}
+
+static Value builtin_sleep(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: sleep() expects 1 argument (seconds)\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0])) {
+        fprintf(stderr, "Runtime error: sleep() argument must be numeric\n");
+        exit(1);
+    }
+    double seconds = value_to_float(args[0]);
+    if (seconds < 0) {
+        fprintf(stderr, "Runtime error: sleep() argument must be non-negative\n");
+        exit(1);
+    }
+    // Use nanosleep for more precise sleep
+    struct timespec req;
+    req.tv_sec = (time_t)seconds;
+    req.tv_nsec = (long)((seconds - req.tv_sec) * 1000000000);
+    nanosleep(&req, NULL);
+    return val_null();
+}
+
+static Value builtin_clock(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 0) {
+        fprintf(stderr, "Runtime error: clock() expects no arguments\n");
+        exit(1);
+    }
+    // Returns CPU time in seconds as f64
+    return val_f64((double)clock() / CLOCKS_PER_SEC);
+}
+
+// ========== ENV BUILTIN FUNCTIONS ==========
+
+static Value builtin_getenv(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: getenv() expects 1 argument (variable name)\n");
+        exit(1);
+    }
+    if (args[0].type != VAL_STRING) {
+        fprintf(stderr, "Runtime error: getenv() argument must be a string\n");
+        exit(1);
+    }
+    String *name = args[0].as.as_string;
+    char *cname = malloc(name->length + 1);
+    if (cname == NULL) {
+        fprintf(stderr, "Runtime error: getenv() memory allocation failed\n");
+        exit(1);
+    }
+    memcpy(cname, name->data, name->length);
+    cname[name->length] = '\0';
+
+    char *value = getenv(cname);
+    free(cname);
+
+    if (value == NULL) {
+        return val_null();
+    }
+    return val_string(value);
+}
+
+static Value builtin_setenv(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: setenv() expects 2 arguments (name, value)\n");
+        exit(1);
+    }
+    if (args[0].type != VAL_STRING || args[1].type != VAL_STRING) {
+        fprintf(stderr, "Runtime error: setenv() arguments must be strings\n");
+        exit(1);
+    }
+
+    String *name = args[0].as.as_string;
+    String *value = args[1].as.as_string;
+
+    char *cname = malloc(name->length + 1);
+    char *cvalue = malloc(value->length + 1);
+    if (cname == NULL || cvalue == NULL) {
+        fprintf(stderr, "Runtime error: setenv() memory allocation failed\n");
+        exit(1);
+    }
+
+    memcpy(cname, name->data, name->length);
+    cname[name->length] = '\0';
+    memcpy(cvalue, value->data, value->length);
+    cvalue[value->length] = '\0';
+
+    int result = setenv(cname, cvalue, 1);
+    free(cname);
+    free(cvalue);
+
+    if (result != 0) {
+        fprintf(stderr, "Runtime error: setenv() failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    return val_null();
+}
+
+static Value builtin_unsetenv(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 1) {
+        fprintf(stderr, "Runtime error: unsetenv() expects 1 argument (variable name)\n");
+        exit(1);
+    }
+    if (args[0].type != VAL_STRING) {
+        fprintf(stderr, "Runtime error: unsetenv() argument must be a string\n");
+        exit(1);
+    }
+
+    String *name = args[0].as.as_string;
+    char *cname = malloc(name->length + 1);
+    if (cname == NULL) {
+        fprintf(stderr, "Runtime error: unsetenv() memory allocation failed\n");
+        exit(1);
+    }
+    memcpy(cname, name->data, name->length);
+    cname[name->length] = '\0';
+
+    int result = unsetenv(cname);
+    free(cname);
+
+    if (result != 0) {
+        fprintf(stderr, "Runtime error: unsetenv() failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    return val_null();
+}
+
+static Value builtin_exit(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args > 1) {
+        fprintf(stderr, "Runtime error: exit() expects 0 or 1 argument (exit code)\n");
+        exit(1);
+    }
+
+    int exit_code = 0;
+    if (num_args == 1) {
+        if (!is_integer(args[0])) {
+            fprintf(stderr, "Runtime error: exit() argument must be an integer\n");
+            exit(1);
+        }
+        exit_code = value_to_int(args[0]);
+    }
+
+    exit(exit_code);
+}
+
+static Value builtin_get_pid(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 0) {
+        fprintf(stderr, "Runtime error: get_pid() expects no arguments\n");
+        exit(1);
+    }
+    return val_i32((int32_t)getpid());
+}
+
 // Structure to hold builtin function info
 typedef struct {
     const char *name;
@@ -1379,6 +1896,42 @@ static BuiltinInfo builtins[] = {
     {"join", builtin_join},
     {"detach", builtin_detach},
     {"channel", builtin_channel},
+    // Math functions (use stdlib/math.hml module for public API)
+    {"__sin", builtin_sin},
+    {"__cos", builtin_cos},
+    {"__tan", builtin_tan},
+    {"__asin", builtin_asin},
+    {"__acos", builtin_acos},
+    {"__atan", builtin_atan},
+    {"__atan2", builtin_atan2},
+    {"__sqrt", builtin_sqrt},
+    {"__pow", builtin_pow},
+    {"__exp", builtin_exp},
+    {"__log", builtin_log},
+    {"__log10", builtin_log10},
+    {"__log2", builtin_log2},
+    {"__floor", builtin_floor},
+    {"__ceil", builtin_ceil},
+    {"__round", builtin_round},
+    {"__trunc", builtin_trunc},
+    {"__abs", builtin_abs},
+    {"__min", builtin_min},
+    {"__max", builtin_max},
+    {"__clamp", builtin_clamp},
+    {"__rand", builtin_rand},
+    {"__rand_range", builtin_rand_range},
+    {"__seed", builtin_seed},
+    // Time functions (use stdlib/time.hml module for public API)
+    {"__now", builtin_now},
+    {"__time_ms", builtin_time_ms},
+    {"__sleep", builtin_sleep},
+    {"__clock", builtin_clock},
+    // Environment functions (use stdlib/env.hml module for public API)
+    {"__getenv", builtin_getenv},
+    {"__setenv", builtin_setenv},
+    {"__unsetenv", builtin_unsetenv},
+    {"__exit", builtin_exit},
+    {"__get_pid", builtin_get_pid},
     // Internal helper builtins
     {"__read_u32", builtin_read_u32},
     {"__read_u64", builtin_read_u64},
@@ -1434,6 +1987,13 @@ void register_builtins(Environment *env, int argc, char **argv, ExecutionContext
     env_set(env, "integer", val_type(TYPE_I32), ctx);
     env_set(env, "number", val_type(TYPE_F64), ctx);
     env_set(env, "byte", val_type(TYPE_U8), ctx);
+
+    // Math constants (use stdlib/math.hml module for public API)
+    env_set(env, "__PI", val_f64(M_PI), ctx);
+    env_set(env, "__E", val_f64(M_E), ctx);
+    env_set(env, "__TAU", val_f64(2.0 * M_PI), ctx);
+    env_set(env, "__INF", val_f64(INFINITY), ctx);
+    env_set(env, "__NAN", val_f64(NAN), ctx);
 
     // Register builtin functions (may overwrite some type names if there are conflicts)
     for (int i = 0; builtins[i].name != NULL; i++) {

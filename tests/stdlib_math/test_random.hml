@@ -1,0 +1,37 @@
+// Test math module random functions
+
+import * as math from "../../stdlib/math";
+
+// Seed for reproducibility
+math.seed(42);
+
+// Test rand - should return value between 0 and 1
+let r1 = math.rand();
+assert(r1 >= 0.0 && r1 < 1.0, "rand() should return value in [0, 1)");
+
+let r2 = math.rand();
+assert(r2 >= 0.0 && r2 < 1.0, "rand() should return value in [0, 1)");
+
+// Test rand_range
+let r3 = math.rand_range(10.0, 20.0);
+assert(r3 >= 10.0 && r3 < 20.0, "rand_range(10, 20) should return value in [10, 20)");
+
+let r4 = math.rand_range(0.0, 100.0);
+assert(r4 >= 0.0 && r4 < 100.0, "rand_range(0, 100) should return value in [0, 100)");
+
+let r5 = math.rand_range(-10.0, 10.0);
+assert(r5 >= -10.0 && r5 < 10.0, "rand_range(-10, 10) should return value in [-10, 10)");
+
+// Test that seeding gives consistent results
+math.seed(123);
+let s1 = math.rand();
+let s2 = math.rand();
+
+math.seed(123);
+let s3 = math.rand();
+let s4 = math.rand();
+
+assert(s1 == s3, "Same seed should give same first random number");
+assert(s2 == s4, "Same seed should give same second random number");
+
+print("All random function tests passed!");

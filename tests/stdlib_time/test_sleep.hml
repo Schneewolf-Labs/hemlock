@@ -1,0 +1,25 @@
+// Test time.sleep() function
+
+import * as time from "../../stdlib/time";
+
+// Test short sleep
+let t1 = time.time_ms();
+time.sleep(0.1);  // Sleep for 100ms
+let t2 = time.time_ms();
+
+let elapsed = t2 - t1;
+assert(elapsed >= 95, "sleep(0.1) should sleep at least 95ms");
+assert(elapsed < 200, "sleep(0.1) should sleep less than 200ms");
+
+// Test zero sleep (should not error)
+time.sleep(0.0);
+
+// Test that sleep doesn't consume excessive CPU time
+let c1 = time.clock();
+time.sleep(0.05);
+let c2 = time.clock();
+let cpu_time = c2 - c1;
+// CPU time should be minimal during sleep (less than 10ms worth)
+assert(cpu_time < 0.01, "sleep() should not consume significant CPU time");
+
+print("All sleep tests passed!");
