@@ -573,10 +573,10 @@ static void* task_thread_wrapper(void* arg) {
     // Release function environment (reference counted)
     env_release(func_env);
 
-    // Clean up detached tasks (they're never joined, so free here)
-    // Note: We don't need to lock here because detached tasks are never joined
+    // Clean up detached tasks (decrement reference count)
+    // The task will be freed when both the worker thread and user-side have released it
     if (task->detached) {
-        task_free(task);
+        task_release(task);
     }
 
     return NULL;

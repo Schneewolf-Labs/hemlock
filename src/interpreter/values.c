@@ -403,6 +403,7 @@ Task* task_new(int id, Function *function, Value *args, int num_args, Environmen
     task->waiting_on = NULL;
     task->thread = NULL;
     task->detached = 0;
+    task->ref_count = 1;  // Initialize reference count to 1
 
     // Initialize task mutex for thread-safe state access
     task->task_mutex = malloc(sizeof(pthread_mutex_t));
@@ -435,6 +436,23 @@ void task_free(Task *task) {
             free(task->task_mutex);
         }
         free(task);
+    }
+}
+
+// Increment task reference count (thread-safe using atomic operations)
+void task_retain(Task *task) {
+    if (task) {
+        __atomic_add_fetch(&task->ref_count, 1, __ATOMIC_SEQ_CST);
+    }
+}
+
+// Decrement task reference count and free if it reaches 0 (thread-safe using atomic operations)
+void task_release(Task *task) {
+    if (task) {
+        int old_count = __atomic_sub_fetch(&task->ref_count, 1, __ATOMIC_SEQ_CST);
+        if (old_count == 0) {
+            task_free(task);
+        }
     }
 }
 
@@ -898,7 +916,7 @@ static void value_free_internal(Value val, VisitedSet *visited) {
             break;
         case VAL_TASK:
             if (val.as.as_task) {
-                task_free(val.as.as_task);
+                task_release(val.as.as_task);
             }
             break;
         case VAL_CHANNEL:
