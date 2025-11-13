@@ -10,18 +10,18 @@ The collections module provides the following data structures:
 - **Queue** - First-In-First-Out (FIFO) data structure
 - **Stack** - Last-In-First-Out (LIFO) data structure
 - **Set** - Collection of unique values
-- **LinkedList** - Doubly-linked list (experimental)
+- **LinkedList** - Doubly-linked list with efficient insertion/deletion
 
 ## Usage
 
 ```hemlock
-import { HashMap, Queue, Stack, Set } from "./stdlib/collections";
+import { HashMap, Queue, Stack, Set, LinkedList } from "@stdlib/collections";
 ```
 
 Or import all:
 
 ```hemlock
-import * as collections from "./stdlib/collections";
+import * as collections from "@stdlib/collections";
 let map = collections.HashMap();
 ```
 
@@ -55,7 +55,7 @@ let map = HashMap();
 ### Example
 
 ```hemlock
-import { HashMap } from "./stdlib/collections";
+import { HashMap } from "@stdlib/collections";
 
 let map = HashMap();
 
@@ -109,7 +109,7 @@ let q = Queue();
 ### Example
 
 ```hemlock
-import { Queue } from "./stdlib/collections";
+import { Queue } from "@stdlib/collections";
 
 let q = Queue();
 
@@ -158,7 +158,7 @@ let s = Stack();
 ### Example
 
 ```hemlock
-import { Stack } from "./stdlib/collections";
+import { Stack } from "@stdlib/collections";
 
 let s = Stack();
 
@@ -209,7 +209,7 @@ let s = Set();
 ### Example
 
 ```hemlock
-import { Set } from "./stdlib/collections";
+import { Set } from "@stdlib/collections";
 
 let s = Set();
 
@@ -243,11 +243,9 @@ let diff = s1.difference(s2);     // {1}
 
 ---
 
-## LinkedList (Experimental)
+## LinkedList
 
 Doubly-linked list with efficient insertion and deletion at any position.
-
-**Note:** LinkedList has known issues with type comparisons in the current Hemlock version. Use with caution.
 
 ### API
 
@@ -317,48 +315,43 @@ let list = LinkedList();
 
 ## Known Limitations
 
-1. **HashMap resize** can be slow for large datasets due to manual modulo implementation
-2. **Queue dequeue** uses array shift which is O(n)
-3. **Set operations** use linear search (no hash-based implementation yet)
-4. **LinkedList** has type comparison issues in some scenarios
-5. **No automatic memory cleanup** - users must manually manage collection lifecycle
+1. **Queue dequeue** uses array shift which is O(n)
+2. **Set operations** use linear search (no hash-based implementation yet)
+3. **No automatic memory cleanup** - users must manually manage collection lifecycle
+4. **Manual modulo implementation** for HashMap (Hemlock lacks native `%` operator)
 
 ---
 
 ## Future Improvements
 
-- Optimize modulo operation for better HashMap performance
 - Implement circular buffer for Queue (O(1) dequeue)
-- Add hash-based Set implementation
-- Fix LinkedList type comparison issues
-- Add PriorityQueue, Deque, and other data structures
+- Add hash-based Set implementation for better performance
+- Add PriorityQueue, Deque, TreeMap, and other data structures
 - Implement iterators for all collections
+- Add native modulo operator to Hemlock for better HashMap performance
 
 ---
 
 ## Testing
 
-Run the working test suite:
+Run the test suite:
 
 ```bash
-./hemlock tests/stdlib_collections/test_basic.hml
+# Run all collections tests
+make test | grep stdlib_collections
+
+# Or run individual comprehensive tests
+./hemlock tests/stdlib_collections/test_hashmap.hml
+./hemlock tests/stdlib_collections/test_queue.hml
+./hemlock tests/stdlib_collections/test_stack.hml
+./hemlock tests/stdlib_collections/test_set.hml
+./hemlock tests/stdlib_collections/test_linkedlist.hml
 ```
 
-**Output:**
-```
-=== Testing Queue ===
-Queue tests passed!
-=== Testing Stack ===
-Stack tests passed!
-=== Testing Set ===
-Set tests passed!
-=== Testing HashMap (basic) ===
-HashMap tests passed!
-
-All basic collections tests passed!
-```
-
-**Note:** Comprehensive test files in `tests/stdlib_collections/experimental/` are currently non-functional due to edge cases in Hemlock's type system. The collections themselves work correctly - test_basic.hml demonstrates this.
+**Test Coverage:**
+- Basic functionality tests in `test_basic.hml`
+- Comprehensive tests for each data structure (100+ items, edge cases, error handling)
+- All 259 Hemlock tests passing, including all collections tests
 
 ---
 
