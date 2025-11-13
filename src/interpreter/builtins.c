@@ -437,6 +437,33 @@ static Value builtin_assert(Value *args, int num_args, ExecutionContext *ctx) {
     return val_null();
 }
 
+static Value builtin_panic(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;  // Unused - panic exits immediately, doesn't throw
+
+    if (num_args > 1) {
+        fprintf(stderr, "Runtime error: panic() expects 0 or 1 argument (message)\n");
+        exit(1);
+    }
+
+    // Get panic message
+    const char *message = "panic!";
+    if (num_args == 1) {
+        if (args[0].type == VAL_STRING) {
+            message = args[0].as.as_string->data;
+        } else {
+            // Convert non-string to string representation
+            fprintf(stderr, "panic: ");
+            print_value(args[0]);
+            fprintf(stderr, "\n");
+            exit(1);
+        }
+    }
+
+    // Print panic message and exit
+    fprintf(stderr, "panic: %s\n", message);
+    exit(1);
+}
+
 // ========== ASYNC/CONCURRENCY BUILTINS ==========
 
 // Global task ID counter
@@ -1900,6 +1927,7 @@ static BuiltinInfo builtins[] = {
     {"eprint", builtin_eprint},
     {"open", builtin_open},
     {"assert", builtin_assert},
+    {"panic", builtin_panic},
     {"spawn", builtin_spawn},
     {"join", builtin_join},
     {"detach", builtin_detach},

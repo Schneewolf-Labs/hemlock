@@ -735,6 +735,71 @@ fn foo() {
 foo();  // Crashes with: Runtime error: uncaught!
 ```
 
+### Panic - Unrecoverable Errors
+
+Hemlock provides `panic(message?)` for **unrecoverable errors** that should immediately terminate the program.
+
+**Syntax:**
+```hemlock
+panic();                    // Default message: "panic!"
+panic("custom message");    // Custom message
+panic(42);                  // Non-string values are printed
+```
+
+**Semantics:**
+- `panic()` **immediately exits** the program with exit code 1
+- Prints error message to stderr in format: `panic: <message>`
+- **NOT catchable** with try/catch (unlike `throw`)
+- Use for bugs and unrecoverable errors (e.g., invalid state, unreachable code)
+
+**Panic vs Throw:**
+```hemlock
+// throw - Recoverable error (can be caught)
+try {
+    throw "recoverable error";
+} catch (e) {
+    print("Caught: " + e);  // ✅ Caught successfully
+}
+
+// panic - Unrecoverable error (cannot be caught)
+try {
+    panic("unrecoverable error");  // ❌ Program exits immediately
+} catch (e) {
+    print("This never runs");       // ❌ Never executes
+}
+```
+
+**When to use panic:**
+- **Bugs**: Unreachable code was reached
+- **Invalid state**: Data structure corruption detected
+- **Unrecoverable errors**: Critical resource unavailable
+- **Assertion failures**: When `assert()` isn't sufficient
+
+**Examples:**
+```hemlock
+// Unreachable code
+fn process_state(state: i32) {
+    if (state == 1) {
+        return "ready";
+    } else if (state == 2) {
+        return "running";
+    } else if (state == 3) {
+        return "stopped";
+    } else {
+        panic("invalid state: " + typeof(state));  // Should never happen
+    }
+}
+
+// Critical resource check
+fn init_system() {
+    let config = read_file("config.json");
+    if (config == null) {
+        panic("config.json not found - cannot start");
+    }
+    // ...
+}
+```
+
 ### Control Flow Interactions
 
 **Return inside try/catch/finally:**
@@ -844,7 +909,7 @@ try {
 ### Current Limitations
 
 - No stack trace on uncaught exceptions (planned)
-- Some built-in functions still `exit()` instead of throwing (to be updated)
+- Some built-in functions still `exit()` instead of throwing exceptions (intentional for unrecoverable errors like `panic()`, to be reviewed for others)
 - No custom exception types yet (any value can be thrown)
 
 ---
