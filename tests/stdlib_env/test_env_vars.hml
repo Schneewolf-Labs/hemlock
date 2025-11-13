@@ -1,0 +1,36 @@
+// Test env module environment variable functions
+
+import * as env from "../../stdlib/env";
+
+// Test getenv for existing variable (PATH should exist on all systems)
+let path = env.getenv("PATH");
+assert(typeof(path) == "string", "getenv should return a string for PATH");
+
+// Test getenv for non-existent variable
+let nonexistent = env.getenv("HEMLOCK_TEST_NONEXISTENT_VAR_12345");
+assert(typeof(nonexistent) == "null", "getenv should return null for non-existent variable");
+
+// Test setenv and getenv
+env.setenv("HEMLOCK_TEST_VAR", "test_value_123");
+let value = env.getenv("HEMLOCK_TEST_VAR");
+assert(value == "test_value_123", "setenv/getenv should work correctly");
+
+// Test setenv overwrite
+env.setenv("HEMLOCK_TEST_VAR", "new_value_456");
+let new_value = env.getenv("HEMLOCK_TEST_VAR");
+assert(new_value == "new_value_456", "setenv should overwrite existing value");
+
+// Test unsetenv
+env.unsetenv("HEMLOCK_TEST_VAR");
+let after_unset = env.getenv("HEMLOCK_TEST_VAR");
+assert(typeof(after_unset) == "null", "unsetenv should remove the variable");
+
+// Test with special characters
+env.setenv("HEMLOCK_TEST_SPECIAL", "value with spaces and symbols!");
+let special = env.getenv("HEMLOCK_TEST_SPECIAL");
+assert(special == "value with spaces and symbols!", "setenv/getenv should handle special characters");
+
+// Cleanup
+env.unsetenv("HEMLOCK_TEST_SPECIAL");
+
+print("All environment variable tests passed!");

@@ -1,0 +1,36 @@
+// Test time module functions
+
+import * as time from "../../stdlib/time";
+
+// Test now - should return a positive timestamp
+let t1 = time.now();
+assert(t1 > 0, "now() should return positive timestamp");
+
+// Test time_ms - should return milliseconds (larger than seconds)
+let ms1 = time.time_ms();
+assert(ms1 > t1, "time_ms() should return value larger than now()");
+assert(ms1 > 1000000000000, "time_ms() should be in milliseconds since epoch");
+
+// Test clock - should return non-negative CPU time
+let c1 = time.clock();
+assert(c1 >= 0.0, "clock() should return non-negative value");
+
+// Test that time progresses
+let t2 = time.now();
+assert(t2 >= t1, "time should not go backwards");
+
+let ms2 = time.time_ms();
+assert(ms2 >= ms1, "milliseconds should not go backwards");
+
+// Test clock progresses with computation
+let c2 = time.clock();
+let sum = 0;
+let i = 0;
+while (i < 10000) {
+    sum = sum + i;
+    i = i + 1;
+}
+let c3 = time.clock();
+assert(c3 >= c2, "clock should progress during computation");
+
+print("All time function tests passed!");

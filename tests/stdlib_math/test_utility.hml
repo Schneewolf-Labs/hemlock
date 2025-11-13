@@ -1,0 +1,30 @@
+// Test math module utility functions
+
+import * as math from "../../stdlib/math";
+
+// Test abs
+assert(math.abs(5.0) == 5.0, "abs(5) should be 5");
+assert(math.abs(-5.0) == 5.0, "abs(-5) should be 5");
+assert(math.abs(0.0) == 0.0, "abs(0) should be 0");
+assert(math.abs(-3.7) == 3.7, "abs(-3.7) should be 3.7");
+
+// Test min
+assert(math.min(3.0, 5.0) == 3.0, "min(3, 5) should be 3");
+assert(math.min(5.0, 3.0) == 3.0, "min(5, 3) should be 3");
+assert(math.min(-2.0, 2.0) == -2.0, "min(-2, 2) should be -2");
+assert(math.min(7.5, 7.5) == 7.5, "min(7.5, 7.5) should be 7.5");
+
+// Test max
+assert(math.max(3.0, 5.0) == 5.0, "max(3, 5) should be 5");
+assert(math.max(5.0, 3.0) == 5.0, "max(5, 3) should be 5");
+assert(math.max(-2.0, 2.0) == 2.0, "max(-2, 2) should be 2");
+assert(math.max(7.5, 7.5) == 7.5, "max(7.5, 7.5) should be 7.5");
+
+// Test clamp
+assert(math.clamp(5.0, 0.0, 10.0) == 5.0, "clamp(5, 0, 10) should be 5");
+assert(math.clamp(-5.0, 0.0, 10.0) == 0.0, "clamp(-5, 0, 10) should be 0");
+assert(math.clamp(15.0, 0.0, 10.0) == 10.0, "clamp(15, 0, 10) should be 10");
+assert(math.clamp(0.0, 0.0, 10.0) == 0.0, "clamp(0, 0, 10) should be 0");
+assert(math.clamp(10.0, 0.0, 10.0) == 10.0, "clamp(10, 0, 10) should be 10");
+
+print("All utility function tests passed!");

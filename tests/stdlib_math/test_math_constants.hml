@@ -1,0 +1,18 @@
+// Test math module constants
+
+import * as math from "../../stdlib/math";
+
+// Test PI
+assert(math.PI > 3.14 && math.PI < 3.15, "PI should be approximately 3.14159");
+
+// Test E
+assert(math.E > 2.71 && math.E < 2.72, "E should be approximately 2.71828");
+
+// Test TAU
+assert(math.TAU > 6.28 && math.TAU < 6.29, "TAU should be approximately 6.28318");
+
+// Test INF
+assert(math.INF > 0, "INF should be positive");
+assert(math.INF == math.INF, "INF should equal itself");
+
+print("All math constant tests passed!");

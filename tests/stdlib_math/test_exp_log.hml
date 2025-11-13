@@ -1,0 +1,52 @@
+// Test math module exponential and logarithmic functions
+
+import * as math from "../../stdlib/math";
+
+// Test sqrt
+assert(math.sqrt(4.0) == 4.0 / 2.0, "sqrt(4) should be 2");
+assert(math.sqrt(9.0) == 9.0 / 3.0, "sqrt(9) should be 3");
+assert(math.sqrt(0.0) == 0.0, "sqrt(0) should be 0");
+
+let s = math.sqrt(2.0);
+assert(s >= 1.41 && s <= 1.42, "sqrt(2) should be approximately 1.414");
+
+// Test pow
+assert(math.pow(2.0, 3.0) == 8.0, "pow(2, 3) should be 8");
+assert(math.pow(5.0, 2.0) == 25.0, "pow(5, 2) should be 25");
+assert(math.pow(10.0, 0.0) == 1.0, "pow(10, 0) should be 1");
+
+// Test exp
+let e = math.exp(0.0);
+assert(e == 1.0, "exp(0) should be 1");
+
+e = math.exp(1.0);
+assert(e >= 2.71 && e <= 2.72, "exp(1) should be approximately E");
+
+// Test log (natural logarithm)
+let l = math.log(1.0);
+assert(l >= -0.01 && l <= 0.01, "log(1) should be approximately 0");
+
+l = math.log(math.E);
+assert(l >= 0.99 && l <= 1.01, "log(E) should be approximately 1");
+
+// Test log10
+let l10 = math.log10(1.0);
+assert(l10 >= -0.01 && l10 <= 0.01, "log10(1) should be approximately 0");
+
+l10 = math.log10(10.0);
+assert(l10 >= 0.99 && l10 <= 1.01, "log10(10) should be approximately 1");
+
+l10 = math.log10(100.0);
+assert(l10 >= 1.99 && l10 <= 2.01, "log10(100) should be approximately 2");
+
+// Test log2
+let l2 = math.log2(1.0);
+assert(l2 >= -0.01 && l2 <= 0.01, "log2(1) should be approximately 0");
+
+l2 = math.log2(2.0);
+assert(l2 >= 0.99 && l2 <= 1.01, "log2(2) should be approximately 1");
+
+l2 = math.log2(8.0);
+assert(l2 >= 2.99 && l2 <= 3.01, "log2(8) should be approximately 3");
+
+print("All exponential and logarithmic function tests passed!");

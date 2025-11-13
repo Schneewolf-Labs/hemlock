@@ -1,0 +1,51 @@
+// Test math module trigonometric functions
+
+import * as math from "../../stdlib/math";
+
+// Test sin
+let s = math.sin(0.0);
+assert(s >= -0.01 && s <= 0.01, "sin(0) should be approximately 0");
+
+s = math.sin(math.PI / 2.0);
+assert(s >= 0.99 && s <= 1.01, "sin(PI/2) should be approximately 1");
+
+// Test cos
+let c = math.cos(0.0);
+assert(c >= 0.99 && c <= 1.01, "cos(0) should be approximately 1");
+
+c = math.cos(math.PI);
+assert(c >= -1.01 && c <= -0.99, "cos(PI) should be approximately -1");
+
+// Test tan
+let t = math.tan(0.0);
+assert(t >= -0.01 && t <= 0.01, "tan(0) should be approximately 0");
+
+// Test asin
+let asin_val = math.asin(0.0);
+assert(asin_val >= -0.01 && asin_val <= 0.01, "asin(0) should be approximately 0");
+
+asin_val = math.asin(1.0);
+assert(asin_val >= 1.56 && asin_val <= 1.58, "asin(1) should be approximately PI/2");
+
+// Test acos
+let acos_val = math.acos(1.0);
+assert(acos_val >= -0.01 && acos_val <= 0.01, "acos(1) should be approximately 0");
+
+acos_val = math.acos(0.0);
+assert(acos_val >= 1.56 && acos_val <= 1.58, "acos(0) should be approximately PI/2");
+
+// Test atan
+let atan_val = math.atan(0.0);
+assert(atan_val >= -0.01 && atan_val <= 0.01, "atan(0) should be approximately 0");
+
+atan_val = math.atan(1.0);
+assert(atan_val >= 0.78 && atan_val <= 0.79, "atan(1) should be approximately PI/4");
+
+// Test atan2
+let atan2_val = math.atan2(1.0, 1.0);
+assert(atan2_val >= 0.78 && atan2_val <= 0.79, "atan2(1,1) should be approximately PI/4");
+
+atan2_val = math.atan2(0.0, 1.0);
+assert(atan2_val >= -0.01 && atan2_val <= 0.01, "atan2(0,1) should be approximately 0");
+
+print("All trigonometric function tests passed!");

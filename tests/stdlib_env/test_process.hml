@@ -1,0 +1,14 @@
+// Test env module process functions
+
+import * as env from "../../stdlib/env";
+
+// Test get_pid
+let pid = env.get_pid();
+assert(pid > 0, "get_pid() should return positive process ID");
+assert(typeof(pid) == "i32", "get_pid() should return i32");
+
+// Test that PID is consistent
+let pid2 = env.get_pid();
+assert(pid == pid2, "get_pid() should return same PID within same process");
+
+print("All process function tests passed!");
