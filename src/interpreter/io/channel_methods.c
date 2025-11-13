@@ -45,6 +45,7 @@ Value call_channel_method(Channel *ch, const char *method, Value *args, int num_
         }
 
         // Add message to buffer
+        value_retain(msg);
         ch->buffer[ch->tail] = msg;
         ch->tail = (ch->tail + 1) % ch->capacity;
         ch->count++;

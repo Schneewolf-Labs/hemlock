@@ -132,6 +132,7 @@ typedef struct {
     void *mutex;                // pthread_mutex_t (opaque pointer)
     void *not_empty;            // pthread_cond_t (opaque pointer)
     void *not_full;             // pthread_cond_t (opaque pointer)
+    int ref_count;              // Reference count for memory management
 } Channel;
 
 // Forward declare TypeKind from ast.h
