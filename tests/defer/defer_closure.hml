@@ -1,0 +1,11 @@
+// Defer with closure - should capture variables at defer time
+fn test_closure() {
+    let x = 10;
+    defer print("x = " + typeof(x));
+    x = 20;
+    defer print("x = " + typeof(x));
+    x = 30;
+    print("final x = " + typeof(x));
+}
+
+test_closure();

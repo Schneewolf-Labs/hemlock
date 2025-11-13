@@ -44,6 +44,7 @@ typedef enum {
     TOK_FROM,
     TOK_AS,
     TOK_EXTERN,
+    TOK_DEFER,
 
     // Type keywords
     TOK_TYPE_I8,

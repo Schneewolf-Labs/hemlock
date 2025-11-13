@@ -1373,6 +1373,12 @@ not_function:
         return stmt_throw(value);
     }
 
+    if (match(p, TOK_DEFER)) {
+        Expr *call = expression(p);
+        consume(p, TOK_SEMICOLON, "Expect ';' after defer statement");
+        return stmt_defer(call);
+    }
+
     if (match(p, TOK_SWITCH)) {
         return switch_statement(p);
     }

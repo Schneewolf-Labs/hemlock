@@ -1,0 +1,8 @@
+// Basic defer test - single defer
+fn test_basic() {
+    print("start");
+    defer print("deferred");
+    print("end");
+}
+
+test_basic();

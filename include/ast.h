@@ -200,6 +200,7 @@ typedef enum {
     STMT_TRY,
     STMT_THROW,
     STMT_SWITCH,
+    STMT_DEFER,
     STMT_IMPORT,
     STMT_EXPORT,
     STMT_IMPORT_FFI,
@@ -274,6 +275,9 @@ struct Stmt {
             Stmt **case_bodies;      // Array of case body statements
             int num_cases;
         } switch_stmt;
+        struct {
+            Expr *call;              // Function call expression to defer
+        } defer_stmt;
         struct {
             int is_namespace;        // 1 for "import * as", 0 for named imports
             char *namespace_name;    // Name for namespace import (NULL if not namespace)
@@ -351,6 +355,7 @@ Stmt* stmt_define_object(const char *name, char **field_names, Type **field_type
 Stmt* stmt_try(Stmt *try_block, char *catch_param, Stmt *catch_block, Stmt *finally_block);
 Stmt* stmt_throw(Expr *value);
 Stmt* stmt_switch(Expr *expr, Expr **case_values, Stmt **case_bodies, int num_cases);
+Stmt* stmt_defer(Expr *call);
 Stmt* stmt_import_named(char **import_names, char **import_aliases, int num_imports, const char *module_path);
 Stmt* stmt_import_namespace(const char *namespace_name, const char *module_path);
 Stmt* stmt_export_declaration(Stmt *declaration);
