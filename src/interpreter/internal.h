@@ -156,6 +156,7 @@ Value convert_to_type(Value value, Type *target_type, Environment *env, Executio
 void init_object_types(void);
 void register_object_type(ObjectType *type);
 ObjectType* lookup_object_type(const char *name);
+void cleanup_object_types(void);
 Value check_object_type(Value value, ObjectType *object_type, Environment *env, ExecutionContext *ctx);
 
 // ========== BUILTINS (builtins.c) ==========

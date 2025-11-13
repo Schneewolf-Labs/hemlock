@@ -6,6 +6,7 @@
 #include "ast.h"
 #include "interpreter.h"
 #include "module.h"
+#include "interpreter/internal.h"
 
 #define HEMLOCK_VERSION "0.1.0"
 #define HEMLOCK_BUILD_DATE __DATE__
@@ -289,6 +290,9 @@ int main(int argc, char **argv) {
         if (interactive_mode) {
             run_repl();
         }
+
+        // Cleanup object type registry before exit
+        cleanup_object_types();
         return 0;
     }
 
@@ -301,10 +305,16 @@ int main(int argc, char **argv) {
         if (interactive_mode) {
             run_repl();
         }
+
+        // Cleanup object type registry before exit
+        cleanup_object_types();
         return 0;
     }
 
     // No file or command specified - start REPL
     run_repl();
+
+    // Cleanup object type registry before exit
+    cleanup_object_types();
     return 0;
 }

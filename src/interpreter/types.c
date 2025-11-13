@@ -33,6 +33,43 @@ ObjectType* lookup_object_type(const char *name) {
     return NULL;
 }
 
+void cleanup_object_types(void) {
+    if (object_types.types == NULL) {
+        return;  // Nothing to clean up
+    }
+
+    // Free each ObjectType
+    for (int i = 0; i < object_types.count; i++) {
+        ObjectType *type = object_types.types[i];
+        if (type) {
+            // Free type name
+            free(type->name);
+
+            // Free field names
+            for (int j = 0; j < type->num_fields; j++) {
+                free(type->field_names[j]);
+            }
+            free(type->field_names);
+
+            // Free arrays (but not contents - they're AST pointers)
+            free(type->field_types);
+            free(type->field_optional);
+            free(type->field_defaults);
+
+            // Free the ObjectType struct itself
+            free(type);
+        }
+    }
+
+    // Free the types array
+    free(object_types.types);
+
+    // Reset the registry
+    object_types.types = NULL;
+    object_types.count = 0;
+    object_types.capacity = 0;
+}
+
 // Check if an object matches a type definition (duck typing)
 Value check_object_type(Value value, ObjectType *object_type, Environment *env, ExecutionContext *ctx) {
     if (value.type != VAL_OBJECT) {
