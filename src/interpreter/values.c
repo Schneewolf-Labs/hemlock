@@ -160,7 +160,10 @@ void buffer_retain(Buffer *buf) {
 }
 
 void buffer_release(Buffer *buf) {
-    if (buf && buf->ref_count > 0) {
+    if (!buf) return;
+    // Skip if already manually freed via builtin_free()
+    if (is_manually_freed_pointer(buf)) return;
+    if (buf->ref_count > 0) {
         buf->ref_count--;
         if (buf->ref_count == 0) {
             buffer_free(buf);
@@ -539,6 +542,7 @@ Channel* channel_new(int capacity) {
     ch->tail = 0;
     ch->count = 0;
     ch->closed = 0;
+    ch->ref_count = 0;
 
     if (capacity > 0) {
         ch->buffer = malloc(sizeof(Value) * capacity);
@@ -591,6 +595,21 @@ void channel_free(Channel *ch) {
             free(ch->not_full);
         }
         free(ch);
+    }
+}
+
+void channel_retain(Channel *ch) {
+    if (ch) {
+        ch->ref_count++;
+    }
+}
+
+void channel_release(Channel *ch) {
+    if (ch && ch->ref_count > 0) {
+        ch->ref_count--;
+        if (ch->ref_count == 0) {
+            channel_free(ch);
+        }
     }
 }
 
@@ -1060,6 +1079,11 @@ void value_retain(Value val) {
                 task_retain(val.as.as_task);
             }
             break;
+        case VAL_CHANNEL:
+            if (val.as.as_channel) {
+                channel_retain(val.as.as_channel);
+            }
+            break;
         // Other types don't need reference counting
         default:
             break;
@@ -1097,6 +1121,11 @@ void value_release(Value val) {
         case VAL_TASK:
             if (val.as.as_task) {
                 task_release(val.as.as_task);
+            }
+            break;
+        case VAL_CHANNEL:
+            if (val.as.as_channel) {
+                channel_release(val.as.as_channel);
             }
             break;
         // Other types don't need reference counting
