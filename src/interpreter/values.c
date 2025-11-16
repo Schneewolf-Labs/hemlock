@@ -34,8 +34,10 @@ void string_retain(String *str) {
 }
 
 void string_release(String *str) {
-    if (str && str->ref_count > 0) {
-        str->ref_count--;
+    if (str) {
+        if (str->ref_count > 0) {
+            str->ref_count--;
+        }
         if (str->ref_count == 0) {
             string_free(str);
         }
@@ -165,9 +167,9 @@ void buffer_release(Buffer *buf) {
     if (is_manually_freed_pointer(buf)) return;
     if (buf->ref_count > 0) {
         buf->ref_count--;
-        if (buf->ref_count == 0) {
-            buffer_free(buf);
-        }
+    }
+    if (buf->ref_count == 0) {
+        buffer_free(buf);
     }
 }
 
@@ -251,9 +253,9 @@ void array_release(Array *arr) {
     if (is_manually_freed_pointer(arr)) return;
     if (arr->ref_count > 0) {
         arr->ref_count--;
-        if (arr->ref_count == 0) {
-            array_free(arr);
-        }
+    }
+    if (arr->ref_count == 0) {
+        array_free(arr);
     }
 }
 
@@ -358,9 +360,9 @@ void object_release(Object *obj) {
     if (is_manually_freed_pointer(obj)) return;
     if (obj->ref_count > 0) {
         obj->ref_count--;
-        if (obj->ref_count == 0) {
-            object_free(obj);
-        }
+    }
+    if (obj->ref_count == 0) {
+        object_free(obj);
     }
 }
 
@@ -400,8 +402,10 @@ void function_retain(Function *fn) {
 }
 
 void function_release(Function *fn) {
-    if (fn && fn->ref_count > 0) {
-        fn->ref_count--;
+    if (fn) {
+        if (fn->ref_count > 0) {
+            fn->ref_count--;
+        }
         if (fn->ref_count == 0) {
             function_free(fn);
         }

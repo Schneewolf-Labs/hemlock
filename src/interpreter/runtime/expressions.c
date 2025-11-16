@@ -120,11 +120,14 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
 
         case EXPR_TERNARY: {
             Value condition = eval_expr(expr->as.ternary.condition, env, ctx);
+            Value result;
             if (value_is_truthy(condition)) {
-                return eval_expr(expr->as.ternary.true_expr, env, ctx);
+                result = eval_expr(expr->as.ternary.true_expr, env, ctx);
             } else {
-                return eval_expr(expr->as.ternary.false_expr, env, ctx);
+                result = eval_expr(expr->as.ternary.false_expr, env, ctx);
             }
+            value_release(condition);  // Release condition after checking
+            return result;
         }
 
         case EXPR_IDENT:
@@ -140,18 +143,30 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
             // Handle && and || with short-circuit evaluation
             if (expr->as.binary.op == OP_AND) {
                 Value left = eval_expr(expr->as.binary.left, env, ctx);
-                if (!value_is_truthy(left)) return val_bool(0);
+                if (!value_is_truthy(left)) {
+                    value_release(left);  // Release left before returning
+                    return val_bool(0);
+                }
 
+                value_release(left);  // Release left after checking
                 Value right = eval_expr(expr->as.binary.right, env, ctx);
-                return val_bool(value_is_truthy(right));
+                int result = value_is_truthy(right);
+                value_release(right);  // Release right before returning
+                return val_bool(result);
             }
 
             if (expr->as.binary.op == OP_OR) {
                 Value left = eval_expr(expr->as.binary.left, env, ctx);
-                if (value_is_truthy(left)) return val_bool(1);
+                if (value_is_truthy(left)) {
+                    value_release(left);  // Release left before returning
+                    return val_bool(1);
+                }
 
+                value_release(left);  // Release left after checking
                 Value right = eval_expr(expr->as.binary.right, env, ctx);
-                return val_bool(value_is_truthy(right));
+                int result = value_is_truthy(right);
+                value_release(right);  // Release right before returning
+                return val_bool(result);
             }
 
             // Evaluate both operands
@@ -769,7 +784,14 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 runtime_error(ctx, "Value is not a function");
             }
 
-            if (args) free(args);
+            // Release argument values after function call
+            // (env_get now retains, so we own references to variable values too)
+            if (args) {
+                for (int i = 0; i < expr->as.call.num_args; i++) {
+                    value_release(args[i]);
+                }
+                free(args);
+            }
             return result;
         }
 
