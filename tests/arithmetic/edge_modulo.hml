@@ -1,0 +1,6 @@
+// Test modulo edge cases
+// Expected: SKIP - Modulo operator (%) not yet implemented
+
+// TODO: Enable when modulo operator is implemented
+// For now, just skip this test
+print("SKIP: Modulo operator not yet implemented");
