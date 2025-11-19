@@ -130,7 +130,7 @@ Value val_string_take(char *data, int length, int capacity) {
     str->length = length;
     str->char_length = -1;  // Cache not yet computed
     str->capacity = capacity;
-    str->ref_count = 0;  // Initialize reference count (first retain will bring to 1)
+    str->ref_count = 1;  // Start with 1 - caller owns the first reference
     v.as.as_string = str;
     return v;
 }
@@ -467,7 +467,7 @@ Task* task_new(int id, Function *function, Value *args, int num_args, Environmen
     task->waiting_on = NULL;
     task->thread = NULL;
     task->detached = 0;
-    task->ref_count = 0;  // Initialize reference count (first retain will bring to 1) to 1
+    task->ref_count = 1;  // Start with 1 - caller owns the first reference
 
     // Initialize task mutex for thread-safe state access
     task->task_mutex = malloc(sizeof(pthread_mutex_t));
@@ -550,7 +550,7 @@ Channel* channel_new(int capacity) {
     ch->tail = 0;
     ch->count = 0;
     ch->closed = 0;
-    ch->ref_count = 0;
+    ch->ref_count = 1;  // Start with 1 - caller owns the first reference
 
     if (capacity > 0) {
         ch->buffer = malloc(sizeof(Value) * capacity);
