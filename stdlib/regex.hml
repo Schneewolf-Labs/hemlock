@@ -11,13 +11,13 @@ import "libc.so.6";
 extern fn regcomp(preg: ptr, pattern: string, cflags: i32): i32;
 
 // int regexec(const regex_t *preg, const char *string, size_t nmatch, regmatch_t pmatch[], int eflags)
-extern fn regexec(preg: ptr, text: string, nmatch: u64, pmatch: ptr, eflags: i32): i32;
+extern fn regexec(preg: ptr, text: string, nmatch: i32, pmatch: ptr, eflags: i32): i32;
 
 // void regfree(regex_t *preg)
 extern fn regfree(preg: ptr): void;
 
 // size_t regerror(int errcode, const regex_t *preg, char *errbuf, size_t errbuf_size)
-extern fn regerror(errcode: i32, preg: ptr, errbuf: ptr, errbuf_size: u64): u64;
+extern fn regerror(errcode: i32, preg: ptr, errbuf: ptr, errbuf_size: i32): i32;
 
 // ========== CONSTANTS ==========
 
