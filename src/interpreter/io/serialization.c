@@ -1,4 +1,20 @@
 #include "internal.h"
+#include <stdarg.h>
+
+// ========== RUNTIME ERROR HELPER ==========
+
+static Value throw_runtime_error(ExecutionContext *ctx, const char *format, ...) {
+    char buffer[512];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+
+    ctx->exception_state.exception_value = val_string(buffer);
+    value_retain(ctx->exception_state.exception_value);
+    ctx->exception_state.is_throwing = 1;
+    return val_null();
+}
 
 // ========== SERIALIZATION SUPPORT ==========
 
@@ -457,8 +473,9 @@ Value json_parse_value(JSONParser *p) {
 
 // ========== OBJECT METHOD HANDLING ==========
 
-Value call_object_method(Object *obj, const char *method, Value *args, int num_args) {
+Value call_object_method(Object *obj, const char *method, Value *args, int num_args, ExecutionContext *ctx) {
     (void)args;  // Currently no object methods use args
+    (void)ctx;   // Will be used for error handling
     // serialize() - convert object to JSON string
     if (strcmp(method, "serialize") == 0) {
         if (num_args != 0) {

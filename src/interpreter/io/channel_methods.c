@@ -1,8 +1,24 @@
 #include "internal.h"
+#include <stdarg.h>
+
+// ========== RUNTIME ERROR HELPER ==========
+
+static Value throw_runtime_error(ExecutionContext *ctx, const char *format, ...) {
+    char buffer[512];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+
+    ctx->exception_state.exception_value = val_string(buffer);
+    value_retain(ctx->exception_state.exception_value);
+    ctx->exception_state.is_throwing = 1;
+    return val_null();
+}
 
 // ========== CHANNEL METHODS ==========
 
-Value call_channel_method(Channel *ch, const char *method, Value *args, int num_args) {
+Value call_channel_method(Channel *ch, const char *method, Value *args, int num_args, ExecutionContext *ctx) {
     pthread_mutex_t *mutex = (pthread_mutex_t*)ch->mutex;
     pthread_cond_t *not_empty = (pthread_cond_t*)ch->not_empty;
     pthread_cond_t *not_full = (pthread_cond_t*)ch->not_full;
