@@ -22,16 +22,13 @@ Value call_string_method(String *str, const char *method, Value *args, int num_a
         int32_t start = value_to_int(args[0]);
         int32_t char_length = value_to_int(args[1]);
 
-        // Bounds checking (now on codepoint positions)
-        if (start < 0 || start >= str->char_length) {
-            fprintf(stderr, "Runtime error: substr() start index %d out of bounds (length=%d)\n",
-                    start, str->char_length);
-            exit(1);
+        // Clamp bounds to valid range
+        if (start < 0) start = 0;
+        if (start >= str->char_length) {
+            // Start beyond string length - return empty string
+            return val_string("");
         }
-        if (char_length < 0) {
-            fprintf(stderr, "Runtime error: substr() length cannot be negative\n");
-            exit(1);
-        }
+        if (char_length < 0) char_length = 0;
 
         // Clamp length to available characters
         if (start + char_length > str->char_length) {
@@ -70,17 +67,11 @@ Value call_string_method(String *str, const char *method, Value *args, int num_a
         int32_t start = value_to_int(args[0]);
         int32_t end = value_to_int(args[1]);
 
-        // Bounds checking (now on codepoint positions)
-        if (start < 0 || start > str->char_length) {
-            fprintf(stderr, "Runtime error: slice() start index %d out of bounds (length=%d)\n",
-                    start, str->char_length);
-            exit(1);
-        }
-        if (end < start || end > str->char_length) {
-            fprintf(stderr, "Runtime error: slice() end index %d out of bounds (length=%d)\n",
-                    end, str->char_length);
-            exit(1);
-        }
+        // Clamp bounds to valid range (Python/JS/Rust behavior)
+        if (start < 0) start = 0;
+        if (start > str->char_length) start = str->char_length;
+        if (end < start) end = start;  // Empty slice if end < start
+        if (end > str->char_length) end = str->char_length;
 
         // Convert codepoint positions to byte offsets
         int start_byte = utf8_byte_offset(str->data, str->length, start);

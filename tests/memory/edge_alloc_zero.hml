@@ -1,12 +1,6 @@
 // Test allocating zero bytes
-// Expected: Testing behavior (may return null or valid pointer)
+// Expected: ERROR (alloc requires positive size)
+// Note: This is a fatal error, not catchable by try-catch
 
-let ptr = alloc(0);
-if (ptr == null) {
-    print("alloc(0) returned null");
-} else {
-    print("alloc(0) returned non-null pointer");
-    free(ptr);
-}
-
-print("PASS");
+let p = alloc(0);
+print("ERROR: alloc(0) should have failed");

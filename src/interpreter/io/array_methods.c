@@ -224,14 +224,11 @@ Value call_array_method(Array *arr, const char *method, Value *args, int num_arg
         int32_t start = value_to_int(args[0]);
         int32_t end = value_to_int(args[1]);
 
-        if (start < 0 || start > arr->length) {
-            fprintf(stderr, "Runtime error: slice() start index out of bounds\n");
-            exit(1);
-        }
-        if (end < start || end > arr->length) {
-            fprintf(stderr, "Runtime error: slice() end index out of bounds\n");
-            exit(1);
-        }
+        // Clamp bounds to valid range (Python/JS/Rust behavior)
+        if (start < 0) start = 0;
+        if (start > arr->length) start = arr->length;
+        if (end < start) end = start;  // Empty slice if end < start
+        if (end > arr->length) end = arr->length;
 
         Array *result = array_new();
         for (int i = start; i < end; i++) {
