@@ -575,6 +575,13 @@ Value convert_to_type(Value value, Type *target_type, Environment *env, Executio
             fprintf(stderr, "Runtime error: Cannot convert to buffer\n");
             exit(1);
 
+        case TYPE_ARRAY:
+            if (value.type == VAL_ARRAY) {
+                return value;
+            }
+            fprintf(stderr, "Runtime error: Cannot convert to array\n");
+            exit(1);
+
         case TYPE_NULL:
             return val_null();
 

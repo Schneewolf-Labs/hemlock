@@ -1,5 +1,5 @@
 // Test array remove() with invalid indices
-// Expected: ERROR
+// Tests that invalid indices throw catchable exceptions
 
 let arr = [1, 2, 3];
 

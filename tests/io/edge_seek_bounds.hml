@@ -1,5 +1,5 @@
 // Test seeking to negative position
-// Expected: ERROR
+// Tests that negative seek throws catchable exception
 
 let f = open("/tmp/test_seek_negative.txt", "w");
 f.write("test data");

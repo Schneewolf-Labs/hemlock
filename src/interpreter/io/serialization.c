@@ -475,12 +475,10 @@ Value json_parse_value(JSONParser *p) {
 
 Value call_object_method(Object *obj, const char *method, Value *args, int num_args, ExecutionContext *ctx) {
     (void)args;  // Currently no object methods use args
-    (void)ctx;   // Will be used for error handling
     // serialize() - convert object to JSON string
     if (strcmp(method, "serialize") == 0) {
         if (num_args != 0) {
-            fprintf(stderr, "Runtime error: serialize() expects no arguments\n");
-            exit(1);
+            return throw_runtime_error(ctx, "serialize() expects no arguments");
         }
 
         VisitedSet visited;
@@ -496,6 +494,5 @@ Value call_object_method(Object *obj, const char *method, Value *args, int num_a
         return result;
     }
 
-    fprintf(stderr, "Runtime error: Object has no method '%s'\n", method);
-    exit(1);
+    return throw_runtime_error(ctx, "Object has no method '%s'", method);
 }
