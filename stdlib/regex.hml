@@ -115,7 +115,7 @@ export fn compile(pattern: string, flags): object {
         },
 
         // Free the compiled regex (must be called manually)
-        free: fn(): null {
+        free: fn() {
             if (!self._freed) {
                 regfree(self._preg);
                 free(self._preg);
