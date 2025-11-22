@@ -335,43 +335,48 @@ let result = "  Hello World  "
 - `bytes()` - Convert to array of bytes (u8 values)
 - `to_bytes()` - Convert to buffer for low-level access
 
-### String Interpolation (Experimental - WIP)
+### String Interpolation
 
-**⚠️ Status:** Work in progress - currently has known issues causing segfaults. Implementation is incomplete.
-
-**Syntax:** `${}` for embedding expressions in string literals (like JavaScript template literals)
+**Syntax:** Use backticks (`` ` ``) with `${}` for template strings (like JavaScript)
 
 ```hemlock
-// Basic variable interpolation (PLANNED)
+// Basic variable interpolation
 let name = "Alice";
-let greeting = "Hello, ${name}!";  // Will be: "Hello, Alice!"
+let greeting = `Hello, ${name}!`;
+print(greeting);  // "Hello, Alice!"
 
-// Multiple interpolations (PLANNED)
+// Multiple interpolations
 let age = 30;
-let msg = "Name: ${name}, Age: ${age}";
+let msg = `Hello, ${name}! You are ${age} years old.`;
+print(msg);  // "Hello, Alice! You are 30 years old."
 
-// Arbitrary expressions (PLANNED)
+// Arbitrary expressions
 let x = 10;
 let y = 20;
-let result = "Sum: ${x + y}, Product: ${x * y}";
+let result = `Sum: ${x + y}, Product: ${x * y}`;
+print(result);  // "Sum: 30, Product: 200"
+
+// Works with any expression
+let items = [1, 2, 3];
+print(`Array length: ${items.length}`);  // "Array length: 3"
 ```
 
-**Implementation Status:**
-- ✅ Lexer support for detecting `${...}` in strings
-- ✅ Parser support for parsing interpolated expressions
-- ✅ AST node type `EXPR_STRING_INTERPOLATION`
-- ✅ Interpreter evaluation logic
-- ❌ **Known Issue:** Segfault during evaluation (debugging in progress)
-- ❌ Not ready for use in production code
+**Three string types in Hemlock:**
+- **Regular strings:** `"hello"` - No interpolation
+- **Template strings:** `` `hello ${name}` `` - With interpolation
+- **Rune literals:** `'A'` - Single Unicode codepoint
 
-**Escape sequence:**
-- Use `\$` to include a literal `$` in strings: `"Price: \$100"` → `"Price: $100"`
+**Escape sequences in template strings:**
+- `\$` - Literal dollar sign: `` `Price: \$100` `` → `"Price: $100"`
+- `` \` `` - Literal backtick: `` `Use \` for code` `` → ``"Use ` for code"``
+- `\n`, `\t`, `\\`, etc. - Standard escape sequences work
 
-**TODO:**
-- Fix memory management issues causing segfaults
-- Add comprehensive test coverage
-- Verify nested interpolation works correctly
-- Document limitations and edge cases
+**How it works:**
+- Backtick strings are parsed for `${...}` expressions at compile time
+- Expressions are evaluated at runtime
+- Results are automatically converted to strings via `value_to_string()`
+- All parts are concatenated into the final string
+- UTF-8 safe (works with runes, emojis, etc.)
 
 ---
 

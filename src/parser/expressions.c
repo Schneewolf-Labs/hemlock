@@ -148,19 +148,16 @@ Expr* primary(Parser *p) {
 
     if (match(p, TOK_STRING)) {
         char *str = p->previous.string_value;
-        int is_interpolated = p->previous.is_interpolated;
+        Expr *expr = expr_string(str);
+        free(str);  // Parser owns this memory from lexer
+        return expr;
+    }
 
-        if (is_interpolated) {
-            // Parse interpolated string
-            Expr *expr = parse_interpolated_string(p, str);
-            free(str);  // Parser owns this memory from lexer
-            return expr;
-        } else {
-            // Regular string literal
-            Expr *expr = expr_string(str);
-            free(str);  // Parser owns this memory from lexer
-            return expr;
-        }
+    if (match(p, TOK_TEMPLATE_STRING)) {
+        char *str = p->previous.string_value;
+        Expr *expr = parse_interpolated_string(p, str);
+        free(str);  // Parser owns this memory from lexer
+        return expr;
     }
 
     if (match(p, TOK_RUNE)) {

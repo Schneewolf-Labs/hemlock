@@ -8,6 +8,7 @@ typedef enum {
     // Literals
     TOK_NUMBER,
     TOK_STRING,
+    TOK_TEMPLATE_STRING,  // Backtick strings with interpolation
     TOK_RUNE,
     TOK_IDENT,
     TOK_TRUE,
@@ -130,7 +131,6 @@ typedef struct {
 
     // For strings
     char *string_value; // Must be freed
-    int is_interpolated; // Flag for string interpolation
 
     // For runes
     uint32_t rune_value; // Unicode codepoint

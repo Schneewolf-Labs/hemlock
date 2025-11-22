@@ -2,12 +2,12 @@
 
 // Simple variable interpolation
 let name = "Alice";
-let greeting = "Hello, ${name}!";
+let greeting = `Hello, ${name}!`;
 print(greeting);
 
 // Multiple interpolations
 let age = 30;
-let msg = "Hello, ${name}! You are ${age} years old.";
+let msg = `Hello, ${name}! You are ${age} years old.`;
 print(msg);
 
 // Expected output:
