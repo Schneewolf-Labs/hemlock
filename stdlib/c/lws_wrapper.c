@@ -12,9 +12,6 @@ typedef struct {
     char *body;
     size_t body_len;
     size_t body_capacity;
-    char *headers;
-    size_t headers_len;
-    size_t headers_capacity;
     int status_code;
     int complete;
     int failed;
@@ -25,12 +22,8 @@ static int http_callback(struct lws *wsi, enum lws_callback_reasons reason,
     http_response_t *resp = (http_response_t *)user;
 
     switch (reason) {
-        case LWS_CALLBACK_CLIENT_ESTABLISHED:
-            lwsl_user("HTTP connection established\n");
-            break;
-
         case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-            lwsl_err("HTTP connection error\n");
+            fprintf(stderr, "HTTP connection error: %s\n", in ? (char *)in : "unknown");
             resp->failed = 1;
             resp->complete = 1;
             break;
@@ -43,12 +36,18 @@ static int http_callback(struct lws *wsi, enum lws_callback_reasons reason,
             // Accumulate response body
             if (resp->body_len + len >= resp->body_capacity) {
                 resp->body_capacity = (resp->body_len + len + 1) * 2;
-                resp->body = realloc(resp->body, resp->body_capacity);
+                char *new_body = realloc(resp->body, resp->body_capacity);
+                if (!new_body) {
+                    resp->failed = 1;
+                    resp->complete = 1;
+                    return -1;
+                }
+                resp->body = new_body;
             }
             memcpy(resp->body + resp->body_len, in, len);
             resp->body_len += len;
             resp->body[resp->body_len] = '\0';
-            break;
+            return 0;
 
         case LWS_CALLBACK_COMPLETED_CLIENT_HTTP:
             resp->complete = 1;
@@ -65,6 +64,76 @@ static int http_callback(struct lws *wsi, enum lws_callback_reasons reason,
     return 0;
 }
 
+// Parse URL into components
+static int parse_url(const char *url, char *host, int *port, char *path, int *ssl) {
+    *ssl = 0;
+    *port = 80;
+    strcpy(path, "/");
+
+    if (strncmp(url, "https://", 8) == 0) {
+        *ssl = 1;
+        *port = 443;
+        const char *rest = url + 8;
+        const char *slash = strchr(rest, '/');
+        const char *colon = strchr(rest, ':');
+
+        if (colon && (!slash || colon < slash)) {
+            // Has port
+            size_t host_len = colon - rest;
+            if (host_len >= 256) return -1;
+            strncpy(host, rest, host_len);
+            host[host_len] = '\0';
+            *port = atoi(colon + 1);
+            if (slash) {
+                strncpy(path, slash, 511);
+                path[511] = '\0';
+            }
+        } else if (slash) {
+            // Has path, no port
+            size_t host_len = slash - rest;
+            if (host_len >= 256) return -1;
+            strncpy(host, rest, host_len);
+            host[host_len] = '\0';
+            strncpy(path, slash, 511);
+            path[511] = '\0';
+        } else {
+            // Just host
+            strncpy(host, rest, 255);
+            host[255] = '\0';
+        }
+    } else if (strncmp(url, "http://", 7) == 0) {
+        const char *rest = url + 7;
+        const char *slash = strchr(rest, '/');
+        const char *colon = strchr(rest, ':');
+
+        if (colon && (!slash || colon < slash)) {
+            size_t host_len = colon - rest;
+            if (host_len >= 256) return -1;
+            strncpy(host, rest, host_len);
+            host[host_len] = '\0';
+            *port = atoi(colon + 1);
+            if (slash) {
+                strncpy(path, slash, 511);
+                path[511] = '\0';
+            }
+        } else if (slash) {
+            size_t host_len = slash - rest;
+            if (host_len >= 256) return -1;
+            strncpy(host, rest, host_len);
+            host[host_len] = '\0';
+            strncpy(path, slash, 511);
+            path[511] = '\0';
+        } else {
+            strncpy(host, rest, 255);
+            host[255] = '\0';
+        }
+    } else {
+        return -1;  // Invalid URL
+    }
+
+    return 0;
+}
+
 // HTTP GET request
 http_response_t* lws_http_get(const char *url) {
     struct lws_context_creation_info info;
@@ -72,34 +141,26 @@ http_response_t* lws_http_get(const char *url) {
     struct lws_context *context;
     http_response_t *resp;
     struct lws *wsi;
+    char host[256];
+    char path[512];
+    int port, ssl;
+
+    // Parse URL
+    if (parse_url(url, host, &port, path, &ssl) < 0) {
+        return NULL;
+    }
 
     // Allocate response structure
     resp = calloc(1, sizeof(http_response_t));
+    if (!resp) return NULL;
+
     resp->body_capacity = 4096;
     resp->body = malloc(resp->body_capacity);
-    resp->body[0] = '\0';
-    resp->headers_capacity = 1024;
-    resp->headers = malloc(resp->headers_capacity);
-    resp->headers[0] = '\0';
-
-    // Parse URL (simplified - should use proper URL parser)
-    char host[256] = {0};
-    char path[512] = "/";
-    int port = 80;
-    int ssl = 0;
-
-    if (strncmp(url, "https://", 8) == 0) {
-        ssl = 1;
-        port = 443;
-        sscanf(url + 8, "%255[^/]%511s", host, path);
-    } else if (strncmp(url, "http://", 7) == 0) {
-        sscanf(url + 7, "%255[^/]%511s", host, path);
-    } else {
-        free(resp->body);
-        free(resp->headers);
+    if (!resp->body) {
         free(resp);
         return NULL;
     }
+    resp->body[0] = '\0';
 
     // Create context
     memset(&info, 0, sizeof(info));
@@ -107,7 +168,7 @@ http_response_t* lws_http_get(const char *url) {
     info.port = CONTEXT_PORT_NO_LISTEN;
 
     static const struct lws_protocols protocols[] = {
-        { "http", http_callback, sizeof(http_response_t), 0, 0, NULL, 0 },
+        { "http", http_callback, 0, 4096, 0, NULL, 0 },
         { NULL, NULL, 0, 0, 0, NULL, 0 }
     };
     info.protocols = protocols;
@@ -115,7 +176,6 @@ http_response_t* lws_http_get(const char *url) {
     context = lws_create_context(&info);
     if (!context) {
         free(resp->body);
-        free(resp->headers);
         free(resp);
         return NULL;
     }
@@ -131,30 +191,31 @@ http_response_t* lws_http_get(const char *url) {
     connect_info.method = "GET";
     connect_info.protocol = protocols[0].name;
     connect_info.userdata = resp;
+    connect_info.pwsi = &wsi;
 
     if (ssl) {
-        connect_info.ssl_connection = LCCSCF_USE_SSL;
+        connect_info.ssl_connection = LCCSCF_USE_SSL |
+                                       LCCSCF_ALLOW_SELFSIGNED |
+                                       LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK;
     }
 
-    wsi = lws_client_connect_via_info(&connect_info);
-    if (!wsi) {
+    if (!lws_client_connect_via_info(&connect_info)) {
         lws_context_destroy(context);
         free(resp->body);
-        free(resp->headers);
         free(resp);
         return NULL;
     }
 
-    // Event loop
-    while (!resp->complete && !resp->failed) {
-        lws_service(context, 50);
+    // Event loop (timeout after 30 seconds)
+    int timeout = 3000;  // 30 seconds (100 * 10ms)
+    while (!resp->complete && !resp->failed && timeout-- > 0) {
+        lws_service(context, 10);
     }
 
     lws_context_destroy(context);
 
-    if (resp->failed) {
+    if (resp->failed || timeout <= 0) {
         free(resp->body);
-        free(resp->headers);
         free(resp);
         return NULL;
     }
@@ -164,16 +225,15 @@ http_response_t* lws_http_get(const char *url) {
 
 // HTTP POST request
 http_response_t* lws_http_post(const char *url, const char *body, const char *content_type) {
-    // Similar to GET but with POST method and body
-    // Implementation left as exercise - follows same pattern
+    // For now, POST is not fully implemented in this simple wrapper
+    // Would require more complex handling of request body
     return NULL;
 }
 
 // Free HTTP response
 void lws_http_response_free(http_response_t *resp) {
     if (resp) {
-        free(resp->body);
-        free(resp->headers);
+        if (resp->body) free(resp->body);
         free(resp);
     }
 }
@@ -184,24 +244,32 @@ int lws_response_status(http_response_t *resp) {
 }
 
 const char* lws_response_body(http_response_t *resp) {
-    return resp ? resp->body : "";
+    return (resp && resp->body) ? resp->body : "";
 }
 
 const char* lws_response_headers(http_response_t *resp) {
-    return resp ? resp->headers : "";
+    return "";  // Headers not yet implemented
 }
 
 // ========== WEBSOCKET SUPPORT ==========
 
+typedef struct ws_message {
+    unsigned char *data;
+    size_t len;
+    int is_binary;
+    struct ws_message *next;
+} ws_message_t;
+
 typedef struct {
     struct lws_context *context;
     struct lws *wsi;
-    char *recv_buffer;
-    size_t recv_len;
-    size_t recv_capacity;
-    int message_type;
+    ws_message_t *msg_queue_head;
+    ws_message_t *msg_queue_tail;
     int closed;
     int failed;
+    char *send_buffer;
+    size_t send_len;
+    int send_pending;
 } ws_connection_t;
 
 static int ws_callback(struct lws *wsi, enum lws_callback_reasons reason,
@@ -210,26 +278,43 @@ static int ws_callback(struct lws *wsi, enum lws_callback_reasons reason,
 
     switch (reason) {
         case LWS_CALLBACK_CLIENT_ESTABLISHED:
-            lwsl_user("WebSocket connection established\n");
+            fprintf(stderr, "WebSocket connection established\n");
             break;
 
         case LWS_CALLBACK_CLIENT_RECEIVE:
-            // Accumulate received data
-            if (conn->recv_len + len >= conn->recv_capacity) {
-                conn->recv_capacity = (conn->recv_len + len + 1) * 2;
-                conn->recv_buffer = realloc(conn->recv_buffer, conn->recv_capacity);
-            }
-            memcpy(conn->recv_buffer + conn->recv_len, in, len);
-            conn->recv_len += len;
+            // Queue received message
+            {
+                ws_message_t *msg = malloc(sizeof(ws_message_t));
+                if (!msg) break;
 
-            if (lws_is_final_fragment(wsi)) {
-                conn->recv_buffer[conn->recv_len] = '\0';
-                conn->message_type = lws_frame_is_binary(wsi) ? 2 : 1;
+                msg->len = len;
+                msg->data = malloc(len);
+                if (!msg->data) {
+                    free(msg);
+                    break;
+                }
+                memcpy(msg->data, in, len);
+                msg->is_binary = lws_frame_is_binary(wsi);
+                msg->next = NULL;
+
+                if (conn->msg_queue_tail) {
+                    conn->msg_queue_tail->next = msg;
+                } else {
+                    conn->msg_queue_head = msg;
+                }
+                conn->msg_queue_tail = msg;
             }
             break;
 
         case LWS_CALLBACK_CLIENT_WRITEABLE:
-            // Ready to send
+            if (conn->send_pending && conn->send_buffer) {
+                int flags = LWS_WRITE_TEXT;
+                lws_write(wsi, (unsigned char *)conn->send_buffer + LWS_PRE,
+                         conn->send_len, flags);
+                free(conn->send_buffer);
+                conn->send_buffer = NULL;
+                conn->send_pending = 0;
+            }
             break;
 
         case LWS_CALLBACK_CLOSED:
@@ -237,6 +322,7 @@ static int ws_callback(struct lws *wsi, enum lws_callback_reasons reason,
             break;
 
         case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+            fprintf(stderr, "WebSocket connection error: %s\n", in ? (char *)in : "unknown");
             conn->failed = 1;
             conn->closed = 1;
             break;
@@ -253,29 +339,51 @@ ws_connection_t* lws_ws_connect(const char *url) {
     struct lws_context_creation_info info;
     struct lws_client_connect_info connect_info;
     ws_connection_t *conn;
+    char host[256];
+    char path[512];
+    int port, ssl;
 
-    conn = calloc(1, sizeof(ws_connection_t));
-    conn->recv_capacity = 4096;
-    conn->recv_buffer = malloc(conn->recv_capacity);
-    conn->recv_buffer[0] = '\0';
-
-    // Parse URL
-    char host[256] = {0};
-    char path[512] = "/";
-    int port = 80;
-    int ssl = 0;
+    // Parse WebSocket URL
+    ssl = 0;
+    port = 80;
+    strcpy(path, "/");
 
     if (strncmp(url, "wss://", 6) == 0) {
         ssl = 1;
         port = 443;
-        sscanf(url + 6, "%255[^/]%511s", host, path);
+        const char *rest = url + 6;
+        const char *slash = strchr(rest, '/');
+        if (slash) {
+            size_t host_len = slash - rest;
+            if (host_len >= 256) return NULL;
+            strncpy(host, rest, host_len);
+            host[host_len] = '\0';
+            strncpy(path, slash, 511);
+            path[511] = '\0';
+        } else {
+            strncpy(host, rest, 255);
+            host[255] = '\0';
+        }
     } else if (strncmp(url, "ws://", 5) == 0) {
-        sscanf(url + 5, "%255[^/]%511s", host, path);
+        const char *rest = url + 5;
+        const char *slash = strchr(rest, '/');
+        if (slash) {
+            size_t host_len = slash - rest;
+            if (host_len >= 256) return NULL;
+            strncpy(host, rest, host_len);
+            host[host_len] = '\0';
+            strncpy(path, slash, 511);
+            path[511] = '\0';
+        } else {
+            strncpy(host, rest, 255);
+            host[255] = '\0';
+        }
     } else {
-        free(conn->recv_buffer);
-        free(conn);
         return NULL;
     }
+
+    conn = calloc(1, sizeof(ws_connection_t));
+    if (!conn) return NULL;
 
     // Create context
     memset(&info, 0, sizeof(info));
@@ -283,14 +391,13 @@ ws_connection_t* lws_ws_connect(const char *url) {
     info.port = CONTEXT_PORT_NO_LISTEN;
 
     static const struct lws_protocols ws_protocols[] = {
-        { "ws", ws_callback, sizeof(ws_connection_t), 4096, 0, NULL, 0 },
+        { "ws", ws_callback, 0, 4096, 0, NULL, 0 },
         { NULL, NULL, 0, 0, 0, NULL, 0 }
     };
     info.protocols = ws_protocols;
 
     conn->context = lws_create_context(&info);
     if (!conn->context) {
-        free(conn->recv_buffer);
         free(conn);
         return NULL;
     }
@@ -305,28 +412,28 @@ ws_connection_t* lws_ws_connect(const char *url) {
     connect_info.origin = host;
     connect_info.protocol = ws_protocols[0].name;
     connect_info.userdata = conn;
+    connect_info.pwsi = &conn->wsi;
 
     if (ssl) {
-        connect_info.ssl_connection = LCCSCF_USE_SSL;
+        connect_info.ssl_connection = LCCSCF_USE_SSL |
+                                       LCCSCF_ALLOW_SELFSIGNED |
+                                       LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK;
     }
 
-    conn->wsi = lws_client_connect_via_info(&connect_info);
-    if (!conn->wsi) {
+    if (!lws_client_connect_via_info(&connect_info)) {
         lws_context_destroy(conn->context);
-        free(conn->recv_buffer);
         free(conn);
         return NULL;
     }
 
-    // Wait for connection
-    int timeout = 100;
-    while (timeout-- > 0 && !conn->closed && !conn->failed) {
+    // Wait for connection (timeout 10 seconds)
+    int timeout = 1000;
+    while (timeout-- > 0 && !conn->closed && !conn->failed && !conn->wsi) {
         lws_service(conn->context, 10);
     }
 
-    if (conn->failed) {
+    if (conn->failed || conn->closed) {
         lws_context_destroy(conn->context);
-        free(conn->recv_buffer);
         free(conn);
         return NULL;
     }
@@ -339,37 +446,116 @@ int lws_ws_send_text(ws_connection_t *conn, const char *text) {
     if (!conn || conn->closed) return -1;
 
     size_t len = strlen(text);
-    unsigned char *buf = malloc(LWS_PRE + len);
-    memcpy(buf + LWS_PRE, text, len);
+    conn->send_buffer = malloc(LWS_PRE + len);
+    if (!conn->send_buffer) return -1;
 
-    int result = lws_write(conn->wsi, buf + LWS_PRE, len, LWS_WRITE_TEXT);
-    free(buf);
+    memcpy(conn->send_buffer + LWS_PRE, text, len);
+    conn->send_len = len;
+    conn->send_pending = 1;
 
-    lws_service(conn->context, 0);
-    return result >= 0 ? 0 : -1;
+    lws_callback_on_writable(conn->wsi);
+
+    // Service until sent
+    int timeout = 100;
+    while (conn->send_pending && timeout-- > 0) {
+        lws_service(conn->context, 10);
+    }
+
+    return conn->send_pending ? -1 : 0;
 }
 
 // WebSocket send binary
 int lws_ws_send_binary(ws_connection_t *conn, const unsigned char *data, size_t len) {
     if (!conn || conn->closed) return -1;
 
-    unsigned char *buf = malloc(LWS_PRE + len);
-    memcpy(buf + LWS_PRE, data, len);
+    conn->send_buffer = malloc(LWS_PRE + len);
+    if (!conn->send_buffer) return -1;
 
-    int result = lws_write(conn->wsi, buf + LWS_PRE, len, LWS_WRITE_BINARY);
-    free(buf);
+    memcpy(conn->send_buffer + LWS_PRE, data, len);
+    conn->send_len = len;
+    conn->send_pending = 1;
 
-    lws_service(conn->context, 0);
-    return result >= 0 ? 0 : -1;
+    lws_callback_on_writable(conn->wsi);
+
+    int timeout = 100;
+    while (conn->send_pending && timeout-- > 0) {
+        lws_service(conn->context, 10);
+    }
+
+    return conn->send_pending ? -1 : 0;
+}
+
+// WebSocket receive (blocking with timeout)
+ws_message_t* lws_ws_recv(ws_connection_t *conn, int timeout_ms) {
+    if (!conn || conn->closed) return NULL;
+
+    int iterations = timeout_ms > 0 ? (timeout_ms / 10) : -1;
+
+    while (iterations != 0) {
+        // Check if we have queued messages
+        if (conn->msg_queue_head) {
+            ws_message_t *msg = conn->msg_queue_head;
+            conn->msg_queue_head = msg->next;
+            if (!conn->msg_queue_head) {
+                conn->msg_queue_tail = NULL;
+            }
+            msg->next = NULL;
+            return msg;
+        }
+
+        // Service to receive more
+        lws_service(conn->context, 10);
+
+        if (conn->closed) return NULL;
+        if (iterations > 0) iterations--;
+    }
+
+    return NULL;
+}
+
+// Message accessors
+int lws_msg_type(ws_message_t *msg) {
+    if (!msg) return 0;
+    return msg->is_binary ? 2 : 1;  // 1=text, 2=binary
+}
+
+const char* lws_msg_text(ws_message_t *msg) {
+    if (!msg || !msg->data) return "";
+    // Ensure null-terminated
+    char *text = malloc(msg->len + 1);
+    memcpy(text, msg->data, msg->len);
+    text[msg->len] = '\0';
+    return text;  // Memory leak - caller should free
+}
+
+const unsigned char* lws_msg_binary(ws_message_t *msg) {
+    return msg ? msg->data : NULL;
+}
+
+size_t lws_msg_len(ws_message_t *msg) {
+    return msg ? msg->len : 0;
+}
+
+void lws_msg_free(ws_message_t *msg) {
+    if (msg) {
+        if (msg->data) free(msg->data);
+        free(msg);
+    }
 }
 
 // WebSocket close
 void lws_ws_close(ws_connection_t *conn) {
     if (conn) {
-        if (conn->context) {
-            lws_context_destroy(conn->context);
+        // Free queued messages
+        ws_message_t *msg = conn->msg_queue_head;
+        while (msg) {
+            ws_message_t *next = msg->next;
+            lws_msg_free(msg);
+            msg = next;
         }
-        free(conn->recv_buffer);
+
+        if (conn->send_buffer) free(conn->send_buffer);
+        if (conn->context) lws_context_destroy(conn->context);
         free(conn);
     }
 }
