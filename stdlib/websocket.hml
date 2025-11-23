@@ -36,9 +36,9 @@ let WS_MSG_CLOSE = 8;
 // ========== MESSAGE TYPE ==========
 
 define WebSocketMessage {
-    type: string,      // "text", "binary", "ping", "pong", "close"
-    data: string,      // For text messages (or null)
-    binary: buffer,    // For binary messages (or null)
+    type: string,       // "text", "binary", "ping", "pong", "close"
+    data?: string,      // For text messages (null for non-text)
+    binary?: buffer,    // For binary messages (null for non-binary)
 }
 
 // ========== WEBSOCKET CLIENT ==========

@@ -1,10 +1,13 @@
 // libwebsockets FFI wrapper for Hemlock
 // Provides both HTTP and WebSocket functionality in a single library
 
+#define _DEFAULT_SOURCE  // For usleep()
+
 #include <libwebsockets.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 
 // ========== HTTP SUPPORT ==========
 
@@ -450,7 +453,23 @@ ws_connection_t* lws_ws_connect(const char *url) {
         port = 443;
         const char *rest = url + 6;
         const char *slash = strchr(rest, '/');
-        if (slash) {
+        const char *colon = strchr(rest, ':');
+
+        // Handle port number
+        if (colon && (!slash || colon < slash)) {
+            // Has port number
+            size_t host_len = colon - rest;
+            if (host_len >= 256) return NULL;
+            strncpy(host, rest, host_len);
+            host[host_len] = '\0';
+            port = atoi(colon + 1);
+
+            if (slash) {
+                strncpy(path, slash, 511);
+                path[511] = '\0';
+            }
+        } else if (slash) {
+            // Has path, no port
             size_t host_len = slash - rest;
             if (host_len >= 256) return NULL;
             strncpy(host, rest, host_len);
@@ -458,13 +477,30 @@ ws_connection_t* lws_ws_connect(const char *url) {
             strncpy(path, slash, 511);
             path[511] = '\0';
         } else {
+            // Just hostname, no port or path
             strncpy(host, rest, 255);
             host[255] = '\0';
         }
     } else if (strncmp(url, "ws://", 5) == 0) {
         const char *rest = url + 5;
         const char *slash = strchr(rest, '/');
-        if (slash) {
+        const char *colon = strchr(rest, ':');
+
+        // Handle port number
+        if (colon && (!slash || colon < slash)) {
+            // Has port number
+            size_t host_len = colon - rest;
+            if (host_len >= 256) return NULL;
+            strncpy(host, rest, host_len);
+            host[host_len] = '\0';
+            port = atoi(colon + 1);
+
+            if (slash) {
+                strncpy(path, slash, 511);
+                path[511] = '\0';
+            }
+        } else if (slash) {
+            // Has path, no port
             size_t host_len = slash - rest;
             if (host_len >= 256) return NULL;
             strncpy(host, rest, host_len);
@@ -472,6 +508,7 @@ ws_connection_t* lws_ws_connect(const char *url) {
             strncpy(path, slash, 511);
             path[511] = '\0';
         } else {
+            // Just hostname, no port or path
             strncpy(host, rest, 255);
             host[255] = '\0';
         }
@@ -753,6 +790,7 @@ ws_server_t* lws_ws_server_create(const char *host, int port) {
     info.port = port;
     info.iface = host;
     info.user = server;
+    info.options = LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
 
     static const struct lws_protocols server_protocols[] = {
         { "ws", ws_server_callback, sizeof(ws_connection_t), 4096, 0, NULL, 0 },
@@ -776,7 +814,8 @@ ws_connection_t* lws_ws_server_accept(ws_server_t *server, int timeout_ms) {
     int iterations = timeout_ms > 0 ? (timeout_ms / 10) : -1;
 
     while (iterations != 0) {
-        lws_service(server->context, 10);
+        // Poll libwebsockets (non-blocking)
+        lws_service(server->context, 0);
 
         // Check for pending connection
         if (server->pending_wsi) {
@@ -791,9 +830,12 @@ ws_connection_t* lws_ws_server_accept(ws_server_t *server, int timeout_ms) {
         }
 
         if (iterations > 0) iterations--;
+
+        // Sleep for 10ms between polls
+        usleep(10000);  // 10ms in microseconds
     }
 
-    return NULL;
+    return NULL;  // Timeout
 }
 
 // Close WebSocket server
