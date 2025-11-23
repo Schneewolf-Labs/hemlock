@@ -429,8 +429,108 @@ When adding new features to Hemlock:
 5. **Run full test suite** before committing
 6. **Update this guide** if adding new test category
 
+## Memory Leak Detection
+
+Hemlock provides comprehensive memory leak detection tools for ensuring code quality.
+
+### Valgrind Integration
+
+Run memory leak checks using Valgrind:
+
+```bash
+# Quick check on a simple test
+make valgrind
+
+# Run valgrind on specific file
+make valgrind-file FILE=tests/arrays/test_array_methods.hml
+
+# Run valgrind on all tests (slow - generates many logs)
+make valgrind-test
+
+# View summary of all leaks
+make valgrind-summary
+
+# Clean up log files
+make valgrind-clean
+```
+
+**Requirements:**
+```bash
+sudo apt-get install valgrind
+```
+
+### AddressSanitizer (ASAN)
+
+Build and test with AddressSanitizer for runtime memory error detection:
+
+```bash
+# Build with ASAN
+make clean
+CFLAGS="-Wall -Wextra -std=c11 -g -D_POSIX_C_SOURCE=200809L -Iinclude -Isrc -fsanitize=address -fno-omit-frame-pointer" \
+LDFLAGS="-lm -lpthread -lffi -ldl -fsanitize=address" \
+make
+
+# Run tests with ASAN
+ASAN_OPTIONS=detect_leaks=1:halt_on_error=0 make test
+```
+
+ASAN detects:
+- Memory leaks
+- Buffer overflows
+- Use-after-free
+- Double-free
+- Heap corruption
+
+### Continuous Integration
+
+Memory leak detection runs automatically on every push:
+
+**GitHub Actions Jobs:**
+- `asan-test` - Runs all tests with AddressSanitizer
+  - Fails build if ASAN detects errors
+  - Uploads ASAN logs as artifacts
+
+- `valgrind-test` - Runs basic valgrind checks
+  - Currently informational (doesn't fail build)
+  - Uploads valgrind logs as artifacts
+  - View results in Actions > Artifacts
+
+### Interpreting Valgrind Results
+
+**Leak categories:**
+- **Definitely lost:** Direct memory leaks (must fix)
+- **Indirectly lost:** Memory referenced by leaked structures
+- **Possibly lost:** May or may not be leaks (investigate)
+- **Still reachable:** Allocated but freed at exit (usually acceptable)
+
+**Example output:**
+```
+LEAK SUMMARY:
+   definitely lost: 96 bytes in 4 blocks
+   indirectly lost: 195 bytes in 6 blocks
+     possibly lost: 0 bytes in 0 blocks
+   still reachable: 1,024 bytes in 12 blocks
+```
+
+**Acceptable leaks:**
+- Global type registries (freed at exit)
+- Builtin function names (static lifetime)
+- pthread internal structures (system-managed)
+
+### Memory Management Best Practices
+
+When writing Hemlock code:
+
+1. **Reference Counting** - Values created with `ref_count = 1`
+2. **Retention** - `value_retain()` increments when storing/passing
+3. **Release** - `value_release()` decrements, frees at 0
+4. **Cleanup** - Always call `env_break_cycles()` before final `env_release()`
+
+See [docs/development/MODULE_IMPORT_LEAK_FIXES.md](docs/development/MODULE_IMPORT_LEAK_FIXES.md) for detailed architecture.
+
 ## See Also
 
 - [CLAUDE.md](CLAUDE.md) - Language design philosophy
 - [stdlib/README.md](stdlib/README.md) - Standard library overview
 - [examples/](examples/) - Example programs
+- [docs/development/](docs/development/) - Memory leak analysis and fixes
