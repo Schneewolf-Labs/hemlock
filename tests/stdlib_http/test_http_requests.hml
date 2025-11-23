@@ -37,15 +37,15 @@ print("");
 // Test 2: HTTP POST request
 print("Test 2: HTTP POST request");
 try {
-    let response = http.post("http://httpbin.org/post", "test=data", []);
+    let response2 = http.post("http://httpbin.org/post", "test=data", []);
 
-    assert(response != null, "Response should not be null");
+    assert(response2 != null, "Response should not be null");
 
-    if (http.is_success(response.status_code)) {
-        print("✓ POST request successful (status: " + typeof(response.status_code) + ")");
+    if (http.is_success(response2.status_code)) {
+        print("✓ POST request successful (status: " + typeof(response2.status_code) + ")");
         tests_passed = tests_passed + 1;
     } else {
-        print("✗ POST request failed with status: " + typeof(response.status_code));
+        print("✗ POST request failed with status: " + typeof(response2.status_code));
         tests_failed = tests_failed + 1;
     }
 } catch (e) {
@@ -76,11 +76,11 @@ print("");
 print("Test 4: POST JSON");
 try {
     let data = { test: "value", number: 42 };
-    let response = http.post_json("http://httpbin.org/post", data);
+    let response4 = http.post_json("http://httpbin.org/post", data);
 
-    assert(response != null, "Response should not be null");
+    assert(response4 != null, "Response should not be null");
 
-    if (http.is_success(response.status_code)) {
+    if (http.is_success(response4.status_code)) {
         print("✓ POST JSON successful");
         tests_passed = tests_passed + 1;
     } else {
@@ -97,11 +97,11 @@ print("");
 // Test 5: HTTPS request
 print("Test 5: HTTPS request (SSL/TLS)");
 try {
-    let response = http.get("https://httpbin.org/get", []);
+    let response5 = http.get("https://httpbin.org/get", []);
 
-    assert(response != null, "HTTPS response should not be null");
+    assert(response5 != null, "HTTPS response should not be null");
 
-    if (http.is_success(response.status_code)) {
+    if (http.is_success(response5.status_code)) {
         print("✓ HTTPS request successful");
         tests_passed = tests_passed + 1;
     } else {

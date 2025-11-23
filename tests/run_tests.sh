@@ -69,6 +69,23 @@ for test_file in $TEST_FILES; do
     category=$(dirname "$test_file" | cut -d'/' -f2)
     test_name="${test_file#tests/}"
 
+    # Skip HTTP/WebSocket tests if lws_wrapper.so doesn't exist
+    if [[ "$category" == "stdlib_http" || "$category" == "stdlib_websocket" ]]; then
+        if [ ! -f "stdlib/c/lws_wrapper.so" ]; then
+            # Only print the skip message once per category
+            if [ "$category" != "$CURRENT_CATEGORY" ]; then
+                if [ -n "$CURRENT_CATEGORY" ]; then
+                    echo ""
+                fi
+                echo -e "${BLUE}[$category]${NC}"
+                echo -e "${YELLOW}⊘${NC} Skipping $category tests (libwebsockets not installed)"
+                echo "  Run 'sudo apt-get install libwebsockets-dev && make stdlib' to enable"
+                CURRENT_CATEGORY="$category"
+            fi
+            continue
+        fi
+    fi
+
     # Print category header if changed
     if [ "$category" != "$CURRENT_CATEGORY" ]; then
         if [ -n "$CURRENT_CATEGORY" ]; then

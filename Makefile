@@ -54,8 +54,15 @@ stdlib: $(STDLIB_LWS_WRAPPER)
 $(STDLIB_LWS_WRAPPER): $(STDLIB_C_DIR)/lws_wrapper.c
 	@echo "Building libwebsockets wrapper..."
 	@mkdir -p $(STDLIB_C_DIR)
-	$(CC) -shared -fPIC -o $@ $< -lwebsockets $(CFLAGS)
-	@echo "Built $@"
+	@if $(CC) -shared -fPIC -o $@ $< -lwebsockets $(CFLAGS) 2>/dev/null; then \
+		echo "✓ Built $@"; \
+	else \
+		echo "⚠ Warning: Could not build lws_wrapper.so"; \
+		echo "  libwebsockets-dev is not installed or headers not found"; \
+		echo "  Install with: sudo apt-get install libwebsockets-dev"; \
+		echo "  HTTP/WebSocket tests will be skipped"; \
+		exit 0; \
+	fi
 
 clean-stdlib:
 	rm -f $(STDLIB_LWS_WRAPPER)
