@@ -51,7 +51,7 @@ try {
 
     let count = 0;
     while (count < 3) {
-        let msg_text = "Message " + typeof(count + 1);
+        let msg_text = "Message " + (count + 1);
         ws.send_text(msg_text);
 
         let response = ws.recv(5000);
