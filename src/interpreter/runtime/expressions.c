@@ -306,15 +306,21 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 }
             }
 
-            // Null comparisons
-            if (left.type == VAL_NULL || right.type == VAL_NULL) {
+            // Null comparisons (including NULL pointers)
+            if (left.type == VAL_NULL || right.type == VAL_NULL ||
+                (left.type == VAL_PTR && left.as.as_ptr == NULL) ||
+                (right.type == VAL_PTR && right.as.as_ptr == NULL)) {
                 if (expr->as.binary.op == OP_EQUAL) {
-                    // Both null -> true, one null -> false
-                    binary_result = val_bool(left.type == VAL_NULL && right.type == VAL_NULL);
+                    // Check if both are null (either VAL_NULL or VAL_PTR with NULL)
+                    int left_is_null = (left.type == VAL_NULL) || (left.type == VAL_PTR && left.as.as_ptr == NULL);
+                    int right_is_null = (right.type == VAL_NULL) || (right.type == VAL_PTR && right.as.as_ptr == NULL);
+                    binary_result = val_bool(left_is_null && right_is_null);
                     goto binary_cleanup;
                 } else if (expr->as.binary.op == OP_NOT_EQUAL) {
-                    // Both null -> false, one null -> true
-                    binary_result = val_bool(!(left.type == VAL_NULL && right.type == VAL_NULL));
+                    // Check if both are null (either VAL_NULL or VAL_PTR with NULL)
+                    int left_is_null = (left.type == VAL_NULL) || (left.type == VAL_PTR && left.as.as_ptr == NULL);
+                    int right_is_null = (right.type == VAL_NULL) || (right.type == VAL_PTR && right.as.as_ptr == NULL);
+                    binary_result = val_bool(!(left_is_null && right_is_null));
                     goto binary_cleanup;
                 }
             }

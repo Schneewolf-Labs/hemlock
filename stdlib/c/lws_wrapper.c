@@ -563,7 +563,8 @@ ws_connection_t* lws_ws_connect(const char *url) {
     // Wait for connection (timeout 10 seconds)
     int timeout = 1000;
     while (timeout-- > 0 && !conn->closed && !conn->failed && !conn->wsi) {
-        lws_service(conn->context, 10);
+        lws_service(conn->context, 1);  // Non-blocking poll
+        usleep(10000);  // 10ms between polls
     }
 
     if (conn->failed || conn->closed) {
@@ -589,10 +590,11 @@ int lws_ws_send_text(ws_connection_t *conn, const char *text) {
 
     lws_callback_on_writable(conn->wsi);
 
-    // Service until sent
-    int timeout = 100;
+    // Service until sent (non-blocking poll with manual sleep)
+    int timeout = 100;  // 100 iterations * 10ms = 1 second
     while (conn->send_pending && timeout-- > 0) {
-        lws_service(conn->context, 10);
+        lws_service(conn->context, 1);  // Non-blocking poll
+        usleep(10000);  // 10ms between polls
     }
 
     return conn->send_pending ? -1 : 0;
@@ -611,9 +613,11 @@ int lws_ws_send_binary(ws_connection_t *conn, const unsigned char *data, size_t 
 
     lws_callback_on_writable(conn->wsi);
 
-    int timeout = 100;
+    // Service until sent (non-blocking poll with manual sleep)
+    int timeout = 100;  // 100 iterations * 10ms = 1 second
     while (conn->send_pending && timeout-- > 0) {
-        lws_service(conn->context, 10);
+        lws_service(conn->context, 1);  // Non-blocking poll
+        usleep(10000);  // 10ms between polls
     }
 
     return conn->send_pending ? -1 : 0;
@@ -637,11 +641,13 @@ ws_message_t* lws_ws_recv(ws_connection_t *conn, int timeout_ms) {
             return msg;
         }
 
-        // Service to receive more
-        lws_service(conn->context, 10);
+        // Service to receive more (non-blocking poll with manual sleep)
+        lws_service(conn->context, 1);  // Non-blocking poll
 
         if (conn->closed) return NULL;
         if (iterations > 0) iterations--;
+
+        usleep(10000);  // 10ms between polls
     }
 
     return NULL;
@@ -814,8 +820,8 @@ ws_connection_t* lws_ws_server_accept(ws_server_t *server, int timeout_ms) {
     int iterations = timeout_ms > 0 ? (timeout_ms / 10) : -1;
 
     while (iterations != 0) {
-        // Poll libwebsockets (non-blocking)
-        lws_service(server->context, 0);
+        // Poll libwebsockets - use 1ms timeout instead of 0 to avoid blocking bug
+        lws_service(server->context, 1);
 
         // Check for pending connection
         if (server->pending_wsi) {
@@ -830,9 +836,6 @@ ws_connection_t* lws_ws_server_accept(ws_server_t *server, int timeout_ms) {
         }
 
         if (iterations > 0) iterations--;
-
-        // Sleep for 10ms between polls
-        usleep(10000);  // 10ms in microseconds
     }
 
     return NULL;  // Timeout
