@@ -7,26 +7,26 @@ import {
 } from "@stdlib/json";
 
 // Test is_valid() with valid JSON
-assert(is_valid('{"x":10}') == true, "is_valid object");
-assert(is_valid('[1,2,3]') == true, "is_valid array");
-assert(is_valid('"hello"') == true, "is_valid string");
-assert(is_valid('42') == true, "is_valid number");
-assert(is_valid('true') == true, "is_valid bool");
-assert(is_valid('null') == true, "is_valid null");
+assert(is_valid("{\"x\":10}") == true, "is_valid object");
+assert(is_valid("[1,2,3]") == true, "is_valid array");
+assert(is_valid("\"hello\"") == true, "is_valid string");
+assert(is_valid("42") == true, "is_valid number");
+assert(is_valid("true") == true, "is_valid bool");
+assert(is_valid("null") == true, "is_valid null");
 
 // Test is_valid() with invalid JSON
-assert(is_valid('{"unclosed"') == false, "is_valid unclosed object");
-assert(is_valid('[1,2,') == false, "is_valid unclosed array");
-assert(is_valid('invalid') == false, "is_valid invalid text");
-assert(is_valid('') == false, "is_valid empty string");
+assert(is_valid("{\"unclosed\"") == false, "is_valid unclosed object");
+assert(is_valid("[1,2,") == false, "is_valid unclosed array");
+assert(is_valid("invalid") == false, "is_valid invalid text");
+assert(is_valid("") == false, "is_valid empty string");
 
 // Test validate() with valid JSON
-let result1 = validate('{"x":10}');
+let result1 = validate("{\"x\":10}");
 assert(result1.valid == true, "validate valid JSON");
 assert(result1.message == "Valid JSON", "validate valid message");
 
 // Test validate() with invalid JSON
-let result2 = validate('{"unclosed"');
+let result2 = validate("{\"unclosed\"");
 assert(result2.valid == false, "validate invalid JSON");
 assert(typeof(result2.message) == "string", "validate error message is string");
 

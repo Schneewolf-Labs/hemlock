@@ -7,8 +7,8 @@ let obj = { x: 10, y: 20 };
 let formatted = pretty(obj);
 
 assert(formatted.contains("{\n"), "pretty object starts with open brace + newline");
-assert(formatted.contains('"x": 10'), "pretty object contains formatted x");
-assert(formatted.contains('"y": 20'), "pretty object contains formatted y");
+assert(formatted.contains("\"x\": 10"), "pretty object contains formatted x");
+assert(formatted.contains("\"y\": 20"), "pretty object contains formatted y");
 assert(formatted.contains("\n}"), "pretty object ends with newline + close brace");
 
 // Test array formatting
@@ -28,10 +28,10 @@ let nested = {
 };
 let nested_formatted = pretty(nested);
 
-assert(nested_formatted.contains('"user": {'), "pretty nested contains user object");
-assert(nested_formatted.contains('"name": "Alice"'), "pretty nested contains name");
-assert(nested_formatted.contains('"age": 30'), "pretty nested contains age");
-assert(nested_formatted.contains('"active": true'), "pretty nested contains active");
+assert(nested_formatted.contains("\"user\": {"), "pretty nested contains user object");
+assert(nested_formatted.contains("\"name\": \"Alice\""), "pretty nested contains name");
+assert(nested_formatted.contains("\"age\": 30"), "pretty nested contains age");
+assert(nested_formatted.contains("\"active\": true"), "pretty nested contains active");
 
 // Test custom indentation (4 spaces)
 let custom_indent = pretty(obj, 4);
@@ -52,9 +52,9 @@ let empty_arr_formatted = pretty(empty_arr);
 assert(empty_arr_formatted == "[]", "empty array formatted as []");
 
 // Test string escaping in pretty format
-let str_obj = { message: 'Hello\n"World"' };
+let str_obj = { message: "Hello\n\"World\"" };
 let str_formatted = pretty(str_obj);
 assert(str_formatted.contains("\\n"), "pretty escapes newlines");
-assert(str_formatted.contains('\\"'), "pretty escapes quotes");
+assert(str_formatted.contains("\\\""), "pretty escapes quotes");
 
 print("All pretty printing tests passed!");

@@ -43,7 +43,7 @@ assert(config.server.ssl == true, "config updated ssl");
 // Scenario 2: API response processing
 print("Test 2: API response processing");
 
-let api_response = parse('{"status":"success","data":{"users":[{"name":"Alice","age":30},{"name":"Bob","age":25}],"total":2}}');
+let api_response = parse("{\"status\":\"success\",\"data\":{\"users\":[{\"name\":\"Alice\",\"age\":30},{\"name\":\"Bob\",\"age\":25}],\"total\":2}}");
 
 let status = get(api_response, "status");
 let total = get(api_response, "data.total");
@@ -92,15 +92,15 @@ fn process_user_input(json_str: string) {
     return data;
 }
 
-let valid_input = '{"version":"1.0","data":"test"}';
+let valid_input = "{\"version\":\"1.0\",\"data\":\"test\"}";
 let result1 = process_user_input(valid_input);
 assert(result1 != null, "process valid input");
 
-let invalid_json = '{"unclosed"';
+let invalid_json = "{\"unclosed\"";
 let result2 = process_user_input(invalid_json);
 assert(result2 == null, "process invalid JSON");
 
-let missing_version = '{"data":"test"}';
+let missing_version = "{\"data\":\"test\"}";
 let result3 = process_user_input(missing_version);
 assert(result3 == null, "process missing version");
 
@@ -120,8 +120,8 @@ let debug_data = {
 
 let formatted = pretty(debug_data, 2);
 assert(formatted.contains("{\n"), "pretty formatted starts with brace");
-assert(formatted.contains('"method": "POST"'), "pretty contains method");
-assert(formatted.contains('"status": 200'), "pretty contains status");
+assert(formatted.contains("\"method\": \"POST\""), "pretty contains method");
+assert(formatted.contains("\"status\": 200"), "pretty contains status");
 
 // Scenario 6: Array comparison
 print("Test 6: Array comparison");
