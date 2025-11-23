@@ -131,7 +131,7 @@ Value call_file_method(FileHandle *file, const char *method, Value *args, int nu
         buf->data = data;
         buf->length = read_bytes;
         buf->capacity = size;
-        buf->ref_count = 0;
+        buf->ref_count = 1;  // Start with 1 - caller owns the first reference
 
         return (Value){ .type = VAL_BUFFER, .as.as_buffer = buf };
     }
