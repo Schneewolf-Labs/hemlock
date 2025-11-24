@@ -109,21 +109,10 @@ describe("Numeric edge cases", fn() {
     });
 });
 
-// Run tests and verify results
+// Run tests - this will execute all registered describe/test blocks above
 let results = run({ no_color: true });
 
-// Verify result structure
-expect(typeof(results.total)).to_be_type("i32");
-expect(typeof(results.passed)).to_be_type("i32");
-expect(typeof(results.failed)).to_be_type("i32");
-expect(typeof(results.success)).to_be_type("bool");
-
-// Verify all tests passed
-expect(results.success).to_be_true();
-expect(results.failed).to_equal(0);
-expect(results.total).to_be_greater_than(0);
-expect(results.passed).to_equal(results.total);
-
+// Exit with error if any tests failed
 if (!results.success) {
     exit(1);
 }

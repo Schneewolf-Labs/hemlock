@@ -339,7 +339,7 @@ fn test(test_name: string, test_fn) {
     return null;
 }
 
-// Public API: before_each(fn)
+// Public API: before_each(callback)
 fn before_each(callback) {
     if (__current_suite == null) {
         throw "before_each() must be called inside describe()";
@@ -349,7 +349,7 @@ fn before_each(callback) {
     return null;
 }
 
-// Public API: after_each(fn)
+// Public API: after_each(callback)
 fn after_each(callback) {
     if (__current_suite == null) {
         throw "after_each() must be called inside describe()";
@@ -423,11 +423,19 @@ fn run(options?: null) {
     let no_color = false;
 
     if (options != null) {
-        if (typeof(options.verbose) == "bool") {
-            verbose = options.verbose;
+        try {
+            if (typeof(options.verbose) == "bool") {
+                verbose = options.verbose;
+            }
+        } catch (e) {
+            // Field doesn't exist, use default
         }
-        if (typeof(options.no_color) == "bool") {
-            no_color = options.no_color;
+        try {
+            if (typeof(options.no_color) == "bool") {
+                no_color = options.no_color;
+            }
+        } catch (e) {
+            // Field doesn't exist, use default
         }
     }
 
