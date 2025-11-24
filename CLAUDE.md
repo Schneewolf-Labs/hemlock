@@ -3038,7 +3038,44 @@ if (error_occurred) {
 
 ---
 
-#### 5. **Filesystem** (`@stdlib/fs`)
+#### 5. **Process Management** (`@stdlib/process`)
+**Status:** Complete
+
+Process control and inter-process communication:
+- **Process ID:** get_pid, getppid, getuid, geteuid, getgid, getegid
+- **Process control:** exit, kill, abort
+- **Process creation:** fork, wait, waitpid
+- **Command execution:** exec (returns output + exit_code)
+
+```hemlock
+import { get_pid, getppid, exec, kill } from "@stdlib/process";
+
+// Process information
+let pid = get_pid();
+let ppid = getppid();
+print("PID: " + typeof(pid) + ", PPID: " + typeof(ppid));
+
+// Execute commands
+let result = exec("echo 'Hello World'");
+print(result.output);        // "Hello World\n"
+print(result.exit_code);     // 0
+
+// Check command success
+let r = exec("grep pattern file.txt");
+if (r.exit_code == 0) {
+    print("Found: " + r.output);
+}
+
+// Send signal to process
+kill(target_pid, 15);  // SIGTERM
+```
+
+**Documentation:** `stdlib/docs/process.md`
+**Notes:** fork() should be used with caution in interpreter; prefer exec() for running commands
+
+---
+
+#### 6. **Filesystem** (`@stdlib/fs`)
 **Status:** Comprehensive
 
 File and directory operations:
@@ -3101,7 +3138,7 @@ copy_file("important.txt", "important.txt.backup");
 
 ---
 
-#### 6. **Networking** (`@stdlib/net`)
+#### 7. **Networking** (`@stdlib/net`)
 **Status:** Complete
 
 TCP/UDP networking with ergonomic wrappers over raw socket builtins:
@@ -3145,7 +3182,7 @@ let ip = resolve("example.com");  // "93.184.216.34"
 
 ---
 
-#### 7. **Regular Expressions** (`@stdlib/regex`)
+#### 8. **Regular Expressions** (`@stdlib/regex`)
 **Status:** Basic (via FFI)
 
 POSIX Extended Regular Expression pattern matching via FFI to system regex library:
