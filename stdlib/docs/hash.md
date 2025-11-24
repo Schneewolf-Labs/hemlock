@@ -9,6 +9,14 @@ The `@stdlib/hash` module provides:
 - **Cryptographic hashes**: SHA-256, SHA-512, MD5 (via OpenSSL FFI)
 - **File checksums**: Convenient functions for hashing file contents
 
+### System Requirements
+
+**Cryptographic hash functions require OpenSSL:**
+- The module dynamically loads `libcrypto.so.3` at runtime via FFI
+- On most Linux systems: `sudo apt-get install libssl3` (usually pre-installed)
+- On macOS: OpenSSL is typically available via Homebrew
+- Non-cryptographic hashes (djb2, fnv1a, murmur3) work without OpenSSL
+
 ## Usage
 
 ```hemlock
