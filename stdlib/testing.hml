@@ -340,22 +340,22 @@ fn test(test_name: string, test_fn) {
 }
 
 // Public API: before_each(fn)
-fn before_each(fn) {
+fn before_each(callback) {
     if (__current_suite == null) {
         throw "before_each() must be called inside describe()";
     }
 
-    __current_suite.before_each = fn;
+    __current_suite.before_each = callback;
     return null;
 }
 
 // Public API: after_each(fn)
-fn after_each(fn) {
+fn after_each(callback) {
     if (__current_suite == null) {
         throw "after_each() must be called inside describe()";
     }
 
-    __current_suite.after_each = fn;
+    __current_suite.after_each = callback;
     return null;
 }
 
@@ -392,12 +392,12 @@ fn assert_false(value) {
     return null;
 }
 
-fn assert_throws(fn, expected_msg?: null) {
+fn assert_throws(callback, expected_msg?: null) {
     let did_throw = false;
     let thrown_msg = null;
 
     try {
-        fn();
+        callback();
     } catch (e) {
         did_throw = true;
         thrown_msg = e;
