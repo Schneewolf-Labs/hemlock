@@ -1,9 +1,0 @@
-// Test minimal module import
-import { TEST_CONST1, TEST_CONST2, test_fn } from "test_module.hml";
-
-print("TEST_CONST1 type: " + typeof(TEST_CONST1));
-print("TEST_CONST2 type: " + typeof(TEST_CONST2));
-print("TEST_CONST2 value: " + TEST_CONST2);
-
-let result = test_fn();
-print("test_fn() type: " + typeof(result));

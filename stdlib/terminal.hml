@@ -96,12 +96,11 @@ export fn move_left(n: i32): string {
 
 // Save cursor position
 export let SAVE_CURSOR = ESC + "[s";
-let esc_rune: rune = 27;
-export let SAVE_CURSOR_DEC = esc_rune + "7";  // Rune + string concatenation
+export let SAVE_CURSOR_DEC = ESC + "7";  // DEC save cursor
 
 // Restore cursor position
 export let RESTORE_CURSOR = ESC + "[u";
-export let RESTORE_CURSOR_DEC = esc_rune + "8";
+export let RESTORE_CURSOR_DEC = ESC + "8";  // DEC restore cursor
 
 // Hide/show cursor
 export let HIDE_CURSOR = ESC + "[?25l";
@@ -349,7 +348,7 @@ export fn Spinner(frames?: null) {
         },
 
         // Get current frame (for manual control)
-        get_frame: fn(): string {
+        get_frame: fn() {
             return spinner_frames[frame_index];
         },
 

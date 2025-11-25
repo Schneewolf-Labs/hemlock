@@ -1,6 +1,0 @@
-// Minimal terminal module
-let ESC: rune = 27;
-
-export let RED = ESC + "[31m";
-export let GREEN = ESC + "[32m";
-export let RESET = ESC + "[0m";
