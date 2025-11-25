@@ -2,6 +2,8 @@
 // This module provides ANSI terminal control codes for colors, cursor positioning,
 // and terminal manipulation
 
+import { getenv } from "@stdlib/env";
+
 // ESC character constant (ASCII 27)
 let ESC: rune = 27;
 
@@ -180,16 +182,17 @@ export fn size() {
         return { rows: 24, cols: 80 };
     }
 
-    // Convert strings to integers
+    // Convert strings to integers manually (rune-based parsing)
     let rows = 0;
     let cols = 0;
+    let zero: i32 = '0';  // Get ASCII value of '0'
 
     // Parse rows
     let i = 0;
     while (i < parts[0].length) {
-        let ch = parts[0].char_at(i);
-        if (ch >= '0' && ch <= '9') {
-            rows = rows * 10 + (ch - '0');
+        let ch: i32 = parts[0].char_at(i);  // Convert rune to integer
+        if (ch >= 48 && ch <= 57) {  // ASCII '0' = 48, '9' = 57
+            rows = rows * 10 + (ch - 48);
         }
         i = i + 1;
     }
@@ -197,9 +200,9 @@ export fn size() {
     // Parse cols
     i = 0;
     while (i < parts[1].length) {
-        let ch = parts[1].char_at(i);
-        if (ch >= '0' && ch <= '9') {
-            cols = cols * 10 + (ch - '0');
+        let ch: i32 = parts[1].char_at(i);
+        if (ch >= 48 && ch <= 57) {
+            cols = cols * 10 + (ch - 48);
         }
         i = i + 1;
     }

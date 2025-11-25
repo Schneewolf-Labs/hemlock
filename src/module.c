@@ -15,15 +15,12 @@
 // Helper function to ensure export array has capacity
 static void ensure_export_capacity(Module *module) {
     if (module->num_exports >= module->export_capacity) {
-        int old_capacity = module->export_capacity;
         module->export_capacity *= 2;
         module->export_names = realloc(module->export_names, sizeof(char*) * module->export_capacity);
         if (!module->export_names) {
             fprintf(stderr, "Runtime error: Memory allocation failed for module exports\n");
             exit(1);
         }
-        fprintf(stderr, "DEBUG: Expanded export capacity from %d to %d (num_exports=%d)\n",
-                old_capacity, module->export_capacity, module->num_exports);
     }
 }
 
@@ -399,8 +396,6 @@ void execute_module(Module *module, ModuleCache *cache, Environment *global_env,
             }
         } else if (stmt->type == STMT_EXPORT) {
             // Handle export
-            fprintf(stderr, "DEBUG: Processing EXPORT statement (is_declaration=%d, is_reexport=%d)\n",
-                    stmt->as.export_stmt.is_declaration, stmt->as.export_stmt.is_reexport);
             if (stmt->as.export_stmt.is_declaration) {
                 // Export declaration: execute it
                 Stmt *decl = stmt->as.export_stmt.declaration;
@@ -410,12 +405,10 @@ void execute_module(Module *module, ModuleCache *cache, Environment *global_env,
                 if (decl->type == STMT_LET) {
                     ensure_export_capacity(module);
                     module->export_names[module->num_exports] = strdup(decl->as.let.name);
-                    fprintf(stderr, "DEBUG: Added export #%d: %s\n", module->num_exports + 1, module->export_names[module->num_exports]);
                     module->num_exports++;
                 } else if (decl->type == STMT_CONST) {
                     ensure_export_capacity(module);
                     module->export_names[module->num_exports] = strdup(decl->as.const_stmt.name);
-                    fprintf(stderr, "DEBUG: Added export #%d: %s\n", module->num_exports + 1, module->export_names[module->num_exports]);
                     module->num_exports++;
                 }
             } else if (stmt->as.export_stmt.is_reexport) {
