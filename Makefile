@@ -1,8 +1,19 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c11 -g -D_POSIX_C_SOURCE=200809L -Iinclude -Isrc
-LDFLAGS = -lm -lpthread -lffi -ldl -lz -lcrypto -lwebsockets
 SRC_DIR = src
 BUILD_DIR = build
+
+# Check if libwebsockets is available
+HAS_LIBWEBSOCKETS := $(shell pkg-config --exists libwebsockets 2>/dev/null && echo 1 || (test -f /usr/include/libwebsockets.h && echo 1 || echo 0))
+
+# Base libraries (always required)
+LDFLAGS = -lm -lpthread -lffi -ldl -lz -lcrypto
+
+# Conditionally add libwebsockets
+ifeq ($(HAS_LIBWEBSOCKETS),1)
+LDFLAGS += -lwebsockets
+CFLAGS += -DHAVE_LIBWEBSOCKETS=1
+endif
 
 # Source files from src/ and src/parser/ and src/interpreter/ and src/interpreter/builtins/ and src/interpreter/io/ and src/interpreter/runtime/
 SRCS = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/parser/*.c) $(wildcard $(SRC_DIR)/interpreter/*.c) $(wildcard $(SRC_DIR)/interpreter/builtins/*.c) $(wildcard $(SRC_DIR)/interpreter/io/*.c) $(wildcard $(SRC_DIR)/interpreter/runtime/*.c)
