@@ -210,6 +210,34 @@ Comprehensive test framework with modern describe/test/expect syntax:
 
 See [docs/testing.md](docs/testing.md) for detailed documentation.
 
+### Logging (`@stdlib/logging`)
+**Status:** Complete
+
+Comprehensive logging facilities with levels, filtering, and structured logging:
+- **Log levels:** DEBUG, INFO, WARN, ERROR with filtering
+- **Output targets:** stdout or file
+- **Structured logging:** Key-value pairs (JSON serialization)
+- **Configurable formatting:** Customizable log message format
+- **Timestamps:** Unix epoch timestamps
+- **Default logger:** Convenience functions for quick logging
+- **Multiple loggers:** Create separate loggers for different subsystems
+
+See [docs/logging.md](docs/logging.md) for detailed documentation.
+
+### Compression (`@stdlib/compression`)
+**Status:** Complete
+
+Compression and decompression using zlib/gzip:
+- **zlib:** compress, decompress - Raw zlib compression
+- **gzip:** gzip_compress, gzip_decompress - Gzip format with headers
+- **Checksums:** adler32, crc32 - Data integrity verification
+- **TAR archives:** tar_create, tar_extract - Create and extract tar files
+- **Compression levels:** 0 (none) to 9 (maximum), default 6
+- **Error handling:** Exceptions on compression failures
+
+See [docs/compression.md](docs/compression.md) for detailed documentation.
+
+
 ## Usage
 
 Import modules using the `@stdlib/` prefix:
@@ -231,6 +259,8 @@ import { parse, stringify, pretty, get, set } from "@stdlib/json";
 import { pad_left, is_alpha, reverse, lines, words } from "@stdlib/strings";
 import { base64_encode, base64_decode, hex_encode, url_encode } from "@stdlib/encoding";
 import { describe, test, expect, assert_eq, run } from "@stdlib/testing";
+import { Logger, DEBUG, INFO, WARN, ERROR } from "@stdlib/logging";
+import { compress, decompress, gzip_compress, adler32 } from "@stdlib/compression";
 
 // Import all as namespace
 import * as math from "@stdlib/math";
@@ -244,6 +274,8 @@ import * as json from "@stdlib/json";
 import * as strings from "@stdlib/strings";
 import * as encoding from "@stdlib/encoding";
 import * as testing from "@stdlib/testing";
+import * as logging from "@stdlib/logging";
+import * as compression from "@stdlib/compression";
 
 // Use imported functions
 let angle = math.PI / 4.0;
