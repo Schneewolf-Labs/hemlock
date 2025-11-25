@@ -1,0 +1,8 @@
+import { RED, GREEN, RESET } from "@stdlib/terminal_mini";
+
+print("RED: " + typeof(RED));
+print("GREEN: " + typeof(GREEN));
+print("RESET: " + typeof(RESET));
+
+print(RED + "Red text" + RESET);
+print(GREEN + "Green text" + RESET);

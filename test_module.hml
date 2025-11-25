@@ -1,0 +1,9 @@
+// Minimal test module
+let ESC: rune = 27;
+
+export let TEST_CONST1 = ESC + "[31m";
+export let TEST_CONST2 = "hello";
+
+export fn test_fn() {
+    return ESC + "[32m";
+}

@@ -2,70 +2,70 @@
 // This module provides ANSI terminal control codes for colors, cursor positioning,
 // and terminal manipulation
 
-// Helper function to create ANSI escape sequence
-// ESC character is ASCII 27 (0x1B)
-fn esc(code: string): string {
-    let esc_char: rune = 27;  // ESC character
-    let esc_str: string = esc_char;
-    return esc_str + "[" + code;
+// ESC character constant (ASCII 27)
+let ESC: rune = 27;
+
+// Helper function to create ANSI escape sequences at runtime
+fn esc(code: string) {
+    return ESC + "[" + code;
 }
 
 // ========== ANSI COLOR CODES ==========
 
 // Text colors
-export let BLACK = esc("30m");
-export let RED = esc("31m");
-export let GREEN = esc("32m");
-export let YELLOW = esc("33m");
-export let BLUE = esc("34m");
-export let MAGENTA = esc("35m");
-export let CYAN = esc("36m");
-export let WHITE = esc("37m");
-export let GRAY = esc("90m");
-export let BRIGHT_RED = esc("91m");
-export let BRIGHT_GREEN = esc("92m");
-export let BRIGHT_YELLOW = esc("93m");
-export let BRIGHT_BLUE = esc("94m");
-export let BRIGHT_MAGENTA = esc("95m");
-export let BRIGHT_CYAN = esc("96m");
-export let BRIGHT_WHITE = esc("97m");
+export let BLACK = ESC + "[30m";
+export let RED = ESC + "[31m";
+export let GREEN = ESC + "[32m";
+export let YELLOW = ESC + "[33m";
+export let BLUE = ESC + "[34m";
+export let MAGENTA = ESC + "[35m";
+export let CYAN = ESC + "[36m";
+export let WHITE = ESC + "[37m";
+export let GRAY = ESC + "[90m";
+export let BRIGHT_RED = ESC + "[91m";
+export let BRIGHT_GREEN = ESC + "[92m";
+export let BRIGHT_YELLOW = ESC + "[93m";
+export let BRIGHT_BLUE = ESC + "[94m";
+export let BRIGHT_MAGENTA = ESC + "[95m";
+export let BRIGHT_CYAN = ESC + "[96m";
+export let BRIGHT_WHITE = ESC + "[97m";
 
 // Background colors
-export let BG_BLACK = esc("40m");
-export let BG_RED = esc("41m");
-export let BG_GREEN = esc("42m");
-export let BG_YELLOW = esc("43m");
-export let BG_BLUE = esc("44m");
-export let BG_MAGENTA = esc("45m");
-export let BG_CYAN = esc("46m");
-export let BG_WHITE = esc("47m");
-export let BG_GRAY = esc("100m");
-export let BG_BRIGHT_RED = esc("101m");
-export let BG_BRIGHT_GREEN = esc("102m");
-export let BG_BRIGHT_YELLOW = esc("103m");
-export let BG_BRIGHT_BLUE = esc("104m");
-export let BG_BRIGHT_MAGENTA = esc("105m");
-export let BG_BRIGHT_CYAN = esc("106m");
-export let BG_BRIGHT_WHITE = esc("107m");
+export let BG_BLACK = ESC + "[40m";
+export let BG_RED = ESC + "[41m";
+export let BG_GREEN = ESC + "[42m";
+export let BG_YELLOW = ESC + "[43m";
+export let BG_BLUE = ESC + "[44m";
+export let BG_MAGENTA = ESC + "[45m";
+export let BG_CYAN = ESC + "[46m";
+export let BG_WHITE = ESC + "[47m";
+export let BG_GRAY = ESC + "[100m";
+export let BG_BRIGHT_RED = ESC + "[101m";
+export let BG_BRIGHT_GREEN = ESC + "[102m";
+export let BG_BRIGHT_YELLOW = ESC + "[103m";
+export let BG_BRIGHT_BLUE = ESC + "[104m";
+export let BG_BRIGHT_MAGENTA = ESC + "[105m";
+export let BG_BRIGHT_CYAN = ESC + "[106m";
+export let BG_BRIGHT_WHITE = ESC + "[107m";
 
 // Text styles
-export let RESET = esc("0m");
-export let BOLD = esc("1m");
-export let DIM = esc("2m");
-export let ITALIC = esc("3m");
-export let UNDERLINE = esc("4m");
-export let BLINK = esc("5m");
-export let REVERSE = esc("7m");
-export let HIDDEN = esc("8m");
-export let STRIKETHROUGH = esc("9m");
+export let RESET = ESC + "[0m";
+export let BOLD = ESC + "[1m";
+export let DIM = ESC + "[2m";
+export let ITALIC = ESC + "[3m";
+export let UNDERLINE = ESC + "[4m";
+export let BLINK = ESC + "[5m";
+export let REVERSE = ESC + "[7m";
+export let HIDDEN = ESC + "[8m";
+export let STRIKETHROUGH = ESC + "[9m";
 
 // Reset specific styles
-export let RESET_BOLD = esc("22m");
-export let RESET_ITALIC = esc("23m");
-export let RESET_UNDERLINE = esc("24m");
-export let RESET_BLINK = esc("25m");
-export let RESET_REVERSE = esc("27m");
-export let RESET_HIDDEN = esc("28m");
+export let RESET_BOLD = ESC + "[22m";
+export let RESET_ITALIC = ESC + "[23m";
+export let RESET_UNDERLINE = ESC + "[24m";
+export let RESET_BLINK = ESC + "[25m";
+export let RESET_REVERSE = ESC + "[27m";
+export let RESET_HIDDEN = ESC + "[28m";
 
 // ========== CURSOR CONTROL ==========
 
@@ -95,38 +95,37 @@ export fn move_left(n: i32): string {
 }
 
 // Save cursor position
-export let SAVE_CURSOR = esc("s");
-let esc_char: rune = 27;
-let esc_str: string = esc_char;
-export let SAVE_CURSOR_DEC = esc_str + "7";
+export let SAVE_CURSOR = ESC + "[s";
+let esc_rune: rune = 27;
+export let SAVE_CURSOR_DEC = esc_rune + "7";  // Rune + string concatenation
 
 // Restore cursor position
-export let RESTORE_CURSOR = esc("u");
-export let RESTORE_CURSOR_DEC = esc_str + "8";
+export let RESTORE_CURSOR = ESC + "[u";
+export let RESTORE_CURSOR_DEC = esc_rune + "8";
 
 // Hide/show cursor
-export let HIDE_CURSOR = esc("?25l");
-export let SHOW_CURSOR = esc("?25h");
+export let HIDE_CURSOR = ESC + "[?25l";
+export let SHOW_CURSOR = ESC + "[?25h";
 
 // ========== SCREEN CONTROL ==========
 
 // Clear entire screen
-export let CLEAR_SCREEN = esc("2J");
+export let CLEAR_SCREEN = ESC + "[2J";
 
 // Clear from cursor to end of screen
-export let CLEAR_TO_END = esc("0J");
+export let CLEAR_TO_END = ESC + "[0J";
 
 // Clear from cursor to beginning of screen
-export let CLEAR_TO_START = esc("1J");
+export let CLEAR_TO_START = ESC + "[1J";
 
 // Clear entire line
-export let CLEAR_LINE = esc("2K");
+export let CLEAR_LINE = ESC + "[2K";
 
 // Clear from cursor to end of line
-export let CLEAR_LINE_TO_END = esc("0K");
+export let CLEAR_LINE_TO_END = ESC + "[0K";
 
 // Clear from cursor to start of line
-export let CLEAR_LINE_TO_START = esc("1K");
+export let CLEAR_LINE_TO_START = ESC + "[1K";
 
 // Scroll up by n lines
 export fn scroll_up(n: i32): string {
@@ -244,7 +243,7 @@ export fn ProgressBar(total: i32, width?: 40) {
 
     return {
         // Update progress to a specific value
-        update: fn(value: i32): null {
+        update: fn(value: i32) {
             current = value;
             if (current > total) {
                 current = total;
@@ -257,7 +256,7 @@ export fn ProgressBar(total: i32, width?: 40) {
         },
 
         // Increment progress by 1
-        increment: fn(): null {
+        increment: fn() {
             current = current + 1;
             if (current > total) {
                 current = total;
@@ -267,7 +266,7 @@ export fn ProgressBar(total: i32, width?: 40) {
         },
 
         // Render the progress bar
-        render: fn(): null {
+        render: fn() {
             let percent = 0.0;
             if (total > 0) {
                 percent = current * 100.0 / total;
@@ -308,7 +307,7 @@ export fn ProgressBar(total: i32, width?: 40) {
         },
 
         // Finish the progress bar
-        finish: fn(): null {
+        finish: fn() {
             current = total;
             self.render();
             print("");  // New line
@@ -329,7 +328,7 @@ export fn Spinner(frames?: null) {
 
     return {
         // Start the spinner (must be called in a loop manually)
-        spin: fn(): null {
+        spin: fn() {
             let frame = spinner_frames[frame_index];
             exec("printf '\r" + frame + " '");
 
@@ -341,7 +340,7 @@ export fn Spinner(frames?: null) {
         },
 
         // Finish the spinner
-        finish: fn(message?: ""): null {
+        finish: fn(message?: "") {
             exec("printf '\r'");
             if (message != "") {
                 print(message);
@@ -355,7 +354,7 @@ export fn Spinner(frames?: null) {
         },
 
         // Advance to next frame (without printing)
-        next: fn(): null {
+        next: fn() {
             frame_index = frame_index + 1;
             if (frame_index >= spinner_frames.length) {
                 frame_index = 0;
@@ -389,25 +388,25 @@ export fn SPINNER_CLOCK() {
 // ========== UTILITY FUNCTIONS ==========
 
 // Clear screen and move cursor to top-left
-export fn clear(): null {
+export fn clear() {
     exec("printf '" + CLEAR_SCREEN + move_to(1, 1) + "'");
     return null;
 }
 
 // Print text at specific position
-export fn print_at(row: i32, col: i32, text: string): null {
+export fn print_at(row: i32, col: i32, text: string) {
     exec("printf '" + move_to(row, col) + text + "'");
     return null;
 }
 
 // Print colored text
-export fn print_color(text: string, code: string): null {
+export fn print_color(text: string, code: string) {
     print(color(text, code));
     return null;
 }
 
 // Print styled text (bold, underline, etc.)
-export fn print_styled(text: string, style: string): null {
+export fn print_styled(text: string, style: string) {
     print(style + text + RESET);
     return null;
 }
