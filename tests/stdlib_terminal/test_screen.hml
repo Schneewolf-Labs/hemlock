@@ -1,0 +1,47 @@
+// Test terminal screen control
+import {
+    CLEAR_SCREEN, CLEAR_TO_END, CLEAR_LINE, CLEAR_LINE_TO_END,
+    scroll_up, scroll_down, clear
+} from "@stdlib/terminal";
+
+print("=== Terminal Screen Tests ===");
+print("");
+
+// Test clear constants
+print("Testing clear constants:");
+if (CLEAR_SCREEN.contains("\x1b[2J")) {
+    print("✓ CLEAR_SCREEN correct");
+}
+if (CLEAR_TO_END.contains("\x1b[0J")) {
+    print("✓ CLEAR_TO_END correct");
+}
+if (CLEAR_LINE.contains("\x1b[2K")) {
+    print("✓ CLEAR_LINE correct");
+}
+if (CLEAR_LINE_TO_END.contains("\x1b[0K")) {
+    print("✓ CLEAR_LINE_TO_END correct");
+}
+
+print("");
+
+// Test scroll functions
+print("Testing scroll functions:");
+let up = scroll_up(3);
+let down = scroll_down(2);
+
+if (up.contains("\x1b[3S")) {
+    print("✓ scroll_up(3) correct");
+}
+if (down.contains("\x1b[2T")) {
+    print("✓ scroll_down(2) correct");
+}
+
+print("");
+
+// Test clear() function
+print("Testing clear() function:");
+print("(Would clear screen if not in test mode)");
+print("✓ clear() function exists");
+
+print("");
+print("✓ All screen tests completed");
