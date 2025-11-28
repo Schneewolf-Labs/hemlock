@@ -878,6 +878,22 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_crc32, 1, 0);", result);
             } else if (strcmp(expr->as.ident, "__adler32") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_adler32, 1, 0);", result);
+            // Internal helper builtins
+            } else if (strcmp(expr->as.ident, "__read_u32") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_read_u32, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "__read_u64") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_read_u64, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "__strerror") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_strerror, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "__dirent_name") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_dirent_name, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "__string_to_cstr") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_string_to_cstr, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "__cstr_to_string") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_cstr_to_string, 1, 0);", result);
+            // DNS/Networking builtins
+            } else if (strcmp(expr->as.ident, "dns_resolve") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_dns_resolve, 1, 0);", result);
             } else {
                 codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
             }

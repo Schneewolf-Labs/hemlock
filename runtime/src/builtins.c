@@ -4814,3 +4814,142 @@ HmlValue hml_builtin_adler32(HmlClosureEnv *env, HmlValue data) {
     (void)env;
     return hml_adler32_val(data);
 }
+
+// ========== INTERNAL HELPER OPERATIONS ==========
+
+// Read a u32 value from a pointer
+HmlValue hml_read_u32(HmlValue ptr_val) {
+    if (ptr_val.type != HML_VAL_PTR) {
+        fprintf(stderr, "Runtime error: __read_u32() requires a pointer\n");
+        exit(1);
+    }
+    uint32_t *ptr = (uint32_t*)ptr_val.as.as_ptr;
+    return hml_val_u32(*ptr);
+}
+
+// Read a u64 value from a pointer
+HmlValue hml_read_u64(HmlValue ptr_val) {
+    if (ptr_val.type != HML_VAL_PTR) {
+        fprintf(stderr, "Runtime error: __read_u64() requires a pointer\n");
+        exit(1);
+    }
+    uint64_t *ptr = (uint64_t*)ptr_val.as.as_ptr;
+    return hml_val_u64(*ptr);
+}
+
+// Get the last error string (strerror(errno))
+HmlValue hml_strerror(void) {
+    return hml_val_string(strerror(errno));
+}
+
+// Get the name field from a dirent structure
+HmlValue hml_dirent_name(HmlValue ptr_val) {
+    if (ptr_val.type != HML_VAL_PTR) {
+        fprintf(stderr, "Runtime error: __dirent_name() requires a pointer\n");
+        exit(1);
+    }
+    struct dirent *entry = (struct dirent*)ptr_val.as.as_ptr;
+    return hml_val_string(entry->d_name);
+}
+
+// Convert a Hemlock string to a C string (returns allocated ptr)
+HmlValue hml_string_to_cstr(HmlValue str_val) {
+    if (str_val.type != HML_VAL_STRING) {
+        fprintf(stderr, "Runtime error: __string_to_cstr() requires a string\n");
+        exit(1);
+    }
+    HmlString *str = str_val.as.as_string;
+    char *cstr = malloc(str->length + 1);
+    if (!cstr) {
+        fprintf(stderr, "Runtime error: __string_to_cstr() memory allocation failed\n");
+        exit(1);
+    }
+    memcpy(cstr, str->data, str->length);
+    cstr[str->length] = '\0';
+    return hml_val_ptr(cstr);
+}
+
+// Convert a C string (ptr) to a Hemlock string
+HmlValue hml_cstr_to_string(HmlValue ptr_val) {
+    if (ptr_val.type != HML_VAL_PTR) {
+        fprintf(stderr, "Runtime error: __cstr_to_string() requires a pointer\n");
+        exit(1);
+    }
+    char *cstr = (char*)ptr_val.as.as_ptr;
+    if (!cstr) {
+        return hml_val_string("");
+    }
+    return hml_val_string(cstr);
+}
+
+// Wrapper functions for internal helpers
+HmlValue hml_builtin_read_u32(HmlClosureEnv *env, HmlValue ptr) {
+    (void)env;
+    return hml_read_u32(ptr);
+}
+
+HmlValue hml_builtin_read_u64(HmlClosureEnv *env, HmlValue ptr) {
+    (void)env;
+    return hml_read_u64(ptr);
+}
+
+HmlValue hml_builtin_strerror(HmlClosureEnv *env) {
+    (void)env;
+    return hml_strerror();
+}
+
+HmlValue hml_builtin_dirent_name(HmlClosureEnv *env, HmlValue ptr) {
+    (void)env;
+    return hml_dirent_name(ptr);
+}
+
+HmlValue hml_builtin_string_to_cstr(HmlClosureEnv *env, HmlValue str) {
+    (void)env;
+    return hml_string_to_cstr(str);
+}
+
+HmlValue hml_builtin_cstr_to_string(HmlClosureEnv *env, HmlValue ptr) {
+    (void)env;
+    return hml_cstr_to_string(ptr);
+}
+
+// ========== DNS/NETWORKING OPERATIONS ==========
+
+#include <netdb.h>
+#include <arpa/inet.h>
+
+// Resolve a hostname to IP address string
+HmlValue hml_dns_resolve(HmlValue hostname_val) {
+    if (hostname_val.type != HML_VAL_STRING) {
+        fprintf(stderr, "Runtime error: dns_resolve() requires a string hostname\n");
+        exit(1);
+    }
+
+    HmlString *str = hostname_val.as.as_string;
+    // Create null-terminated string
+    char *hostname = malloc(str->length + 1);
+    if (!hostname) {
+        fprintf(stderr, "Runtime error: dns_resolve() memory allocation failed\n");
+        exit(1);
+    }
+    memcpy(hostname, str->data, str->length);
+    hostname[str->length] = '\0';
+
+    struct hostent *host = gethostbyname(hostname);
+    free(hostname);
+
+    if (!host) {
+        fprintf(stderr, "Runtime error: Failed to resolve hostname\n");
+        exit(1);
+    }
+
+    // Return first IPv4 address
+    char *ip = inet_ntoa(*(struct in_addr *)host->h_addr_list[0]);
+    return hml_val_string(ip);
+}
+
+// Wrapper function for dns_resolve
+HmlValue hml_builtin_dns_resolve(HmlClosureEnv *env, HmlValue hostname) {
+    (void)env;
+    return hml_dns_resolve(hostname);
+}

@@ -442,6 +442,30 @@ HmlValue hml_builtin_zlib_compress_bound(HmlClosureEnv *env, HmlValue source_len
 HmlValue hml_builtin_crc32(HmlClosureEnv *env, HmlValue data);
 HmlValue hml_builtin_adler32(HmlClosureEnv *env, HmlValue data);
 
+// ========== INTERNAL HELPER OPERATIONS ==========
+
+HmlValue hml_read_u32(HmlValue ptr);
+HmlValue hml_read_u64(HmlValue ptr);
+HmlValue hml_strerror(void);
+HmlValue hml_dirent_name(HmlValue ptr);
+HmlValue hml_string_to_cstr(HmlValue str);
+HmlValue hml_cstr_to_string(HmlValue ptr);
+
+// Internal helper builtin wrappers
+HmlValue hml_builtin_read_u32(HmlClosureEnv *env, HmlValue ptr);
+HmlValue hml_builtin_read_u64(HmlClosureEnv *env, HmlValue ptr);
+HmlValue hml_builtin_strerror(HmlClosureEnv *env);
+HmlValue hml_builtin_dirent_name(HmlClosureEnv *env, HmlValue ptr);
+HmlValue hml_builtin_string_to_cstr(HmlClosureEnv *env, HmlValue str);
+HmlValue hml_builtin_cstr_to_string(HmlClosureEnv *env, HmlValue ptr);
+
+// ========== DNS/NETWORKING OPERATIONS ==========
+
+HmlValue hml_dns_resolve(HmlValue hostname);
+
+// DNS builtin wrapper
+HmlValue hml_builtin_dns_resolve(HmlClosureEnv *env, HmlValue hostname);
+
 // ========== SIGNAL HANDLING ==========
 
 // Maximum signal number supported
