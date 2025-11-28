@@ -10,23 +10,50 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <linux/limits.h>
+#include <limits.h>
 #include "../../include/lexer.h"
 #include "../../include/parser.h"
 #include "../../include/ast.h"
 #include "codegen.h"
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
 #define HEMLOCKC_VERSION "0.1.0"
 
-// Get directory containing the hemlockc executable
+// Get directory containing the hemlockc executable (cross-platform)
 static char* get_self_dir(void) {
     static char path[PATH_MAX];
+
+#ifdef __APPLE__
+    uint32_t size = sizeof(path);
+    if (_NSGetExecutablePath(path, &size) != 0) {
+        return NULL;
+    }
+    // Resolve symlinks
+    char *real = realpath(path, NULL);
+    if (real) {
+        strncpy(path, real, sizeof(path) - 1);
+        path[sizeof(path) - 1] = '\0';
+        free(real);
+    }
+#elif defined(__linux__)
     ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
     if (len == -1) {
         return NULL;
     }
     path[len] = '\0';
-    // Find last slash and truncate
+#else
+    // Fallback: try /proc/self/exe anyway
+    ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    if (len == -1) {
+        return NULL;
+    }
+    path[len] = '\0';
+#endif
+
+    // Find last slash and truncate to get directory
     char *last_slash = strrchr(path, '/');
     if (last_slash) {
         *last_slash = '\0';
