@@ -177,16 +177,14 @@ static BuiltinInfo builtins[] = {
     // Note: abs, min, max, clamp are NOT aliased without prefix
     // because they conflict with common variable names.
     // Use __abs, __min, __max, __clamp instead.
+    // Note: now, time_ms, sleep, clock are NOT aliased without prefix
+    // because they conflict with @stdlib/time exports.
+    // Use import { sleep } from "@stdlib/time" instead.
     // Environment functions
     {"getenv", builtin_getenv},
     {"setenv", builtin_setenv},
     {"unsetenv", builtin_unsetenv},
     {"get_pid", builtin_get_pid},
-    // Time functions
-    {"now", builtin_now},
-    {"time_ms", builtin_time_ms},
-    {"sleep", builtin_sleep},
-    {"clock", builtin_clock},
     {NULL, NULL}  // Sentinel
 };
 
