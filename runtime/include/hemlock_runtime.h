@@ -394,6 +394,35 @@ HmlValue hml_builtin_cwd(HmlClosureEnv *env);
 HmlValue hml_builtin_chdir(HmlClosureEnv *env, HmlValue path);
 HmlValue hml_builtin_absolute_path(HmlClosureEnv *env, HmlValue path);
 
+// ========== SYSTEM INFO OPERATIONS ==========
+
+HmlValue hml_platform(void);
+HmlValue hml_arch(void);
+HmlValue hml_hostname(void);
+HmlValue hml_username(void);
+HmlValue hml_homedir(void);
+HmlValue hml_cpu_count(void);
+HmlValue hml_total_memory(void);
+HmlValue hml_free_memory(void);
+HmlValue hml_os_version(void);
+HmlValue hml_os_name(void);
+HmlValue hml_tmpdir(void);
+HmlValue hml_uptime(void);
+
+// System info builtin wrappers
+HmlValue hml_builtin_platform(HmlClosureEnv *env);
+HmlValue hml_builtin_arch(HmlClosureEnv *env);
+HmlValue hml_builtin_hostname(HmlClosureEnv *env);
+HmlValue hml_builtin_username(HmlClosureEnv *env);
+HmlValue hml_builtin_homedir(HmlClosureEnv *env);
+HmlValue hml_builtin_cpu_count(HmlClosureEnv *env);
+HmlValue hml_builtin_total_memory(HmlClosureEnv *env);
+HmlValue hml_builtin_free_memory(HmlClosureEnv *env);
+HmlValue hml_builtin_os_version(HmlClosureEnv *env);
+HmlValue hml_builtin_os_name(HmlClosureEnv *env);
+HmlValue hml_builtin_tmpdir(HmlClosureEnv *env);
+HmlValue hml_builtin_uptime(HmlClosureEnv *env);
+
 // ========== SIGNAL HANDLING ==========
 
 // Maximum signal number supported

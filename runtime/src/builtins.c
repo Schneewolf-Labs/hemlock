@@ -16,10 +16,20 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 #include <dirent.h>
 #include <limits.h>
 #include <dlfcn.h>
 #include <ffi.h>
+#include <pwd.h>
+
+#ifdef __linux__
+#include <sys/sysinfo.h>
+#endif
+
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#endif
 
 // ========== GLOBAL STATE ==========
 
@@ -3171,6 +3181,269 @@ void hml_file_close(HmlValue file) {
         fclose((FILE*)fh->fp);
         fh->closed = 1;
     }
+}
+
+// ========== SYSTEM INFO OPERATIONS ==========
+
+HmlValue hml_platform(void) {
+#ifdef __linux__
+    return hml_val_string("linux");
+#elif defined(__APPLE__)
+    return hml_val_string("macos");
+#elif defined(_WIN32) || defined(_WIN64)
+    return hml_val_string("windows");
+#else
+    return hml_val_string("unknown");
+#endif
+}
+
+HmlValue hml_arch(void) {
+    struct utsname info;
+    if (uname(&info) != 0) {
+        fprintf(stderr, "Error: arch() failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    return hml_val_string(info.machine);
+}
+
+HmlValue hml_hostname(void) {
+    char hostname[256];
+    if (gethostname(hostname, sizeof(hostname)) != 0) {
+        fprintf(stderr, "Error: hostname() failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    return hml_val_string(hostname);
+}
+
+HmlValue hml_username(void) {
+    // Try getlogin_r first
+    char username[256];
+    if (getlogin_r(username, sizeof(username)) == 0) {
+        return hml_val_string(username);
+    }
+
+    // Fall back to getpwuid
+    struct passwd *pw = getpwuid(getuid());
+    if (pw != NULL && pw->pw_name != NULL) {
+        return hml_val_string(pw->pw_name);
+    }
+
+    // Fall back to environment variable
+    char *env_user = getenv("USER");
+    if (env_user != NULL) {
+        return hml_val_string(env_user);
+    }
+
+    fprintf(stderr, "Error: username() failed: could not determine username\n");
+    exit(1);
+}
+
+HmlValue hml_homedir(void) {
+    // Try HOME environment variable first
+    char *home = getenv("HOME");
+    if (home != NULL) {
+        return hml_val_string(home);
+    }
+
+    // Fall back to getpwuid
+    struct passwd *pw = getpwuid(getuid());
+    if (pw != NULL && pw->pw_dir != NULL) {
+        return hml_val_string(pw->pw_dir);
+    }
+
+    fprintf(stderr, "Error: homedir() failed: could not determine home directory\n");
+    exit(1);
+}
+
+HmlValue hml_cpu_count(void) {
+    long nprocs = sysconf(_SC_NPROCESSORS_ONLN);
+    if (nprocs < 1) {
+        nprocs = 1;  // Default to 1 if we can't determine
+    }
+    return hml_val_i32((int32_t)nprocs);
+}
+
+HmlValue hml_total_memory(void) {
+#ifdef __linux__
+    struct sysinfo info;
+    if (sysinfo(&info) != 0) {
+        fprintf(stderr, "Error: total_memory() failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    return hml_val_i64((int64_t)info.totalram * (int64_t)info.mem_unit);
+#elif defined(__APPLE__)
+    int mib[2] = {CTL_HW, HW_MEMSIZE};
+    int64_t memsize;
+    size_t len = sizeof(memsize);
+    if (sysctl(mib, 2, &memsize, &len, NULL, 0) != 0) {
+        fprintf(stderr, "Error: total_memory() failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    return hml_val_i64(memsize);
+#else
+    // Fallback: use sysconf
+    long pages = sysconf(_SC_PHYS_PAGES);
+    long page_size = sysconf(_SC_PAGE_SIZE);
+    if (pages < 0 || page_size < 0) {
+        fprintf(stderr, "Error: total_memory() failed: could not determine memory\n");
+        exit(1);
+    }
+    return hml_val_i64((int64_t)pages * (int64_t)page_size);
+#endif
+}
+
+HmlValue hml_free_memory(void) {
+#ifdef __linux__
+    struct sysinfo info;
+    if (sysinfo(&info) != 0) {
+        fprintf(stderr, "Error: free_memory() failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    int64_t free_mem = (int64_t)info.freeram * (int64_t)info.mem_unit;
+    int64_t buffers = (int64_t)info.bufferram * (int64_t)info.mem_unit;
+    return hml_val_i64(free_mem + buffers);
+#elif defined(__APPLE__)
+    int mib[2] = {CTL_HW, HW_MEMSIZE};
+    int64_t memsize;
+    size_t len = sizeof(memsize);
+    if (sysctl(mib, 2, &memsize, &len, NULL, 0) != 0) {
+        fprintf(stderr, "Error: free_memory() failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    long avail_pages = sysconf(_SC_AVPHYS_PAGES);
+    long page_size = sysconf(_SC_PAGE_SIZE);
+    if (avail_pages >= 0 && page_size >= 0) {
+        return hml_val_i64((int64_t)avail_pages * (int64_t)page_size);
+    }
+    return hml_val_i64(memsize / 10);
+#else
+    long avail_pages = sysconf(_SC_AVPHYS_PAGES);
+    long page_size = sysconf(_SC_PAGE_SIZE);
+    if (avail_pages < 0 || page_size < 0) {
+        fprintf(stderr, "Error: free_memory() failed: could not determine free memory\n");
+        exit(1);
+    }
+    return hml_val_i64((int64_t)avail_pages * (int64_t)page_size);
+#endif
+}
+
+HmlValue hml_os_version(void) {
+    struct utsname info;
+    if (uname(&info) != 0) {
+        fprintf(stderr, "Error: os_version() failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    return hml_val_string(info.release);
+}
+
+HmlValue hml_os_name(void) {
+    struct utsname info;
+    if (uname(&info) != 0) {
+        fprintf(stderr, "Error: os_name() failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    return hml_val_string(info.sysname);
+}
+
+HmlValue hml_tmpdir(void) {
+    char *tmpdir = getenv("TMPDIR");
+    if (tmpdir != NULL && tmpdir[0] != '\0') {
+        return hml_val_string(tmpdir);
+    }
+    tmpdir = getenv("TMP");
+    if (tmpdir != NULL && tmpdir[0] != '\0') {
+        return hml_val_string(tmpdir);
+    }
+    tmpdir = getenv("TEMP");
+    if (tmpdir != NULL && tmpdir[0] != '\0') {
+        return hml_val_string(tmpdir);
+    }
+    return hml_val_string("/tmp");
+}
+
+HmlValue hml_uptime(void) {
+#ifdef __linux__
+    struct sysinfo info;
+    if (sysinfo(&info) != 0) {
+        fprintf(stderr, "Error: uptime() failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    return hml_val_i64((int64_t)info.uptime);
+#elif defined(__APPLE__)
+    struct timeval boottime;
+    size_t len = sizeof(boottime);
+    int mib[2] = {CTL_KERN, KERN_BOOTTIME};
+    if (sysctl(mib, 2, &boottime, &len, NULL, 0) != 0) {
+        fprintf(stderr, "Error: uptime() failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    time_t now = time(NULL);
+    return hml_val_i64((int64_t)(now - boottime.tv_sec));
+#else
+    fprintf(stderr, "Error: uptime() not supported on this platform\n");
+    exit(1);
+#endif
+}
+
+// System info builtin wrappers
+HmlValue hml_builtin_platform(HmlClosureEnv *env) {
+    (void)env;
+    return hml_platform();
+}
+
+HmlValue hml_builtin_arch(HmlClosureEnv *env) {
+    (void)env;
+    return hml_arch();
+}
+
+HmlValue hml_builtin_hostname(HmlClosureEnv *env) {
+    (void)env;
+    return hml_hostname();
+}
+
+HmlValue hml_builtin_username(HmlClosureEnv *env) {
+    (void)env;
+    return hml_username();
+}
+
+HmlValue hml_builtin_homedir(HmlClosureEnv *env) {
+    (void)env;
+    return hml_homedir();
+}
+
+HmlValue hml_builtin_cpu_count(HmlClosureEnv *env) {
+    (void)env;
+    return hml_cpu_count();
+}
+
+HmlValue hml_builtin_total_memory(HmlClosureEnv *env) {
+    (void)env;
+    return hml_total_memory();
+}
+
+HmlValue hml_builtin_free_memory(HmlClosureEnv *env) {
+    (void)env;
+    return hml_free_memory();
+}
+
+HmlValue hml_builtin_os_version(HmlClosureEnv *env) {
+    (void)env;
+    return hml_os_version();
+}
+
+HmlValue hml_builtin_os_name(HmlClosureEnv *env) {
+    (void)env;
+    return hml_os_name();
+}
+
+HmlValue hml_builtin_tmpdir(HmlClosureEnv *env) {
+    (void)env;
+    return hml_tmpdir();
+}
+
+HmlValue hml_builtin_uptime(HmlClosureEnv *env) {
+    (void)env;
+    return hml_uptime();
 }
 
 // ========== FILESYSTEM OPERATIONS ==========
