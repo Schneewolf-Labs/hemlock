@@ -217,6 +217,18 @@ HmlValue hml_file_seek(HmlValue file, HmlValue position);
 HmlValue hml_file_tell(HmlValue file);
 void hml_file_close(HmlValue file);
 
+// ========== SIGNAL HANDLING ==========
+
+// Maximum signal number supported
+#define HML_MAX_SIGNAL 64
+
+// Register a signal handler (handler can be function or null to reset)
+// Returns previous handler
+HmlValue hml_signal(HmlValue signum, HmlValue handler);
+
+// Raise a signal to the current process
+HmlValue hml_raise(HmlValue signum);
+
 // ========== MATH FUNCTIONS ==========
 
 double hml_sin(double x);

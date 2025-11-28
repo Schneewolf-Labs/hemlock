@@ -2592,6 +2592,110 @@ void hml_channel_close(HmlValue channel) {
     pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
 }
 
+// ========== SIGNAL HANDLING ==========
+
+#include <signal.h>
+#include <errno.h>
+
+// Global signal handler table (signal number -> Hemlock function value)
+static HmlValue g_signal_handlers[HML_MAX_SIGNAL];
+static int g_signal_handlers_initialized = 0;
+
+static void init_signal_handlers(void) {
+    if (g_signal_handlers_initialized) return;
+    for (int i = 0; i < HML_MAX_SIGNAL; i++) {
+        g_signal_handlers[i] = hml_val_null();
+    }
+    g_signal_handlers_initialized = 1;
+}
+
+// C signal handler that invokes Hemlock function values
+static void hml_c_signal_handler(int signum) {
+    if (signum < 0 || signum >= HML_MAX_SIGNAL) return;
+
+    HmlValue handler = g_signal_handlers[signum];
+    if (handler.type == HML_VAL_NULL) return;
+
+    if (handler.type == HML_VAL_FUNCTION) {
+        // Call the function with signal number as argument
+        HmlValue sig_arg = hml_val_i32(signum);
+        hml_call_function(handler, &sig_arg, 1);
+    }
+}
+
+HmlValue hml_signal(HmlValue signum, HmlValue handler) {
+    init_signal_handlers();
+
+    // Validate signum
+    if (signum.type != HML_VAL_I32) {
+        fprintf(stderr, "Runtime error: signal() signum must be an integer\n");
+        exit(1);
+    }
+
+    int sig = signum.as.as_i32;
+    if (sig < 0 || sig >= HML_MAX_SIGNAL) {
+        fprintf(stderr, "Runtime error: signal() signum %d out of range [0, %d)\n", sig, HML_MAX_SIGNAL);
+        exit(1);
+    }
+
+    // Validate handler is function or null
+    if (handler.type != HML_VAL_NULL && handler.type != HML_VAL_FUNCTION) {
+        fprintf(stderr, "Runtime error: signal() handler must be a function or null\n");
+        exit(1);
+    }
+
+    // Get previous handler for return
+    HmlValue prev = g_signal_handlers[sig];
+    hml_retain(&prev);
+
+    // Release old handler and store new one
+    hml_release(&g_signal_handlers[sig]);
+    g_signal_handlers[sig] = handler;
+    hml_retain(&g_signal_handlers[sig]);
+
+    // Install or reset C signal handler
+    struct sigaction sa;
+    if (handler.type != HML_VAL_NULL) {
+        sa.sa_handler = hml_c_signal_handler;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_RESTART;
+        if (sigaction(sig, &sa, NULL) != 0) {
+            fprintf(stderr, "Runtime error: signal() failed for signal %d: %s\n", sig, strerror(errno));
+            exit(1);
+        }
+    } else {
+        sa.sa_handler = SIG_DFL;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = 0;
+        if (sigaction(sig, &sa, NULL) != 0) {
+            fprintf(stderr, "Runtime error: signal() failed to reset signal %d: %s\n", sig, strerror(errno));
+            exit(1);
+        }
+    }
+
+    return prev;
+}
+
+HmlValue hml_raise(HmlValue signum) {
+    if (signum.type != HML_VAL_I32) {
+        fprintf(stderr, "Runtime error: raise() signum must be an integer\n");
+        exit(1);
+    }
+
+    int sig = signum.as.as_i32;
+    if (sig < 0 || sig >= HML_MAX_SIGNAL) {
+        fprintf(stderr, "Runtime error: raise() signum %d out of range [0, %d)\n", sig, HML_MAX_SIGNAL);
+        exit(1);
+    }
+
+    if (raise(sig) != 0) {
+        fprintf(stderr, "Runtime error: raise() failed for signal %d: %s\n", sig, strerror(errno));
+        exit(1);
+    }
+
+    return hml_val_null();
+}
+
 // ========== MATH FUNCTIONS ==========
 
 double hml_sin(double x) { return sin(x); }
