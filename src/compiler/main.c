@@ -263,9 +263,14 @@ int main(int argc, char **argv) {
         printf("Generating C code to %s...\n", c_file);
     }
 
+    // Initialize module cache for import support
+    ModuleCache *module_cache = module_cache_new(opts.input_file);
+
     CodegenContext *ctx = codegen_new(output);
+    codegen_set_module_cache(ctx, module_cache);
     codegen_program(ctx, statements, stmt_count);
     codegen_free(ctx);
+    module_cache_free(module_cache);
     fclose(output);
 
     // Cleanup AST

@@ -131,7 +131,7 @@ find_tests() {
 }
 
 # Run tests in each category
-for category in language builtins methods; do
+for category in language builtins methods modules; do
     category_dir="$SCRIPT_DIR/$category"
     if [ -d "$category_dir" ]; then
         test_files=$(find_tests "$category_dir")
