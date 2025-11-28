@@ -584,6 +584,16 @@ void find_free_vars_stmt(Stmt *stmt, Scope *local_scope, FreeVarSet *free_vars) 
             find_free_vars(stmt->as.defer_stmt.call, local_scope, free_vars);
             break;
 
+        case STMT_ENUM:
+            // Enum values are constants, no free variables needed
+            // Just check explicit value expressions
+            for (int i = 0; i < stmt->as.enum_decl.num_variants; i++) {
+                if (stmt->as.enum_decl.variant_values[i]) {
+                    find_free_vars(stmt->as.enum_decl.variant_values[i], local_scope, free_vars);
+                }
+            }
+            break;
+
         default:
             break;
     }
@@ -1523,6 +1533,7 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
         }
 
         case STMT_SWITCH: {
+            // Generate switch using do-while(0) pattern so break works correctly
             char *expr_val = codegen_expr(ctx, stmt->as.switch_stmt.expr);
             int has_default = 0;
             int default_idx = -1;
@@ -1536,39 +1547,62 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
                 }
             }
 
-            codegen_writeln(ctx, "{");
+            codegen_writeln(ctx, "do {");
             codegen_indent_inc(ctx);
-            codegen_writeln(ctx, "int _matched = 0;");
 
-            // Generate case comparisons
+            // Pre-generate all case values to avoid scoping issues
+            char **case_vals = malloc(stmt->as.switch_stmt.num_cases * sizeof(char*));
             for (int i = 0; i < stmt->as.switch_stmt.num_cases; i++) {
-                if (stmt->as.switch_stmt.case_values[i] == NULL) continue;  // Skip default
-
-                char *case_val = codegen_expr(ctx, stmt->as.switch_stmt.case_values[i]);
-                if (i == 0) {
-                    codegen_writeln(ctx, "if (hml_to_bool(hml_binary_op(HML_OP_EQUAL, %s, %s))) {", expr_val, case_val);
+                if (stmt->as.switch_stmt.case_values[i] == NULL) {
+                    case_vals[i] = NULL;
                 } else {
-                    codegen_writeln(ctx, "} else if (hml_to_bool(hml_binary_op(HML_OP_EQUAL, %s, %s))) {", expr_val, case_val);
+                    case_vals[i] = codegen_expr(ctx, stmt->as.switch_stmt.case_values[i]);
+                }
+            }
+
+            // Generate case comparisons as if-else chain
+            int first_case = 1;
+            for (int i = 0; i < stmt->as.switch_stmt.num_cases; i++) {
+                if (case_vals[i] == NULL) continue;  // Skip default
+
+                if (first_case) {
+                    codegen_writeln(ctx, "if (hml_to_bool(hml_binary_op(HML_OP_EQUAL, %s, %s))) {", expr_val, case_vals[i]);
+                    first_case = 0;
+                } else {
+                    codegen_writeln(ctx, "} else if (hml_to_bool(hml_binary_op(HML_OP_EQUAL, %s, %s))) {", expr_val, case_vals[i]);
                 }
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "_matched = 1;");
                 codegen_stmt(ctx, stmt->as.switch_stmt.case_bodies[i]);
                 codegen_indent_dec(ctx);
-                codegen_writeln(ctx, "hml_release(&%s);", case_val);
-                free(case_val);
             }
 
             if (has_default) {
-                codegen_writeln(ctx, "} else {");
-                codegen_indent_inc(ctx);
-                codegen_stmt(ctx, stmt->as.switch_stmt.case_bodies[default_idx]);
-                codegen_indent_dec(ctx);
+                if (first_case) {
+                    // Only default case exists
+                    codegen_stmt(ctx, stmt->as.switch_stmt.case_bodies[default_idx]);
+                } else {
+                    codegen_writeln(ctx, "} else {");
+                    codegen_indent_inc(ctx);
+                    codegen_stmt(ctx, stmt->as.switch_stmt.case_bodies[default_idx]);
+                    codegen_indent_dec(ctx);
+                    codegen_writeln(ctx, "}");
+                }
+            } else if (!first_case) {
+                codegen_writeln(ctx, "}");
             }
-            codegen_writeln(ctx, "}");
+
+            // Release case values
+            for (int i = 0; i < stmt->as.switch_stmt.num_cases; i++) {
+                if (case_vals[i]) {
+                    codegen_writeln(ctx, "hml_release(&%s);", case_vals[i]);
+                    free(case_vals[i]);
+                }
+            }
+            free(case_vals);
 
             codegen_writeln(ctx, "hml_release(&%s);", expr_val);
             codegen_indent_dec(ctx);
-            codegen_writeln(ctx, "}");
+            codegen_writeln(ctx, "} while(0);");
             free(expr_val);
             break;
         }
@@ -1576,6 +1610,42 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
         case STMT_DEFER: {
             // Push the expression onto the defer stack - will be executed at function return
             codegen_defer_push(ctx, stmt->as.defer_stmt.call);
+            break;
+        }
+
+        case STMT_ENUM: {
+            // Generate enum as a const object with variant values
+            char *enum_name = stmt->as.enum_decl.name;
+            codegen_writeln(ctx, "HmlValue %s = hml_val_object();", enum_name);
+
+            int next_value = 0;
+            for (int i = 0; i < stmt->as.enum_decl.num_variants; i++) {
+                char *variant_name = stmt->as.enum_decl.variant_names[i];
+
+                if (stmt->as.enum_decl.variant_values[i]) {
+                    // Explicit value - generate and use it
+                    char *val = codegen_expr(ctx, stmt->as.enum_decl.variant_values[i]);
+                    codegen_writeln(ctx, "hml_object_set_field(%s, \"%s\", %s);",
+                                  enum_name, variant_name, val);
+                    codegen_writeln(ctx, "hml_release(&%s);", val);
+
+                    // Extract numeric value for next_value calculation
+                    // For simplicity, assume explicit values are integer literals
+                    Expr *value_expr = stmt->as.enum_decl.variant_values[i];
+                    if (value_expr->type == EXPR_NUMBER && !value_expr->as.number.is_float) {
+                        next_value = (int)value_expr->as.number.int_value + 1;
+                    }
+                    free(val);
+                } else {
+                    // Auto-incrementing value
+                    codegen_writeln(ctx, "hml_object_set_field(%s, \"%s\", hml_val_i32(%d));",
+                                  enum_name, variant_name, next_value);
+                    next_value++;
+                }
+            }
+
+            // Add enum as local variable
+            codegen_add_local(ctx, enum_name);
             break;
         }
 
@@ -1619,6 +1689,23 @@ static void codegen_function_decl(CodegenContext *ctx, Expr *func, const char *n
     // Add parameters as locals
     for (int i = 0; i < func->as.function.num_params; i++) {
         codegen_add_local(ctx, func->as.function.param_names[i]);
+    }
+
+    // Apply default values for optional parameters
+    // If a parameter with a default is null, assign the default
+    if (func->as.function.param_defaults) {
+        for (int i = 0; i < func->as.function.num_params; i++) {
+            if (func->as.function.param_defaults[i]) {
+                char *param_name = func->as.function.param_names[i];
+                codegen_writeln(ctx, "if (%s.type == HML_VAL_NULL) {", param_name);
+                codegen_indent_inc(ctx);
+                char *default_val = codegen_expr(ctx, func->as.function.param_defaults[i]);
+                codegen_writeln(ctx, "%s = %s;", param_name, default_val);
+                free(default_val);
+                codegen_indent_dec(ctx);
+                codegen_writeln(ctx, "}");
+            }
+        }
     }
 
     // Generate body

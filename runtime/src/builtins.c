@@ -1596,82 +1596,56 @@ HmlValue hml_call_function(HmlValue fn, HmlValue *args, int num_args) {
 
         // Check if this is a closure (has environment)
         void *closure_env = fn.as.as_function->closure_env;
+        int num_params = fn.as.as_function->num_params;
 
-        if (closure_env) {
-            // Closure: first argument is the environment
-            switch (num_args) {
-                case 0: {
-                    typedef HmlValue (*Fn0)(HmlClosureEnv*);
-                    Fn0 f = (Fn0)fn_ptr;
-                    return f((HmlClosureEnv*)closure_env);
-                }
-                case 1: {
-                    typedef HmlValue (*Fn1)(HmlClosureEnv*, HmlValue);
-                    Fn1 f = (Fn1)fn_ptr;
-                    return f((HmlClosureEnv*)closure_env, args[0]);
-                }
-                case 2: {
-                    typedef HmlValue (*Fn2)(HmlClosureEnv*, HmlValue, HmlValue);
-                    Fn2 f = (Fn2)fn_ptr;
-                    return f((HmlClosureEnv*)closure_env, args[0], args[1]);
-                }
-                case 3: {
-                    typedef HmlValue (*Fn3)(HmlClosureEnv*, HmlValue, HmlValue, HmlValue);
-                    Fn3 f = (Fn3)fn_ptr;
-                    return f((HmlClosureEnv*)closure_env, args[0], args[1], args[2]);
-                }
-                case 4: {
-                    typedef HmlValue (*Fn4)(HmlClosureEnv*, HmlValue, HmlValue, HmlValue, HmlValue);
-                    Fn4 f = (Fn4)fn_ptr;
-                    return f((HmlClosureEnv*)closure_env, args[0], args[1], args[2], args[3]);
-                }
-                case 5: {
-                    typedef HmlValue (*Fn5)(HmlClosureEnv*, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue);
-                    Fn5 f = (Fn5)fn_ptr;
-                    return f((HmlClosureEnv*)closure_env, args[0], args[1], args[2], args[3], args[4]);
-                }
-                default:
-                    fprintf(stderr, "Runtime error: Closures with more than 5 arguments not supported\n");
-                    exit(1);
+        // Build args array with nulls for missing optional parameters
+        // Use num_params (from function definition) to determine how many args to pass
+        HmlValue padded_args[6] = {0};  // Max 5 params + 1 for safety
+        for (int i = 0; i < num_params && i < 5; i++) {
+            if (i < num_args) {
+                padded_args[i] = args[i];
+            } else {
+                padded_args[i] = hml_val_null();  // Fill missing with null for optional params
             }
-        } else {
-            // Regular function without captured variables - still pass NULL as closure env
-            // since generated code always expects HmlClosureEnv* as first parameter
-            switch (num_args) {
-                case 0: {
-                    typedef HmlValue (*Fn0)(HmlClosureEnv*);
-                    Fn0 f = (Fn0)fn_ptr;
-                    return f(NULL);
-                }
-                case 1: {
-                    typedef HmlValue (*Fn1)(HmlClosureEnv*, HmlValue);
-                    Fn1 f = (Fn1)fn_ptr;
-                    return f(NULL, args[0]);
-                }
-                case 2: {
-                    typedef HmlValue (*Fn2)(HmlClosureEnv*, HmlValue, HmlValue);
-                    Fn2 f = (Fn2)fn_ptr;
-                    return f(NULL, args[0], args[1]);
-                }
-                case 3: {
-                    typedef HmlValue (*Fn3)(HmlClosureEnv*, HmlValue, HmlValue, HmlValue);
-                    Fn3 f = (Fn3)fn_ptr;
-                    return f(NULL, args[0], args[1], args[2]);
-                }
-                case 4: {
-                    typedef HmlValue (*Fn4)(HmlClosureEnv*, HmlValue, HmlValue, HmlValue, HmlValue);
-                    Fn4 f = (Fn4)fn_ptr;
-                    return f(NULL, args[0], args[1], args[2], args[3]);
-                }
-                case 5: {
-                    typedef HmlValue (*Fn5)(HmlClosureEnv*, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue);
-                    Fn5 f = (Fn5)fn_ptr;
-                    return f(NULL, args[0], args[1], args[2], args[3], args[4]);
-                }
-                default:
-                    fprintf(stderr, "Runtime error: Functions with more than 5 arguments not supported\n");
-                    exit(1);
+        }
+
+        // Use num_params for the function signature since that's how many params it expects
+        HmlClosureEnv *env = closure_env ? (HmlClosureEnv*)closure_env : NULL;
+
+        switch (num_params) {
+            case 0: {
+                typedef HmlValue (*Fn0)(HmlClosureEnv*);
+                Fn0 f = (Fn0)fn_ptr;
+                return f(env);
             }
+            case 1: {
+                typedef HmlValue (*Fn1)(HmlClosureEnv*, HmlValue);
+                Fn1 f = (Fn1)fn_ptr;
+                return f(env, padded_args[0]);
+            }
+            case 2: {
+                typedef HmlValue (*Fn2)(HmlClosureEnv*, HmlValue, HmlValue);
+                Fn2 f = (Fn2)fn_ptr;
+                return f(env, padded_args[0], padded_args[1]);
+            }
+            case 3: {
+                typedef HmlValue (*Fn3)(HmlClosureEnv*, HmlValue, HmlValue, HmlValue);
+                Fn3 f = (Fn3)fn_ptr;
+                return f(env, padded_args[0], padded_args[1], padded_args[2]);
+            }
+            case 4: {
+                typedef HmlValue (*Fn4)(HmlClosureEnv*, HmlValue, HmlValue, HmlValue, HmlValue);
+                Fn4 f = (Fn4)fn_ptr;
+                return f(env, padded_args[0], padded_args[1], padded_args[2], padded_args[3]);
+            }
+            case 5: {
+                typedef HmlValue (*Fn5)(HmlClosureEnv*, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue);
+                Fn5 f = (Fn5)fn_ptr;
+                return f(env, padded_args[0], padded_args[1], padded_args[2], padded_args[3], padded_args[4]);
+            }
+            default:
+                fprintf(stderr, "Runtime error: Functions with more than 5 arguments not supported\n");
+                exit(1);
         }
     }
 
