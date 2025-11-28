@@ -74,6 +74,9 @@ int hml_values_equal(HmlValue left, HmlValue right);
 void hml_assert(HmlValue condition, HmlValue message);
 void hml_panic(HmlValue message);
 
+// Command execution
+HmlValue hml_exec(HmlValue command);
+
 // ========== STRING OPERATIONS ==========
 
 HmlValue hml_string_concat(HmlValue a, HmlValue b);

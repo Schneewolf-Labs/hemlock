@@ -460,6 +460,18 @@ void find_free_vars(Expr *expr, Scope *local_scope, FreeVarSet *free_vars) {
             find_free_vars(expr->as.null_coalesce.right, local_scope, free_vars);
             break;
 
+        case EXPR_OPTIONAL_CHAIN:
+            find_free_vars(expr->as.optional_chain.object, local_scope, free_vars);
+            if (expr->as.optional_chain.index) {
+                find_free_vars(expr->as.optional_chain.index, local_scope, free_vars);
+            }
+            if (expr->as.optional_chain.args) {
+                for (int i = 0; i < expr->as.optional_chain.num_args; i++) {
+                    find_free_vars(expr->as.optional_chain.args[i], local_scope, free_vars);
+                }
+            }
+            break;
+
         case EXPR_PREFIX_INC:
             find_free_vars(expr->as.prefix_inc.operand, local_scope, free_vars);
             break;
@@ -780,6 +792,15 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                         codegen_writeln(ctx, "hml_panic(hml_val_string(\"panic!\"));");
                     }
                     codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
+                    break;
+                }
+
+                // Handle exec builtin for command execution
+                if (strcmp(fn_name, "exec") == 0 && expr->as.call.num_args == 1) {
+                    char *cmd = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_exec(%s);", result, cmd);
+                    codegen_writeln(ctx, "hml_release(&%s);", cmd);
+                    free(cmd);
                     break;
                 }
 
@@ -1503,6 +1524,75 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
             break;
         }
 
+        case EXPR_OPTIONAL_CHAIN: {
+            // obj?.property or obj?.[index] or obj?.method()
+            char *obj = codegen_expr(ctx, expr->as.optional_chain.object);
+            codegen_writeln(ctx, "HmlValue %s;", result);
+            codegen_writeln(ctx, "if (hml_is_null(%s)) {", obj);
+            codegen_indent_inc(ctx);
+            codegen_writeln(ctx, "%s = hml_val_null();", result);
+            codegen_indent_dec(ctx);
+            codegen_writeln(ctx, "} else {");
+            codegen_indent_inc(ctx);
+
+            if (expr->as.optional_chain.is_property) {
+                // obj?.property - check for built-in properties like .length
+                const char *prop = expr->as.optional_chain.property;
+                if (strcmp(prop, "length") == 0) {
+                    codegen_writeln(ctx, "if (%s.type == HML_VAL_ARRAY) {", obj);
+                    codegen_indent_inc(ctx);
+                    codegen_writeln(ctx, "%s = hml_array_length(%s);", result, obj);
+                    codegen_indent_dec(ctx);
+                    codegen_writeln(ctx, "} else if (%s.type == HML_VAL_STRING) {", obj);
+                    codegen_indent_inc(ctx);
+                    codegen_writeln(ctx, "%s = hml_string_length(%s);", result, obj);
+                    codegen_indent_dec(ctx);
+                    codegen_writeln(ctx, "} else if (%s.type == HML_VAL_BUFFER) {", obj);
+                    codegen_indent_inc(ctx);
+                    codegen_writeln(ctx, "%s = hml_buffer_length(%s);", result, obj);
+                    codegen_indent_dec(ctx);
+                    codegen_writeln(ctx, "} else {");
+                    codegen_indent_inc(ctx);
+                    codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"length\");", result, obj);
+                    codegen_indent_dec(ctx);
+                    codegen_writeln(ctx, "}");
+                } else {
+                    codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"%s\");", result, obj, prop);
+                }
+            } else if (expr->as.optional_chain.is_call) {
+                // obj?.method(args) - not yet supported
+                codegen_writeln(ctx, "%s = hml_val_null(); // optional call not supported", result);
+            } else {
+                // obj?.[index]
+                char *idx = codegen_expr(ctx, expr->as.optional_chain.index);
+                codegen_writeln(ctx, "if (%s.type == HML_VAL_ARRAY) {", obj);
+                codegen_indent_inc(ctx);
+                codegen_writeln(ctx, "%s = hml_array_get(%s, %s);", result, obj, idx);
+                codegen_indent_dec(ctx);
+                codegen_writeln(ctx, "} else if (%s.type == HML_VAL_STRING) {", obj);
+                codegen_indent_inc(ctx);
+                codegen_writeln(ctx, "%s = hml_string_index(%s, %s);", result, obj, idx);
+                codegen_indent_dec(ctx);
+                codegen_writeln(ctx, "} else if (%s.type == HML_VAL_BUFFER) {", obj);
+                codegen_indent_inc(ctx);
+                codegen_writeln(ctx, "%s = hml_buffer_get(%s, %s);", result, obj, idx);
+                codegen_indent_dec(ctx);
+                codegen_writeln(ctx, "} else {");
+                codegen_indent_inc(ctx);
+                codegen_writeln(ctx, "%s = hml_val_null();", result);
+                codegen_indent_dec(ctx);
+                codegen_writeln(ctx, "}");
+                codegen_writeln(ctx, "hml_release(&%s);", idx);
+                free(idx);
+            }
+
+            codegen_indent_dec(ctx);
+            codegen_writeln(ctx, "}");
+            codegen_writeln(ctx, "hml_release(&%s);", obj);
+            free(obj);
+            break;
+        }
+
         default:
             codegen_writeln(ctx, "HmlValue %s = hml_val_null(); // Unsupported expression type %d", result, expr->type);
             break;
@@ -2189,6 +2279,11 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
     codegen_write(ctx, "int main(int argc, char **argv) {\n");
     codegen_indent_inc(ctx);
     codegen_writeln(ctx, "hml_runtime_init(argc, argv);");
+    codegen_writeln(ctx, "");
+
+    // Generate global args array from command-line arguments
+    codegen_writeln(ctx, "HmlValue args = hml_get_args();");
+    codegen_add_local(ctx, "args");
     codegen_writeln(ctx, "");
 
     // Generate global variable declarations for functions

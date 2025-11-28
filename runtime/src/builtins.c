@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <errno.h>
+#include <sys/wait.h>
 #include <dlfcn.h>
 #include <ffi.h>
 
@@ -272,6 +274,90 @@ void hml_panic(HmlValue message) {
     print_value_to(stderr, message);
     fprintf(stderr, "\n");
     exit(1);
+}
+
+// ========== COMMAND EXECUTION ==========
+
+HmlValue hml_exec(HmlValue command) {
+    if (command.type != HML_VAL_STRING || !command.as.as_string) {
+        fprintf(stderr, "Runtime error: exec() argument must be a string\n");
+        exit(1);
+    }
+
+    HmlString *cmd_str = command.as.as_string;
+    char *ccmd = malloc(cmd_str->length + 1);
+    if (!ccmd) {
+        fprintf(stderr, "Runtime error: exec() memory allocation failed\n");
+        exit(1);
+    }
+    memcpy(ccmd, cmd_str->data, cmd_str->length);
+    ccmd[cmd_str->length] = '\0';
+
+    // Open pipe to read command output
+    FILE *pipe = popen(ccmd, "r");
+    if (!pipe) {
+        fprintf(stderr, "Runtime error: Failed to execute command '%s': %s\n", ccmd, strerror(errno));
+        free(ccmd);
+        exit(1);
+    }
+
+    // Read output into buffer
+    char *output_buffer = NULL;
+    size_t output_size = 0;
+    size_t output_capacity = 4096;
+    output_buffer = malloc(output_capacity);
+    if (!output_buffer) {
+        fprintf(stderr, "Runtime error: exec() memory allocation failed\n");
+        pclose(pipe);
+        free(ccmd);
+        exit(1);
+    }
+
+    char chunk[4096];
+    size_t bytes_read;
+    while ((bytes_read = fread(chunk, 1, sizeof(chunk), pipe)) > 0) {
+        // Grow buffer if needed
+        while (output_size + bytes_read > output_capacity) {
+            output_capacity *= 2;
+            char *new_buffer = realloc(output_buffer, output_capacity);
+            if (!new_buffer) {
+                fprintf(stderr, "Runtime error: exec() memory allocation failed\n");
+                free(output_buffer);
+                pclose(pipe);
+                free(ccmd);
+                exit(1);
+            }
+            output_buffer = new_buffer;
+        }
+        memcpy(output_buffer + output_size, chunk, bytes_read);
+        output_size += bytes_read;
+    }
+
+    // Get exit code
+    int status = pclose(pipe);
+    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    free(ccmd);
+
+    // Ensure string is null-terminated
+    if (output_size >= output_capacity) {
+        output_capacity = output_size + 1;
+        char *new_buffer = realloc(output_buffer, output_capacity);
+        if (!new_buffer) {
+            fprintf(stderr, "Runtime error: exec() memory allocation failed\n");
+            free(output_buffer);
+            exit(1);
+        }
+        output_buffer = new_buffer;
+    }
+    output_buffer[output_size] = '\0';
+
+    // Create result object with output and exit_code
+    HmlValue result = hml_val_object();
+    hml_object_set_field(result, "output", hml_val_string(output_buffer));
+    hml_object_set_field(result, "exit_code", hml_val_i32(exit_code));
+    free(output_buffer);
+
+    return result;
 }
 
 // ========== BINARY OPERATIONS ==========
