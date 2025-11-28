@@ -1555,6 +1555,438 @@ int hml_object_has_field(HmlValue obj, const char *field) {
     return 0;
 }
 
+// ========== SERIALIZATION (JSON) ==========
+
+// Visited set for cycle detection
+typedef struct HmlVisitedSet {
+    void **items;
+    int count;
+    int capacity;
+} HmlVisitedSet;
+
+static void visited_init(HmlVisitedSet *set) {
+    set->items = NULL;
+    set->count = 0;
+    set->capacity = 0;
+}
+
+static void visited_free(HmlVisitedSet *set) {
+    free(set->items);
+}
+
+static int visited_contains(HmlVisitedSet *set, void *ptr) {
+    for (int i = 0; i < set->count; i++) {
+        if (set->items[i] == ptr) return 1;
+    }
+    return 0;
+}
+
+static void visited_add(HmlVisitedSet *set, void *ptr) {
+    if (set->count >= set->capacity) {
+        int new_cap = (set->capacity == 0) ? 16 : set->capacity * 2;
+        set->items = realloc(set->items, new_cap * sizeof(void*));
+        set->capacity = new_cap;
+    }
+    set->items[set->count++] = ptr;
+}
+
+// Escape string for JSON
+static char* json_escape_string(const char *str) {
+    if (!str) return strdup("");
+
+    int len = strlen(str);
+    char *escaped = malloc(len * 2 + 1);  // Worst case: every char escaped
+    char *p = escaped;
+
+    while (*str) {
+        switch (*str) {
+            case '"':  *p++ = '\\'; *p++ = '"'; break;
+            case '\\': *p++ = '\\'; *p++ = '\\'; break;
+            case '\n': *p++ = '\\'; *p++ = 'n'; break;
+            case '\r': *p++ = '\\'; *p++ = 'r'; break;
+            case '\t': *p++ = '\\'; *p++ = 't'; break;
+            default:   *p++ = *str; break;
+        }
+        str++;
+    }
+    *p = '\0';
+    return escaped;
+}
+
+// Forward declaration
+static char* serialize_value_impl(HmlValue val, HmlVisitedSet *visited);
+
+static char* serialize_value_impl(HmlValue val, HmlVisitedSet *visited) {
+    char buffer[256];
+
+    switch (val.type) {
+        case HML_VAL_I8:
+            snprintf(buffer, sizeof(buffer), "%d", val.as.as_i8);
+            return strdup(buffer);
+        case HML_VAL_I16:
+            snprintf(buffer, sizeof(buffer), "%d", val.as.as_i16);
+            return strdup(buffer);
+        case HML_VAL_I32:
+            snprintf(buffer, sizeof(buffer), "%d", val.as.as_i32);
+            return strdup(buffer);
+        case HML_VAL_I64:
+            snprintf(buffer, sizeof(buffer), "%ld", val.as.as_i64);
+            return strdup(buffer);
+        case HML_VAL_U8:
+            snprintf(buffer, sizeof(buffer), "%u", val.as.as_u8);
+            return strdup(buffer);
+        case HML_VAL_U16:
+            snprintf(buffer, sizeof(buffer), "%u", val.as.as_u16);
+            return strdup(buffer);
+        case HML_VAL_U32:
+            snprintf(buffer, sizeof(buffer), "%u", val.as.as_u32);
+            return strdup(buffer);
+        case HML_VAL_U64:
+            snprintf(buffer, sizeof(buffer), "%lu", val.as.as_u64);
+            return strdup(buffer);
+        case HML_VAL_F32:
+            snprintf(buffer, sizeof(buffer), "%g", val.as.as_f32);
+            return strdup(buffer);
+        case HML_VAL_F64:
+            snprintf(buffer, sizeof(buffer), "%g", val.as.as_f64);
+            return strdup(buffer);
+        case HML_VAL_BOOL:
+            return strdup(val.as.as_bool ? "true" : "false");
+        case HML_VAL_STRING: {
+            char *escaped = json_escape_string(val.as.as_string->data);
+            int len = strlen(escaped) + 3;
+            char *result = malloc(len);
+            snprintf(result, len, "\"%s\"", escaped);
+            free(escaped);
+            return result;
+        }
+        case HML_VAL_NULL:
+            return strdup("null");
+        case HML_VAL_OBJECT: {
+            HmlObject *obj = val.as.as_object;
+            if (!obj) return strdup("null");
+
+            // Check for cycles
+            if (visited_contains(visited, obj)) {
+                fprintf(stderr, "Runtime error: serialize() detected circular reference\n");
+                exit(1);
+            }
+            visited_add(visited, obj);
+
+            // Build JSON object
+            size_t capacity = 256;
+            size_t len = 0;
+            char *json = malloc(capacity);
+            json[len++] = '{';
+
+            for (int i = 0; i < obj->num_fields; i++) {
+                char *escaped_name = json_escape_string(obj->field_names[i]);
+                char *value_str = serialize_value_impl(obj->field_values[i], visited);
+
+                size_t needed = len + strlen(escaped_name) + strlen(value_str) + 10;
+                while (capacity < needed) capacity *= 2;
+                json = realloc(json, capacity);
+
+                len += snprintf(json + len, capacity - len, "\"%s\":%s",
+                               escaped_name, value_str);
+
+                if (i < obj->num_fields - 1) json[len++] = ',';
+
+                free(escaped_name);
+                free(value_str);
+            }
+
+            json[len++] = '}';
+            json[len] = '\0';
+            return json;
+        }
+        case HML_VAL_ARRAY: {
+            HmlArray *arr = val.as.as_array;
+            if (!arr) return strdup("null");
+
+            // Check for cycles
+            if (visited_contains(visited, arr)) {
+                fprintf(stderr, "Runtime error: serialize() detected circular reference\n");
+                exit(1);
+            }
+            visited_add(visited, arr);
+
+            // Build JSON array
+            size_t capacity = 256;
+            size_t len = 0;
+            char *json = malloc(capacity);
+            json[len++] = '[';
+
+            for (int i = 0; i < arr->length; i++) {
+                char *elem_str = serialize_value_impl(arr->elements[i], visited);
+
+                size_t needed = len + strlen(elem_str) + 2;
+                while (capacity < needed) capacity *= 2;
+                json = realloc(json, capacity);
+
+                len += snprintf(json + len, capacity - len, "%s", elem_str);
+
+                if (i < arr->length - 1) json[len++] = ',';
+
+                free(elem_str);
+            }
+
+            json[len++] = ']';
+            json[len] = '\0';
+            return json;
+        }
+        default:
+            fprintf(stderr, "Runtime error: Cannot serialize value of this type\n");
+            exit(1);
+    }
+}
+
+HmlValue hml_serialize(HmlValue val) {
+    HmlVisitedSet visited;
+    visited_init(&visited);
+
+    char *json = serialize_value_impl(val, &visited);
+
+    visited_free(&visited);
+
+    return hml_val_string_owned(json, strlen(json), strlen(json) + 1);
+}
+
+// JSON Parser state
+typedef struct {
+    const char *input;
+    int pos;
+} HmlJSONParser;
+
+static void json_skip_whitespace(HmlJSONParser *p) {
+    while (p->input[p->pos] == ' ' || p->input[p->pos] == '\t' ||
+           p->input[p->pos] == '\n' || p->input[p->pos] == '\r') {
+        p->pos++;
+    }
+}
+
+// Forward declarations
+static HmlValue json_parse_value(HmlJSONParser *p);
+static HmlValue json_parse_string(HmlJSONParser *p);
+static HmlValue json_parse_number(HmlJSONParser *p);
+static HmlValue json_parse_object(HmlJSONParser *p);
+static HmlValue json_parse_array(HmlJSONParser *p);
+
+static HmlValue json_parse_string(HmlJSONParser *p) {
+    if (p->input[p->pos] != '"') {
+        fprintf(stderr, "Runtime error: Expected '\"' in JSON\n");
+        exit(1);
+    }
+    p->pos++;  // skip opening quote
+
+    int len = 0;
+    char *buf = malloc(256);
+    int capacity = 256;
+
+    while (p->input[p->pos] != '"' && p->input[p->pos] != '\0') {
+        if (len >= capacity - 1) {
+            capacity *= 2;
+            buf = realloc(buf, capacity);
+        }
+
+        if (p->input[p->pos] == '\\') {
+            p->pos++;
+            switch (p->input[p->pos]) {
+                case 'n': buf[len++] = '\n'; break;
+                case 'r': buf[len++] = '\r'; break;
+                case 't': buf[len++] = '\t'; break;
+                case '"': buf[len++] = '"'; break;
+                case '\\': buf[len++] = '\\'; break;
+                default:
+                    free(buf);
+                    fprintf(stderr, "Runtime error: Invalid escape sequence in JSON\n");
+                    exit(1);
+            }
+            p->pos++;
+        } else {
+            buf[len++] = p->input[p->pos++];
+        }
+    }
+
+    if (p->input[p->pos] != '"') {
+        free(buf);
+        fprintf(stderr, "Runtime error: Unterminated string in JSON\n");
+        exit(1);
+    }
+    p->pos++;  // skip closing quote
+
+    buf[len] = '\0';
+    HmlValue result = hml_val_string_owned(buf, len, capacity);
+    return result;
+}
+
+static HmlValue json_parse_number(HmlJSONParser *p) {
+    int start = p->pos;
+    int is_float = 0;
+
+    if (p->input[p->pos] == '-') p->pos++;
+
+    while (p->input[p->pos] >= '0' && p->input[p->pos] <= '9') p->pos++;
+
+    if (p->input[p->pos] == '.') {
+        is_float = 1;
+        p->pos++;
+        while (p->input[p->pos] >= '0' && p->input[p->pos] <= '9') p->pos++;
+    }
+
+    char *num_str = strndup(p->input + start, p->pos - start);
+    HmlValue result;
+    if (is_float) {
+        result = hml_val_f64(atof(num_str));
+    } else {
+        result = hml_val_i32(atoi(num_str));
+    }
+    free(num_str);
+    return result;
+}
+
+static HmlValue json_parse_object(HmlJSONParser *p) {
+    if (p->input[p->pos] != '{') {
+        fprintf(stderr, "Runtime error: Expected '{' in JSON\n");
+        exit(1);
+    }
+    p->pos++;
+
+    HmlValue obj = hml_val_object();
+
+    json_skip_whitespace(p);
+
+    if (p->input[p->pos] == '}') {
+        p->pos++;
+        return obj;
+    }
+
+    while (p->input[p->pos] != '}' && p->input[p->pos] != '\0') {
+        json_skip_whitespace(p);
+
+        HmlValue name_val = json_parse_string(p);
+        char *field_name = strdup(name_val.as.as_string->data);
+        hml_release(&name_val);
+
+        json_skip_whitespace(p);
+
+        if (p->input[p->pos] != ':') {
+            free(field_name);
+            fprintf(stderr, "Runtime error: Expected ':' in JSON object\n");
+            exit(1);
+        }
+        p->pos++;
+
+        json_skip_whitespace(p);
+
+        HmlValue field_value = json_parse_value(p);
+        hml_object_set_field(obj, field_name, field_value);
+        hml_release(&field_value);
+        free(field_name);
+
+        json_skip_whitespace(p);
+
+        if (p->input[p->pos] == ',') {
+            p->pos++;
+        } else if (p->input[p->pos] != '}') {
+            fprintf(stderr, "Runtime error: Expected ',' or '}' in JSON object\n");
+            exit(1);
+        }
+    }
+
+    if (p->input[p->pos] != '}') {
+        fprintf(stderr, "Runtime error: Unterminated object in JSON\n");
+        exit(1);
+    }
+    p->pos++;
+
+    return obj;
+}
+
+static HmlValue json_parse_array(HmlJSONParser *p) {
+    if (p->input[p->pos] != '[') {
+        fprintf(stderr, "Runtime error: Expected '[' in JSON\n");
+        exit(1);
+    }
+    p->pos++;
+
+    HmlValue arr = hml_val_array();
+
+    json_skip_whitespace(p);
+
+    if (p->input[p->pos] == ']') {
+        p->pos++;
+        return arr;
+    }
+
+    while (p->input[p->pos] != ']' && p->input[p->pos] != '\0') {
+        json_skip_whitespace(p);
+
+        HmlValue elem = json_parse_value(p);
+        hml_array_push(arr, elem);
+        hml_release(&elem);
+
+        json_skip_whitespace(p);
+
+        if (p->input[p->pos] == ',') {
+            p->pos++;
+        } else if (p->input[p->pos] != ']') {
+            fprintf(stderr, "Runtime error: Expected ',' or ']' in JSON array\n");
+            exit(1);
+        }
+    }
+
+    if (p->input[p->pos] != ']') {
+        fprintf(stderr, "Runtime error: Unterminated array in JSON\n");
+        exit(1);
+    }
+    p->pos++;
+
+    return arr;
+}
+
+static HmlValue json_parse_value(HmlJSONParser *p) {
+    json_skip_whitespace(p);
+
+    char c = p->input[p->pos];
+
+    if (c == '"') return json_parse_string(p);
+    if (c == '{') return json_parse_object(p);
+    if (c == '[') return json_parse_array(p);
+    if (c == 't' && strncmp(p->input + p->pos, "true", 4) == 0) {
+        p->pos += 4;
+        return hml_val_bool(1);
+    }
+    if (c == 'f' && strncmp(p->input + p->pos, "false", 5) == 0) {
+        p->pos += 5;
+        return hml_val_bool(0);
+    }
+    if (c == 'n' && strncmp(p->input + p->pos, "null", 4) == 0) {
+        p->pos += 4;
+        return hml_val_null();
+    }
+    if (c == '-' || (c >= '0' && c <= '9')) {
+        return json_parse_number(p);
+    }
+
+    fprintf(stderr, "Runtime error: Unexpected character '%c' in JSON\n", c);
+    exit(1);
+}
+
+HmlValue hml_deserialize(HmlValue json_str) {
+    if (json_str.type != HML_VAL_STRING || !json_str.as.as_string) {
+        fprintf(stderr, "Runtime error: deserialize() requires string argument\n");
+        exit(1);
+    }
+
+    HmlJSONParser parser = {
+        .input = json_str.as.as_string->data,
+        .pos = 0
+    };
+
+    return json_parse_value(&parser);
+}
+
 // ========== EXCEPTION HANDLING ==========
 
 HmlExceptionContext* hml_exception_push(void) {

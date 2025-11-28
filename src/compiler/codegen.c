@@ -1011,6 +1011,11 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
                 } else if (strcmp(method, "recv") == 0 && expr->as.call.num_args == 0) {
                     codegen_writeln(ctx, "HmlValue %s = hml_channel_recv(%s);", result, obj_val);
+                // Serialization methods
+                } else if (strcmp(method, "serialize") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_serialize(%s);", result, obj_val);
+                } else if (strcmp(method, "deserialize") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_deserialize(%s);", result, obj_val);
                 } else {
                     // Unknown built-in method - try as object method call
                     if (expr->as.call.num_args > 0) {

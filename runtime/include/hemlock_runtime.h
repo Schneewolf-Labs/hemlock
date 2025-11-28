@@ -137,6 +137,14 @@ HmlValue hml_object_get_field(HmlValue obj, const char *field);
 void hml_object_set_field(HmlValue obj, const char *field, HmlValue val);
 int hml_object_has_field(HmlValue obj, const char *field);
 
+// ========== SERIALIZATION (JSON) ==========
+
+// Serialize a value to JSON string
+HmlValue hml_serialize(HmlValue val);
+
+// Deserialize JSON string to value
+HmlValue hml_deserialize(HmlValue json_str);
+
 // ========== MEMORY OPERATIONS ==========
 
 HmlValue hml_alloc(int32_t size);
