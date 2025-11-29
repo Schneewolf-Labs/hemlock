@@ -941,6 +941,39 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_tmpdir, 0, 0);", result);
             } else if (strcmp(expr->as.ident, "uptime") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_uptime, 0, 0);", result);
+            // Filesystem builtins
+            } else if (strcmp(expr->as.ident, "exists") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_exists, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "read_file") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_read_file, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "write_file") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_write_file, 2, 0);", result);
+            } else if (strcmp(expr->as.ident, "append_file") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_append_file, 2, 0);", result);
+            } else if (strcmp(expr->as.ident, "remove_file") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_remove_file, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "rename") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_rename, 2, 0);", result);
+            } else if (strcmp(expr->as.ident, "copy_file") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_copy_file, 2, 0);", result);
+            } else if (strcmp(expr->as.ident, "is_file") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_is_file, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "is_dir") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_is_dir, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "file_stat") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_file_stat, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "make_dir") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_make_dir, 2, 0);", result);
+            } else if (strcmp(expr->as.ident, "remove_dir") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_remove_dir, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "list_dir") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_list_dir, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "cwd") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_cwd, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "chdir") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_chdir, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "absolute_path") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_absolute_path, 1, 0);", result);
             // Unprefixed aliases for math functions (for parity with interpreter)
             } else if (strcmp(expr->as.ident, "sin") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_sin, 1, 0);", result);
@@ -1695,6 +1728,168 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 // uptime()
                 if (strcmp(fn_name, "uptime") == 0 && expr->as.call.num_args == 0) {
                     codegen_writeln(ctx, "HmlValue %s = hml_uptime();", result);
+                    break;
+                }
+
+                // ========== FILESYSTEM BUILTINS ==========
+
+                // exists(path)
+                if (strcmp(fn_name, "exists") == 0 && expr->as.call.num_args == 1) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_exists(%s);", result, path);
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    free(path);
+                    break;
+                }
+
+                // read_file(path)
+                if (strcmp(fn_name, "read_file") == 0 && expr->as.call.num_args == 1) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_read_file(%s);", result, path);
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    free(path);
+                    break;
+                }
+
+                // write_file(path, content)
+                if (strcmp(fn_name, "write_file") == 0 && expr->as.call.num_args == 2) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *content = codegen_expr(ctx, expr->as.call.args[1]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_write_file(%s, %s);", result, path, content);
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    codegen_writeln(ctx, "hml_release(&%s);", content);
+                    free(path);
+                    free(content);
+                    break;
+                }
+
+                // append_file(path, content)
+                if (strcmp(fn_name, "append_file") == 0 && expr->as.call.num_args == 2) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *content = codegen_expr(ctx, expr->as.call.args[1]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_append_file(%s, %s);", result, path, content);
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    codegen_writeln(ctx, "hml_release(&%s);", content);
+                    free(path);
+                    free(content);
+                    break;
+                }
+
+                // remove_file(path)
+                if (strcmp(fn_name, "remove_file") == 0 && expr->as.call.num_args == 1) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_remove_file(%s);", result, path);
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    free(path);
+                    break;
+                }
+
+                // rename(old_path, new_path)
+                if (strcmp(fn_name, "rename") == 0 && expr->as.call.num_args == 2) {
+                    char *old_path = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *new_path = codegen_expr(ctx, expr->as.call.args[1]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_rename_file(%s, %s);", result, old_path, new_path);
+                    codegen_writeln(ctx, "hml_release(&%s);", old_path);
+                    codegen_writeln(ctx, "hml_release(&%s);", new_path);
+                    free(old_path);
+                    free(new_path);
+                    break;
+                }
+
+                // copy_file(src, dest)
+                if (strcmp(fn_name, "copy_file") == 0 && expr->as.call.num_args == 2) {
+                    char *src = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *dest = codegen_expr(ctx, expr->as.call.args[1]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_copy_file(%s, %s);", result, src, dest);
+                    codegen_writeln(ctx, "hml_release(&%s);", src);
+                    codegen_writeln(ctx, "hml_release(&%s);", dest);
+                    free(src);
+                    free(dest);
+                    break;
+                }
+
+                // is_file(path)
+                if (strcmp(fn_name, "is_file") == 0 && expr->as.call.num_args == 1) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_is_file(%s);", result, path);
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    free(path);
+                    break;
+                }
+
+                // is_dir(path)
+                if (strcmp(fn_name, "is_dir") == 0 && expr->as.call.num_args == 1) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_is_dir(%s);", result, path);
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    free(path);
+                    break;
+                }
+
+                // file_stat(path)
+                if (strcmp(fn_name, "file_stat") == 0 && expr->as.call.num_args == 1) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_file_stat(%s);", result, path);
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    free(path);
+                    break;
+                }
+
+                // make_dir(path, [mode])
+                if (strcmp(fn_name, "make_dir") == 0 && (expr->as.call.num_args == 1 || expr->as.call.num_args == 2)) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    if (expr->as.call.num_args == 2) {
+                        char *mode = codegen_expr(ctx, expr->as.call.args[1]);
+                        codegen_writeln(ctx, "HmlValue %s = hml_make_dir(%s, %s);", result, path, mode);
+                        codegen_writeln(ctx, "hml_release(&%s);", mode);
+                        free(mode);
+                    } else {
+                        codegen_writeln(ctx, "HmlValue %s = hml_make_dir(%s, hml_val_u32(0755));", result, path);
+                    }
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    free(path);
+                    break;
+                }
+
+                // remove_dir(path)
+                if (strcmp(fn_name, "remove_dir") == 0 && expr->as.call.num_args == 1) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_remove_dir(%s);", result, path);
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    free(path);
+                    break;
+                }
+
+                // list_dir(path)
+                if (strcmp(fn_name, "list_dir") == 0 && expr->as.call.num_args == 1) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_list_dir(%s);", result, path);
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    free(path);
+                    break;
+                }
+
+                // cwd()
+                if (strcmp(fn_name, "cwd") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_cwd();", result);
+                    break;
+                }
+
+                // chdir(path)
+                if (strcmp(fn_name, "chdir") == 0 && expr->as.call.num_args == 1) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_chdir(%s);", result, path);
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    free(path);
+                    break;
+                }
+
+                // absolute_path(path)
+                if (strcmp(fn_name, "absolute_path") == 0 && expr->as.call.num_args == 1) {
+                    char *path = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_absolute_path(%s);", result, path);
+                    codegen_writeln(ctx, "hml_release(&%s);", path);
+                    free(path);
                     break;
                 }
 
