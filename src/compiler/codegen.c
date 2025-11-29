@@ -916,6 +916,31 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
             // Socket builtins
             } else if (strcmp(expr->as.ident, "socket_create") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_socket_create, 3, 0);", result);
+            // OS info builtins
+            } else if (strcmp(expr->as.ident, "platform") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_platform, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "arch") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_arch, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "hostname") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_hostname, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "username") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_username, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "homedir") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_homedir, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "cpu_count") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_cpu_count, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "total_memory") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_total_memory, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "free_memory") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_free_memory, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "os_version") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_os_version, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "os_name") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_os_name, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "tmpdir") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_tmpdir, 0, 0);", result);
+            } else if (strcmp(expr->as.ident, "uptime") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_uptime, 0, 0);", result);
             // Unprefixed aliases for math functions (for parity with interpreter)
             } else if (strcmp(expr->as.ident, "sin") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_sin, 1, 0);", result);
@@ -1596,6 +1621,80 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     codegen_writeln(ctx, "HmlValue %s = hml_dns_resolve(%s);", result, hostname);
                     codegen_writeln(ctx, "hml_release(&%s);", hostname);
                     free(hostname);
+                    break;
+                }
+
+                // ========== OS INFO BUILTINS ==========
+
+                // platform()
+                if (strcmp(fn_name, "platform") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_platform();", result);
+                    break;
+                }
+
+                // arch()
+                if (strcmp(fn_name, "arch") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_arch();", result);
+                    break;
+                }
+
+                // hostname()
+                if (strcmp(fn_name, "hostname") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_hostname();", result);
+                    break;
+                }
+
+                // username()
+                if (strcmp(fn_name, "username") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_username();", result);
+                    break;
+                }
+
+                // homedir()
+                if (strcmp(fn_name, "homedir") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_homedir();", result);
+                    break;
+                }
+
+                // cpu_count()
+                if (strcmp(fn_name, "cpu_count") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_cpu_count();", result);
+                    break;
+                }
+
+                // total_memory()
+                if (strcmp(fn_name, "total_memory") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_total_memory();", result);
+                    break;
+                }
+
+                // free_memory()
+                if (strcmp(fn_name, "free_memory") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_free_memory();", result);
+                    break;
+                }
+
+                // os_version()
+                if (strcmp(fn_name, "os_version") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_os_version();", result);
+                    break;
+                }
+
+                // os_name()
+                if (strcmp(fn_name, "os_name") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_os_name();", result);
+                    break;
+                }
+
+                // tmpdir()
+                if (strcmp(fn_name, "tmpdir") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_tmpdir();", result);
+                    break;
+                }
+
+                // uptime()
+                if (strcmp(fn_name, "uptime") == 0 && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_uptime();", result);
                     break;
                 }
 
