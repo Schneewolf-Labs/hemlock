@@ -13,12 +13,12 @@ async fn work(n: i32): i32 {
 // Spawn a task
 let t = spawn(work, 10);
 
-// Print debug info before join
-print("Before join:");
-task_debug_info(t);
-
-// Wait for result
+// Wait for result first (makes state deterministic)
 let result = join(t);
 print(result);
+
+// Print debug info after join (state is now guaranteed COMPLETED+JOINED)
+print("After join:");
+task_debug_info(t);
 
 print("done");
