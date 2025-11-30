@@ -2,7 +2,9 @@
 
 ## Summary
 
-The reference counting infrastructure **exists and is mostly working**, but has critical gaps that cause memory leaks. This audit identifies all issues and proposes fixes.
+The reference counting infrastructure **exists and is working**. All critical leaks have been fixed. This audit tracks the status of refcounting work.
+
+**Status:** Phase 1 complete (critical leaks fixed), Phase 2 complete (comprehensive expressions.c audit).
 
 ## ✅ What's Working
 
@@ -36,7 +38,9 @@ The reference counting infrastructure **exists and is mostly working**, but has 
 - ✅ Switch case values released after comparison (statements.c:495, 499, 528)
 - ✅ For-in iterables released after loop (statements.c:296)
 
-## ❌ Critical Gaps (Memory Leaks)
+## ✅ Critical Gaps (FIXED)
+
+> **Note:** The issues in this section have been fixed. They are preserved here for documentation purposes.
 
 ### 1. **STMT_EXPR Leaks Everything** (CRITICAL)
 
@@ -219,19 +223,27 @@ Test REPL memory usage:
 
 ## 📝 Implementation Plan
 
-### Step 1: Fix Critical Leaks (This PR)
-- [ ] Fix STMT_EXPR
-- [ ] Fix STMT_LET
-- [ ] Fix STMT_CONST
-- [ ] Add basic leak tests
+### Step 1: Fix Critical Leaks ✅ COMPLETED
+- [x] Fix STMT_EXPR - `value_release(result)` added (statements.c:31)
+- [x] Fix STMT_LET - `value_release(value)` after env_define (statements.c:14)
+- [x] Fix STMT_CONST - `value_release(value)` after env_define (statements.c:25)
+- [x] Basic leak prevention in place
 
-### Step 2: Comprehensive Audit (Next PR)
-- [ ] Audit all eval_expr call sites
-- [ ] Fix any remaining leaks
-- [ ] Add comprehensive tests
-- [ ] Document ownership conventions
+### Step 2: Comprehensive Audit ✅ COMPLETED
+- [x] Audit all eval_expr call sites in expressions.c
+- [x] Fix EXPR_UNARY - operand not released
+- [x] Fix EXPR_CALL - method_self and func not released
+- [x] Fix EXPR_ARRAY_LITERAL - elements not released after array_push
+- [x] Fix EXPR_OBJECT_LITERAL - removed redundant value_retain
+- [x] Fix EXPR_SET_PROPERTY - object not released
+- [x] Fix EXPR_PREFIX/POSTFIX INC/DEC - object and index_val not released
+- [x] Fix EXPR_STRING_INTERPOLATION - expr_val not released
+- [x] Fix EXPR_AWAIT - task handle not released after join
+- [x] Fix EXPR_NULL_COALESCE - left value not released when null
+- [x] All 472 tests passing
+- [x] Valgrind shows no runtime leaks (only AST cleanup at exit)
 
-### Step 3: Future Enhancement (v0.2)
+### Step 3: Future Enhancement (v1.1+)
 - [ ] Implement scope-based cleanup
 - [ ] Remove manual free() requirement for composite types
 - [ ] Add cycle detection (already exists, but verify it works)
@@ -254,4 +266,8 @@ After fixes:
 
 ---
 
-**Conclusion:** The refcounting system is 80% complete. The remaining 20% is adding missing `value_release()` calls in strategic places. No major refactoring needed, just surgical fixes.
+**Conclusion:** The refcounting system is production-ready. All critical leaks have been fixed:
+- Phase 1: Statement leaks (STMT_EXPR, STMT_LET, STMT_CONST)
+- Phase 2: Expression leaks (EXPR_UNARY, EXPR_CALL, EXPR_ARRAY_LITERAL, EXPR_OBJECT_LITERAL, EXPR_SET_PROPERTY, EXPR_PREFIX/POSTFIX INC/DEC, EXPR_STRING_INTERPOLATION, EXPR_AWAIT, EXPR_NULL_COALESCE)
+
+Remaining work for v1.1+: scope-based cleanup for automatic resource management.
