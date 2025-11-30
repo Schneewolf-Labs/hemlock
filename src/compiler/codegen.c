@@ -35,6 +35,9 @@ CodegenContext* codegen_new(FILE *output) {
     ctx->func_params = NULL;
     ctx->num_func_params = 0;
     ctx->defer_stack = NULL;
+    ctx->last_closure_env_id = -1;
+    ctx->last_closure_captured = NULL;
+    ctx->last_closure_num_captured = 0;
     ctx->module_cache = NULL;
     ctx->current_module = NULL;
     return ctx;
@@ -67,6 +70,14 @@ void codegen_free(CodegenContext *ctx) {
 
         // Free defers
         codegen_defer_clear(ctx);
+
+        // Free last closure tracking
+        if (ctx->last_closure_captured) {
+            for (int i = 0; i < ctx->last_closure_num_captured; i++) {
+                free(ctx->last_closure_captured[i]);
+            }
+            free(ctx->last_closure_captured);
+        }
 
         free(ctx);
     }
@@ -2917,15 +2928,31 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                               result, func_name, expr->as.function.num_params, expr->as.function.is_async);
             } else {
                 // Create closure environment and capture variables
+                int env_id = ctx->temp_counter;
                 codegen_writeln(ctx, "HmlClosureEnv *_env_%d = hml_closure_env_new(%d);",
-                              ctx->temp_counter, captured->num_vars);
+                              env_id, captured->num_vars);
                 for (int i = 0; i < captured->num_vars; i++) {
                     codegen_writeln(ctx, "hml_closure_env_set(_env_%d, %d, %s);",
-                                  ctx->temp_counter, i, captured->vars[i]);
+                                  env_id, i, captured->vars[i]);
                 }
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function_with_env((void*)%s, (void*)_env_%d, %d, %d);",
-                              result, func_name, ctx->temp_counter, expr->as.function.num_params, expr->as.function.is_async);
+                              result, func_name, env_id, expr->as.function.num_params, expr->as.function.is_async);
                 ctx->temp_counter++;
+
+                // Track this closure for potential self-reference fixup in let statements
+                ctx->last_closure_env_id = env_id;
+                // Copy captured variable names since 'captured' will be freed
+                if (ctx->last_closure_captured) {
+                    for (int i = 0; i < ctx->last_closure_num_captured; i++) {
+                        free(ctx->last_closure_captured[i]);
+                    }
+                    free(ctx->last_closure_captured);
+                }
+                ctx->last_closure_captured = malloc(sizeof(char*) * captured->num_vars);
+                ctx->last_closure_num_captured = captured->num_vars;
+                for (int i = 0; i < captured->num_vars; i++) {
+                    ctx->last_closure_captured[i] = strdup(captured->vars[i]);
+                }
             }
 
             scope_free(func_scope);
@@ -3166,6 +3193,19 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
                     codegen_writeln(ctx, "HmlValue %s = %s;", stmt->as.let.name, value);
                 }
                 free(value);
+
+                // Check if this was a self-referential function (e.g., let factorial = fn(n) { ... factorial(n-1) ... })
+                // If so, update the closure environment to point to the now-initialized variable
+                if (ctx->last_closure_env_id >= 0 && ctx->last_closure_captured) {
+                    for (int i = 0; i < ctx->last_closure_num_captured; i++) {
+                        if (strcmp(ctx->last_closure_captured[i], stmt->as.let.name) == 0) {
+                            codegen_writeln(ctx, "hml_closure_env_set(_env_%d, %d, %s);",
+                                          ctx->last_closure_env_id, i, stmt->as.let.name);
+                        }
+                    }
+                    // Reset the tracking - we've handled this closure
+                    ctx->last_closure_env_id = -1;
+                }
             } else {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_null();", stmt->as.let.name);
             }
@@ -3841,6 +3881,22 @@ static void codegen_closure_impl(CodegenContext *ctx, ClosureInfo *closure) {
         codegen_add_local(ctx, closure->captured_vars[i]);
     }
 
+    // Apply default values for optional parameters
+    if (func->as.function.param_defaults) {
+        for (int i = 0; i < func->as.function.num_params; i++) {
+            if (func->as.function.param_defaults[i]) {
+                char *param_name = func->as.function.param_names[i];
+                codegen_writeln(ctx, "if (%s.type == HML_VAL_NULL) {", param_name);
+                codegen_indent_inc(ctx);
+                char *default_val = codegen_expr(ctx, func->as.function.param_defaults[i]);
+                codegen_writeln(ctx, "%s = %s;", param_name, default_val);
+                free(default_val);
+                codegen_indent_dec(ctx);
+                codegen_writeln(ctx, "}");
+            }
+        }
+    }
+
     // Generate body
     if (func->as.function.body->type == STMT_BLOCK) {
         for (int i = 0; i < func->as.function.body->as.block.count; i++) {
@@ -4172,6 +4228,19 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
             char *value = codegen_expr(ctx, func);
             codegen_writeln(ctx, "%s = %s;", name, value);
             free(value);
+
+            // Check if this was a self-referential function (e.g., let factorial = fn(n) { ... factorial(n-1) ... })
+            // If so, update the closure environment to point to the now-initialized variable
+            if (ctx->last_closure_env_id >= 0 && ctx->last_closure_captured) {
+                for (int j = 0; j < ctx->last_closure_num_captured; j++) {
+                    if (strcmp(ctx->last_closure_captured[j], name) == 0) {
+                        codegen_writeln(ctx, "hml_closure_env_set(_env_%d, %d, %s);",
+                                      ctx->last_closure_env_id, j, name);
+                    }
+                }
+                // Reset the tracking - we've handled this closure
+                ctx->last_closure_env_id = -1;
+            }
         } else {
             codegen_stmt(ctx, stmts[i]);
         }
