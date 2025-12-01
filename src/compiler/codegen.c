@@ -3050,6 +3050,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 closure->captured_vars[i] = strdup(captured->vars[i]);
             }
             closure->func_expr = expr;
+            closure->source_module = ctx->current_module;  // Save module context for function resolution
             closure->next = ctx->closures;
             ctx->closures = closure;
 
@@ -4004,10 +4005,12 @@ static void codegen_closure_impl(CodegenContext *ctx, ClosureInfo *closure) {
     codegen_write(ctx, ") {\n");
     codegen_indent_inc(ctx);
 
-    // Save locals and defer state
+    // Save locals, defer state, and module context
     int saved_num_locals = ctx->num_locals;
     DeferEntry *saved_defer_stack = ctx->defer_stack;
     ctx->defer_stack = NULL;  // Start fresh for this function
+    CompiledModule *saved_module = ctx->current_module;
+    ctx->current_module = closure->source_module;  // Restore module context for function resolution
 
     // Reset closure env tracking to prevent cross-function pollution
     ctx->last_closure_env_id = -1;
@@ -4063,10 +4066,11 @@ static void codegen_closure_impl(CodegenContext *ctx, ClosureInfo *closure) {
     codegen_indent_dec(ctx);
     codegen_write(ctx, "}\n\n");
 
-    // Restore locals and defer state
+    // Restore locals, defer state, and module context
     codegen_defer_clear(ctx);
     ctx->defer_stack = saved_defer_stack;
     ctx->num_locals = saved_num_locals;
+    ctx->current_module = saved_module;
 }
 
 // Generate wrapper function for closure (to match function pointer signature)
@@ -4625,6 +4629,18 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
             // Generate global variable for each export
             for (int i = 0; i < mod->num_exports; i++) {
                 codegen_write(ctx, "static HmlValue %s = {0};\n", mod->exports[i].mangled_name);
+            }
+            // Also generate global variables for non-exported (private) functions
+            for (int i = 0; i < mod->num_statements; i++) {
+                Stmt *stmt = mod->statements[i];
+                // Skip exports (already handled above)
+                if (stmt->type == STMT_EXPORT) continue;
+                // Check if it's a private function definition
+                if (stmt->type == STMT_LET && stmt->as.let.value &&
+                    stmt->as.let.value->type == EXPR_FUNCTION) {
+                    codegen_write(ctx, "static HmlValue %s%s = {0};\n",
+                                mod->module_prefix, stmt->as.let.name);
+                }
             }
             mod = mod->next;
         }

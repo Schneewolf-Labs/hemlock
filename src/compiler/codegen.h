@@ -28,6 +28,7 @@ struct ClosureInfo {
     char **captured_vars;   // Names of captured variables
     int num_captured;       // Number of captured variables
     Expr *func_expr;        // The function expression
+    CompiledModule *source_module;  // Module where closure was defined (for function resolution)
     ClosureInfo *next;      // Linked list of closures
 };
 
