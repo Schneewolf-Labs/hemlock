@@ -116,6 +116,11 @@ typedef struct {
     // Module support
     ModuleCache *module_cache;          // Cache of compiled modules
     CompiledModule *current_module;     // Module currently being compiled (NULL for main)
+
+    // Main file top-level variables (to add prefix and avoid C name conflicts)
+    char **main_vars;           // List of top-level variable names in main file
+    int num_main_vars;          // Count of main file variables
+    int main_vars_capacity;     // Capacity of main_vars array
 } CodegenContext;
 
 // Initialize code generation context

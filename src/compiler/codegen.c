@@ -40,6 +40,9 @@ CodegenContext* codegen_new(FILE *output) {
     ctx->last_closure_num_captured = 0;
     ctx->module_cache = NULL;
     ctx->current_module = NULL;
+    ctx->main_vars = NULL;
+    ctx->num_main_vars = 0;
+    ctx->main_vars_capacity = 0;
     return ctx;
 }
 
@@ -77,6 +80,14 @@ void codegen_free(CodegenContext *ctx) {
                 free(ctx->last_closure_captured[i]);
             }
             free(ctx->last_closure_captured);
+        }
+
+        // Free main file variables tracking
+        if (ctx->main_vars) {
+            for (int i = 0; i < ctx->num_main_vars; i++) {
+                free(ctx->main_vars[i]);
+            }
+            free(ctx->main_vars);
         }
 
         free(ctx);
@@ -145,6 +156,25 @@ void codegen_add_local(CodegenContext *ctx, const char *name) {
 int codegen_is_local(CodegenContext *ctx, const char *name) {
     for (int i = 0; i < ctx->num_locals; i++) {
         if (strcmp(ctx->local_vars[i], name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// Main file variable tracking (to add prefix and avoid C name conflicts)
+void codegen_add_main_var(CodegenContext *ctx, const char *name) {
+    if (ctx->num_main_vars >= ctx->main_vars_capacity) {
+        int new_cap = (ctx->main_vars_capacity == 0) ? 16 : ctx->main_vars_capacity * 2;
+        ctx->main_vars = realloc(ctx->main_vars, new_cap * sizeof(char*));
+        ctx->main_vars_capacity = new_cap;
+    }
+    ctx->main_vars[ctx->num_main_vars++] = strdup(name);
+}
+
+int codegen_is_main_var(CodegenContext *ctx, const char *name) {
+    for (int i = 0; i < ctx->num_main_vars; i++) {
+        if (strcmp(ctx->main_vars[i], name) == 0) {
             return 1;
         }
     }
@@ -635,6 +665,7 @@ void find_free_vars_stmt(Stmt *stmt, Scope *local_scope, FreeVarSet *free_vars) 
 // Forward declarations
 static void codegen_function_decl(CodegenContext *ctx, Expr *func, const char *name);
 ImportBinding* module_find_import(CompiledModule *module, const char *name);
+static int module_is_extern_fn(CompiledModule *module, const char *name);
 
 char* codegen_expr(CodegenContext *ctx, Expr *expr) {
     char *result = codegen_temp(ctx);
@@ -1072,7 +1103,27 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
             } else if (strcmp(expr->as.ident, "get_pid") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_get_pid, 0, 0);", result);
             } else {
-                codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
+                // Check if this is an imported symbol
+                ImportBinding *import_binding = NULL;
+                if (ctx->current_module) {
+                    import_binding = module_find_import(ctx->current_module, expr->as.ident);
+                }
+
+                if (import_binding) {
+                    // Use the imported module's symbol
+                    codegen_writeln(ctx, "HmlValue %s = %s%s;", result,
+                                  import_binding->module_prefix, import_binding->original_name);
+                } else if (ctx->current_module && !codegen_is_local(ctx, expr->as.ident)) {
+                    // Not a local variable, use module prefix
+                    codegen_writeln(ctx, "HmlValue %s = %s%s;", result,
+                                  ctx->current_module->module_prefix, expr->as.ident);
+                } else if (!codegen_is_local(ctx, expr->as.ident) && codegen_is_main_var(ctx, expr->as.ident)) {
+                    // Main file top-level variable - use _main_ prefix
+                    codegen_writeln(ctx, "HmlValue %s = _main_%s;", result, expr->as.ident);
+                } else {
+                    // Local variable
+                    codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
+                }
             }
             codegen_writeln(ctx, "hml_retain(&%s);", result);
             break;
@@ -2048,6 +2099,26 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     break;
                 }
 
+                // ========== INTERNAL HELPER BUILTINS ==========
+
+                // read_u32(buffer) - read 32-bit unsigned int from buffer
+                if ((strcmp(fn_name, "read_u32") == 0 || strcmp(fn_name, "__read_u32") == 0) && expr->as.call.num_args == 1) {
+                    char *buf = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_read_u32(%s);", result, buf);
+                    codegen_writeln(ctx, "hml_release(&%s);", buf);
+                    free(buf);
+                    break;
+                }
+
+                // read_u64(buffer) - read 64-bit unsigned int from buffer
+                if ((strcmp(fn_name, "read_u64") == 0 || strcmp(fn_name, "__read_u64") == 0) && expr->as.call.num_args == 1) {
+                    char *buf = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_read_u64(%s);", result, buf);
+                    codegen_writeln(ctx, "hml_release(&%s);", buf);
+                    free(buf);
+                    break;
+                }
+
                 // ========== HTTP/WEBSOCKET BUILTINS ==========
 
                 // __lws_http_get(url)
@@ -2420,9 +2491,14 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                         fprintf(ctx->output, "HmlValue %s = %sfn_%s(NULL", result,
                                 import_binding->module_prefix, import_binding->original_name);
                     } else if (ctx->current_module) {
-                        // Function in current module - use module prefix
-                        fprintf(ctx->output, "HmlValue %s = %sfn_%s(NULL", result,
-                                ctx->current_module->module_prefix, fn_name);
+                        // Check if this is an extern function - externs don't get module prefix
+                        if (module_is_extern_fn(ctx->current_module, fn_name)) {
+                            fprintf(ctx->output, "HmlValue %s = hml_fn_%s(NULL", result, fn_name);
+                        } else {
+                            // Function in current module - use module prefix
+                            fprintf(ctx->output, "HmlValue %s = %sfn_%s(NULL", result,
+                                    ctx->current_module->module_prefix, fn_name);
+                        }
                     } else {
                         // Main file function
                         fprintf(ctx->output, "HmlValue %s = hml_fn_%s(NULL", result, fn_name);
@@ -2675,6 +2751,10 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
             // Generic function call handling
             char *func_val = codegen_expr(ctx, expr->as.call.func);
 
+            // Reserve a counter for the args array BEFORE generating arg expressions
+            // (which may increment temp_counter internally)
+            int args_counter = ctx->temp_counter++;
+
             // Generate code for arguments
             char **arg_temps = malloc(expr->as.call.num_args * sizeof(char*));
             for (int i = 0; i < expr->as.call.num_args; i++) {
@@ -2683,12 +2763,12 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
 
             // Build args array
             if (expr->as.call.num_args > 0) {
-                codegen_writeln(ctx, "HmlValue _args%d[%d];", ctx->temp_counter, expr->as.call.num_args);
+                codegen_writeln(ctx, "HmlValue _args%d[%d];", args_counter, expr->as.call.num_args);
                 for (int i = 0; i < expr->as.call.num_args; i++) {
-                    codegen_writeln(ctx, "_args%d[%d] = %s;", ctx->temp_counter, i, arg_temps[i]);
+                    codegen_writeln(ctx, "_args%d[%d] = %s;", args_counter, i, arg_temps[i]);
                 }
                 codegen_writeln(ctx, "HmlValue %s = hml_call_function(%s, _args%d, %d);",
-                              result, func_val, ctx->temp_counter, expr->as.call.num_args);
+                              result, func_val, args_counter, expr->as.call.num_args);
             } else {
                 codegen_writeln(ctx, "HmlValue %s = hml_call_function(%s, NULL, 0);", result, func_val);
             }
@@ -2706,10 +2786,24 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
 
         case EXPR_ASSIGN: {
             char *value = codegen_expr(ctx, expr->as.assign.value);
-            codegen_writeln(ctx, "hml_release(&%s);", expr->as.assign.name);
-            codegen_writeln(ctx, "%s = %s;", expr->as.assign.name, value);
-            codegen_writeln(ctx, "hml_retain(&%s);", expr->as.assign.name);
-            codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.assign.name);
+            // Determine the correct variable name with prefix
+            const char *var_name = expr->as.assign.name;
+            char prefixed_name[256];
+            if (ctx->current_module && !codegen_is_local(ctx, var_name)) {
+                // Module context - use module prefix
+                snprintf(prefixed_name, sizeof(prefixed_name), "%s%s",
+                        ctx->current_module->module_prefix, var_name);
+                var_name = prefixed_name;
+            } else if (!codegen_is_local(ctx, expr->as.assign.name) &&
+                       codegen_is_main_var(ctx, expr->as.assign.name)) {
+                // Main file top-level variable - use _main_ prefix
+                snprintf(prefixed_name, sizeof(prefixed_name), "_main_%s", expr->as.assign.name);
+                var_name = prefixed_name;
+            }
+            codegen_writeln(ctx, "hml_release(&%s);", var_name);
+            codegen_writeln(ctx, "%s = %s;", var_name, value);
+            codegen_writeln(ctx, "hml_retain(&%s);", var_name);
+            codegen_writeln(ctx, "HmlValue %s = %s;", result, var_name);
             codegen_writeln(ctx, "hml_retain(&%s);", result);
             free(value);
             break;
@@ -3806,6 +3900,9 @@ static void codegen_function_decl(CodegenContext *ctx, Expr *func, const char *n
     DeferEntry *saved_defer_stack = ctx->defer_stack;
     ctx->defer_stack = NULL;  // Start fresh for this function
 
+    // Reset closure env tracking to prevent cross-function pollution
+    ctx->last_closure_env_id = -1;
+
     // Add parameters as locals
     for (int i = 0; i < func->as.function.num_params; i++) {
         codegen_add_local(ctx, func->as.function.param_names[i]);
@@ -3868,6 +3965,9 @@ static void codegen_closure_impl(CodegenContext *ctx, ClosureInfo *closure) {
     int saved_num_locals = ctx->num_locals;
     DeferEntry *saved_defer_stack = ctx->defer_stack;
     ctx->defer_stack = NULL;  // Start fresh for this function
+
+    // Reset closure env tracking to prevent cross-function pollution
+    ctx->last_closure_env_id = -1;
 
     // Add parameters as locals
     for (int i = 0; i < func->as.function.num_params; i++) {
@@ -4078,6 +4178,9 @@ static void codegen_module_funcs(CodegenContext *ctx, CompiledModule *module, FI
             DeferEntry *saved_defer_stack = ctx->defer_stack;
             ctx->defer_stack = NULL;
 
+            // Reset closure env tracking to prevent cross-function pollution
+            ctx->last_closure_env_id = -1;
+
             // Add parameters as locals
             for (int j = 0; j < func->as.function.num_params; j++) {
                 codegen_add_local(ctx, func->as.function.param_names[j]);
@@ -4221,12 +4324,19 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
 
     // Generate all statements
     for (int i = 0; i < stmt_count; i++) {
+        Stmt *stmt = stmts[i];
+        // Unwrap export statements to handle their embedded declarations
+        if (stmt->type == STMT_EXPORT && stmt->as.export_stmt.is_declaration && stmt->as.export_stmt.declaration) {
+            stmt = stmt->as.export_stmt.declaration;
+        }
+
         char *name;
         Expr *func;
-        if (is_function_def(stmts[i], &name, &func)) {
+        if (is_function_def(stmt, &name, &func)) {
             // Function definitions: assign function value to static global
+            // Use _main_ prefix to avoid C name conflicts (e.g., kill, exit, fork)
             char *value = codegen_expr(ctx, func);
-            codegen_writeln(ctx, "%s = %s;", name, value);
+            codegen_writeln(ctx, "_main_%s = %s;", name, value);
             free(value);
 
             // Check if this was a self-referential function (e.g., let factorial = fn(n) { ... factorial(n-1) ... })
@@ -4234,15 +4344,46 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
             if (ctx->last_closure_env_id >= 0 && ctx->last_closure_captured) {
                 for (int j = 0; j < ctx->last_closure_num_captured; j++) {
                     if (strcmp(ctx->last_closure_captured[j], name) == 0) {
-                        codegen_writeln(ctx, "hml_closure_env_set(_env_%d, %d, %s);",
+                        codegen_writeln(ctx, "hml_closure_env_set(_env_%d, %d, _main_%s);",
                                       ctx->last_closure_env_id, j, name);
                     }
                 }
                 // Reset the tracking - we've handled this closure
                 ctx->last_closure_env_id = -1;
             }
+        } else if (stmt->type == STMT_CONST) {
+            // Top-level const: assign to static global instead of declaring local
+            // Use _main_ prefix to avoid C name conflicts
+            if (stmt->as.const_stmt.value) {
+                char *value = codegen_expr(ctx, stmt->as.const_stmt.value);
+                codegen_writeln(ctx, "_main_%s = %s;", stmt->as.const_stmt.name, value);
+                free(value);
+            } else {
+                codegen_writeln(ctx, "_main_%s = hml_val_null();", stmt->as.const_stmt.name);
+            }
+        } else if (stmt->type == STMT_LET) {
+            // Top-level let (non-function): assign to static global instead of declaring local
+            // Use _main_ prefix to avoid C name conflicts
+            if (stmt->as.let.value) {
+                char *value = codegen_expr(ctx, stmt->as.let.value);
+                codegen_writeln(ctx, "_main_%s = %s;", stmt->as.let.name, value);
+                free(value);
+
+                // Check if this was a self-referential closure
+                if (ctx->last_closure_env_id >= 0 && ctx->last_closure_captured) {
+                    for (int j = 0; j < ctx->last_closure_num_captured; j++) {
+                        if (strcmp(ctx->last_closure_captured[j], stmt->as.let.name) == 0) {
+                            codegen_writeln(ctx, "hml_closure_env_set(_env_%d, %d, _main_%s);",
+                                          ctx->last_closure_env_id, j, stmt->as.let.name);
+                        }
+                    }
+                    ctx->last_closure_env_id = -1;
+                }
+            } else {
+                codegen_writeln(ctx, "_main_%s = hml_val_null();", stmt->as.let.name);
+            }
         } else {
-            codegen_stmt(ctx, stmts[i]);
+            codegen_stmt(ctx, stmts[i]);  // Use original statement for non-unwrapped cases
         }
     }
 
@@ -4303,6 +4444,7 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
     }
 
     // Static globals for top-level function variables (so closures can access them)
+    // Use _main_ prefix to avoid C name conflicts (e.g., kill, exit, fork)
     int has_toplevel_funcs = 0;
     for (int i = 0; i < stmt_count; i++) {
         char *name;
@@ -4312,10 +4454,46 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
                 codegen_write(ctx, "// Top-level function variables (static for closure access)\n");
                 has_toplevel_funcs = 1;
             }
-            codegen_write(ctx, "static HmlValue %s = {0};\n", name);
+            codegen_write(ctx, "static HmlValue _main_%s = {0};\n", name);
+            codegen_add_main_var(ctx, name);
         }
     }
     if (has_toplevel_funcs) {
+        codegen_write(ctx, "\n");
+    }
+
+    // Static globals for top-level const and let declarations (so functions can access them)
+    // Use _main_ prefix to avoid C name conflicts
+    int has_toplevel_vars = 0;
+    for (int i = 0; i < stmt_count; i++) {
+        Stmt *stmt = stmts[i];
+        // Unwrap export statements
+        if (stmt->type == STMT_EXPORT && stmt->as.export_stmt.is_declaration && stmt->as.export_stmt.declaration) {
+            stmt = stmt->as.export_stmt.declaration;
+        }
+
+        if (stmt->type == STMT_CONST) {
+            if (!has_toplevel_vars) {
+                codegen_write(ctx, "// Top-level variables (static for function access)\n");
+                has_toplevel_vars = 1;
+            }
+            codegen_write(ctx, "static HmlValue _main_%s = {0};\n", stmt->as.const_stmt.name);
+            codegen_add_main_var(ctx, stmt->as.const_stmt.name);
+        } else if (stmt->type == STMT_LET) {
+            // Check if this is NOT a function definition (those are handled above)
+            char *name;
+            Expr *func;
+            if (!is_function_def(stmt, &name, &func)) {
+                if (!has_toplevel_vars) {
+                    codegen_write(ctx, "// Top-level variables (static for function access)\n");
+                    has_toplevel_vars = 1;
+                }
+                codegen_write(ctx, "static HmlValue _main_%s = {0};\n", stmt->as.let.name);
+                codegen_add_main_var(ctx, stmt->as.let.name);
+            }
+        }
+    }
+    if (has_toplevel_vars) {
         codegen_write(ctx, "\n");
     }
 
@@ -4772,6 +4950,19 @@ ImportBinding* module_find_import(CompiledModule *module, const char *name) {
         }
     }
     return NULL;
+}
+
+// Check if a name is an extern function in the given module
+static int module_is_extern_fn(CompiledModule *module, const char *name) {
+    if (!module || !module->statements) return 0;
+    for (int i = 0; i < module->num_statements; i++) {
+        if (module->statements[i]->type == STMT_EXTERN_FN) {
+            if (strcmp(module->statements[i]->as.extern_fn.function_name, name) == 0) {
+                return 1;
+            }
+        }
+    }
+    return 0;
 }
 
 char* module_gen_prefix(ModuleCache *cache) {
