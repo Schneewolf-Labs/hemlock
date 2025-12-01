@@ -4163,8 +4163,9 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             if (stmt->as.try_stmt.catch_block) {
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                // Catch block
+                // Catch block - declare catch param as local to prevent prefixing
                 if (stmt->as.try_stmt.catch_param) {
+                    codegen_add_local(ctx, stmt->as.try_stmt.catch_param);
                     codegen_writeln(ctx, "HmlValue %s = hml_exception_get_value();", stmt->as.try_stmt.catch_param);
                 }
                 codegen_stmt(ctx, stmt->as.try_stmt.catch_block);
