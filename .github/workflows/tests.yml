@@ -274,6 +274,10 @@ jobs:
 
             if [ $gcc_exit -ne 0 ]; then
                 echo "◐ $test_name (gcc failed)"
+                # Show first few gcc errors to help debug
+                if [ $COMPILE_FAIL -lt 3 ]; then
+                    echo "   GCC error: $gcc_output"
+                fi
                 COMPILE_FAIL=$((COMPILE_FAIL + 1))
                 continue
             fi
