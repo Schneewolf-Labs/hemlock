@@ -331,6 +331,9 @@ void hml_exception_pop(void);
 void hml_throw(HmlValue exception_value);
 HmlValue hml_exception_get_value(void);
 
+// Runtime error helper - throws catchable exception with formatted message
+void hml_runtime_error(const char *format, ...);
+
 // ========== DEFER SUPPORT ==========
 
 typedef void (*HmlDeferFn)(void *arg);
