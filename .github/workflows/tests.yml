@@ -192,7 +192,10 @@ jobs:
 
     - name: Run compiler parity tests
       id: parity_tests
+      shell: bash
       run: |
+        set +e  # Don't exit on error - we handle errors ourselves
+
         # Create temp directory
         TEMP_DIR=$(mktemp -d)
         trap "rm -rf $TEMP_DIR" EXIT
@@ -203,7 +206,6 @@ jobs:
         INTERP_ONLY=0
         COMPILE_FAIL=0
         TIMEOUT_COUNT=0
-        ERROR_TEST_PARITY=0
         TOTAL=0
 
         # Configuration
@@ -219,16 +221,22 @@ jobs:
         echo "  Hemlock Compiler Parity Test Suite"
         echo "======================================"
         echo ""
+        echo "Looking for test files..."
 
         # Track failures for reporting
         FAILURES=""
 
         # Find all test files
-        for test_file in $(find tests -name "*.hml" -not -path "*/compiler/*" -not -path "*/parity/*" | sort); do
+        TEST_FILES=$(find tests -name "*.hml" -not -path "*/compiler/*" -not -path "*/parity/*" | sort)
+        TEST_COUNT=$(echo "$TEST_FILES" | wc -l)
+        echo "Found $TEST_COUNT test files"
+        echo ""
+
+        for test_file in $TEST_FILES; do
             test_name="${test_file#tests/}"
             base_name=$(basename "$test_file" .hml)
             category=$(dirname "$test_file" | cut -d'/' -f2)
-            ((TOTAL++))
+            TOTAL=$((TOTAL + 1))
 
             # Skip HTTP/WebSocket tests if dependencies missing
             if [[ "$category" == "stdlib_http" || "$category" == "stdlib_websocket" ]]; then
@@ -238,12 +246,12 @@ jobs:
             fi
 
             # Run interpreter with timeout
-            interp_output=$(timeout $TIMEOUT_SECONDS ./hemlock "$test_file" 2>&1) || interp_exit=$?
-            interp_exit=${interp_exit:-0}
+            interp_output=$(timeout $TIMEOUT_SECONDS ./hemlock "$test_file" 2>&1)
+            interp_exit=$?
 
             if [ $interp_exit -eq 124 ]; then
                 echo "⊘ $test_name (interpreter timeout)"
-                ((TIMEOUT_COUNT++))
+                TIMEOUT_COUNT=$((TIMEOUT_COUNT + 1))
                 continue
             fi
 
@@ -251,42 +259,42 @@ jobs:
             c_file="$TEMP_DIR/${base_name}_$$.c"
             exe_file="$TEMP_DIR/${base_name}_$$"
 
-            compile_output=$(./hemlockc "$test_file" -c --emit-c "$c_file" 2>&1) || compile_exit=$?
-            compile_exit=${compile_exit:-0}
+            compile_output=$(./hemlockc "$test_file" -c --emit-c "$c_file" 2>&1)
+            compile_exit=$?
 
             if [ $compile_exit -ne 0 ]; then
                 echo "◐ $test_name (compile failed - interpreter only)"
-                ((INTERP_ONLY++))
+                INTERP_ONLY=$((INTERP_ONLY + 1))
                 continue
             fi
 
             # Compile C to executable
-            gcc_output=$(gcc -o "$exe_file" "$c_file" -L. -lhemlock_runtime -lm -lpthread -lffi -ldl $ZLIB_FLAG 2>&1) || gcc_exit=$?
-            gcc_exit=${gcc_exit:-0}
+            gcc_output=$(gcc -o "$exe_file" "$c_file" -L. -lhemlock_runtime -lm -lpthread -lffi -ldl $ZLIB_FLAG 2>&1)
+            gcc_exit=$?
 
             if [ $gcc_exit -ne 0 ]; then
                 echo "◐ $test_name (gcc failed)"
-                ((COMPILE_FAIL++))
+                COMPILE_FAIL=$((COMPILE_FAIL + 1))
                 continue
             fi
 
             # Run compiled version with timeout
-            compiled_output=$(timeout $TIMEOUT_SECONDS "$exe_file" 2>&1) || compiled_exit=$?
-            compiled_exit=${compiled_exit:-0}
+            compiled_output=$(timeout $TIMEOUT_SECONDS "$exe_file" 2>&1)
+            compiled_exit=$?
 
             if [ $compiled_exit -eq 124 ]; then
                 echo "⊘ $test_name (compiled timeout)"
-                ((TIMEOUT_COUNT++))
+                TIMEOUT_COUNT=$((TIMEOUT_COUNT + 1))
                 continue
             fi
 
             # Compare outputs
             if [ "$interp_output" = "$compiled_output" ]; then
                 echo "✓ $test_name"
-                ((PARITY_PASS++))
+                PARITY_PASS=$((PARITY_PASS + 1))
             else
                 echo "✗ $test_name (output mismatch)"
-                ((PARITY_FAIL++))
+                PARITY_FAIL=$((PARITY_FAIL + 1))
                 FAILURES="$FAILURES\n--- $test_name ---\nInterpreter:\n$interp_output\nCompiled:\n$compiled_output\n"
             fi
 
