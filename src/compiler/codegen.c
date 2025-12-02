@@ -5548,14 +5548,18 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
             for (int i = 0; i < mod->num_exports; i++) {
                 codegen_write(ctx, "static HmlValue %s = {0};\n", mod->exports[i].mangled_name);
             }
-            // Also generate global variables for non-exported (private) functions
+            // Also generate global variables for non-exported (private) variables
             for (int i = 0; i < mod->num_statements; i++) {
                 Stmt *stmt = mod->statements[i];
                 // Skip exports (already handled above)
                 if (stmt->type == STMT_EXPORT) continue;
-                // Check if it's a private function definition
-                if (stmt->type == STMT_LET && stmt->as.let.value &&
-                    stmt->as.let.value->type == EXPR_FUNCTION) {
+                // Check if it's a private const
+                if (stmt->type == STMT_CONST) {
+                    codegen_write(ctx, "static HmlValue %s%s = {0};\n",
+                                mod->module_prefix, stmt->as.const_stmt.name);
+                }
+                // Check if it's a private let (function or not)
+                if (stmt->type == STMT_LET) {
                     codegen_write(ctx, "static HmlValue %s%s = {0};\n",
                                 mod->module_prefix, stmt->as.let.name);
                 }
