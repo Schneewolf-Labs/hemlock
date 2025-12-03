@@ -861,6 +861,10 @@ static void scan_closures_stmt(CodegenContext *ctx, Stmt *stmt, Scope *local_sco
         case STMT_TRY:
             scan_closures_stmt(ctx, stmt->as.try_stmt.try_block, local_scope);
             if (stmt->as.try_stmt.catch_block) {
+                // Add catch param to scope so closures inside catch don't capture it
+                if (stmt->as.try_stmt.catch_param) {
+                    scope_add_var(local_scope, stmt->as.try_stmt.catch_param);
+                }
                 scan_closures_stmt(ctx, stmt->as.try_stmt.catch_block, local_scope);
             }
             if (stmt->as.try_stmt.finally_block) {
@@ -1606,25 +1610,32 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     // Use the imported module's symbol
                     codegen_writeln(ctx, "HmlValue %s = %s%s;", result,
                                   import_binding->module_prefix, import_binding->original_name);
-                } else if (ctx->current_module && !codegen_is_local(ctx, expr->as.ident)) {
-                    // Not a local variable, use module prefix
-                    codegen_writeln(ctx, "HmlValue %s = %s%s;", result,
-                                  ctx->current_module->module_prefix, expr->as.ident);
-                } else if (ctx->current_module && codegen_is_local(ctx, expr->as.ident)) {
-                    // Local variable, but check if it's a module export (self-reference in closure)
-                    ExportedSymbol *exp = module_find_export(ctx->current_module, expr->as.ident);
-                    if (exp) {
-                        // Use the mangled export name to access module-level function
-                        codegen_writeln(ctx, "HmlValue %s = %s;", result, exp->mangled_name);
+                } else if (codegen_is_shadow(ctx, expr->as.ident)) {
+                    // Shadow variable (like catch param) - use bare name, shadows module vars
+                    // Must be checked BEFORE module prefix check
+                    codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
+                } else if (codegen_is_local(ctx, expr->as.ident)) {
+                    // Local variable - check context to determine how to access
+                    if (ctx->current_module) {
+                        // In a module - check if it's a module export (self-reference in closure)
+                        ExportedSymbol *exp = module_find_export(ctx->current_module, expr->as.ident);
+                        if (exp) {
+                            // Use the mangled export name to access module-level function
+                            codegen_writeln(ctx, "HmlValue %s = %s;", result, exp->mangled_name);
+                        } else {
+                            codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
+                        }
+                    } else if (codegen_is_main_var(ctx, expr->as.ident)) {
+                        // Main file top-level variable - use _main_ prefix
+                        codegen_writeln(ctx, "HmlValue %s = _main_%s;", result, expr->as.ident);
                     } else {
+                        // True local variable (not a main var) - use bare name
                         codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
                     }
-                } else if (codegen_is_shadow(ctx, expr->as.ident)) {
-                    // Shadow variable (like catch param) - use bare name, shadows main var
-                    codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
-                } else if (codegen_is_local(ctx, expr->as.ident) && !codegen_is_main_var(ctx, expr->as.ident)) {
-                    // True local variable (not a main var added for tracking) - use bare name
-                    codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
+                } else if (ctx->current_module) {
+                    // Not local, not shadow, have module - use module prefix
+                    codegen_writeln(ctx, "HmlValue %s = %s%s;", result,
+                                  ctx->current_module->module_prefix, expr->as.ident);
                 } else if (codegen_is_main_var(ctx, expr->as.ident)) {
                     // Main file top-level variable - use _main_ prefix
                     codegen_writeln(ctx, "HmlValue %s = _main_%s;", result, expr->as.ident);
@@ -3948,11 +3959,20 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
         }
 
         case EXPR_AWAIT: {
-            // await expr is syntactic sugar for join(expr)
-            char *task = codegen_expr(ctx, expr->as.await_expr.awaited_expr);
-            codegen_writeln(ctx, "HmlValue %s = hml_join(%s);", result, task);
-            codegen_writeln(ctx, "hml_release(&%s);", task);
-            free(task);
+            // await expr - if value is a task, join it; otherwise return as-is
+            char *awaited = codegen_expr(ctx, expr->as.await_expr.awaited_expr);
+            codegen_writeln(ctx, "HmlValue %s;", result);
+            codegen_writeln(ctx, "if (%s.type == HML_VAL_TASK) {", awaited);
+            codegen_indent_inc(ctx);
+            codegen_writeln(ctx, "%s = hml_join(%s);", result, awaited);
+            codegen_writeln(ctx, "hml_release(&%s);", awaited);
+            codegen_indent_dec(ctx);
+            codegen_writeln(ctx, "} else {");
+            codegen_indent_inc(ctx);
+            codegen_writeln(ctx, "%s = %s;", result, awaited);
+            codegen_indent_dec(ctx);
+            codegen_writeln(ctx, "}");
+            free(awaited);
             break;
         }
 
