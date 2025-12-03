@@ -3250,6 +3250,15 @@ HmlValue hml_call_function(HmlValue fn, HmlValue *args, int num_args) {
         // Check if this is a closure (has environment)
         void *closure_env = fn.as.as_function->closure_env;
         int num_params = fn.as.as_function->num_params;
+        int num_required = fn.as.as_function->num_required;
+
+        // Arity check: must have at least num_required args and at most num_params
+        if (num_args < num_required) {
+            hml_runtime_error("Callback expects %d arguments, got %d", num_required, num_args);
+        }
+        if (num_args > num_params) {
+            hml_runtime_error("Callback expects %d arguments, got %d", num_params, num_args);
+        }
 
         // Build args array with nulls for missing optional parameters
         // Use num_params (from function definition) to determine how many args to pass
