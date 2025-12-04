@@ -1963,6 +1963,69 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     break;
                 }
 
+                // Handle ptr_deref_i32(ptr) - dereference pointer to read i32
+                if (strcmp(fn_name, "ptr_deref_i32") == 0 && expr->as.call.num_args == 1) {
+                    char *ptr = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_val_i32(*((int32_t*)%s.as.as_ptr));", result, ptr);
+                    codegen_writeln(ctx, "hml_release(&%s);", ptr);
+                    free(ptr);
+                    break;
+                }
+
+                // Handle ptr_write_i32(ptr, value) - write i32 to pointer
+                if (strcmp(fn_name, "ptr_write_i32") == 0 && expr->as.call.num_args == 2) {
+                    char *ptr = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *val = codegen_expr(ctx, expr->as.call.args[1]);
+                    codegen_writeln(ctx, "*((int32_t*)%s.as.as_ptr) = hml_to_i32(%s);", ptr, val);
+                    codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
+                    codegen_writeln(ctx, "hml_release(&%s);", ptr);
+                    codegen_writeln(ctx, "hml_release(&%s);", val);
+                    free(ptr);
+                    free(val);
+                    break;
+                }
+
+                // Handle ptr_offset(ptr, offset, element_size) - pointer arithmetic
+                if (strcmp(fn_name, "ptr_offset") == 0 && expr->as.call.num_args == 3) {
+                    char *ptr = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *offset = codegen_expr(ctx, expr->as.call.args[1]);
+                    char *elem_size = codegen_expr(ctx, expr->as.call.args[2]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_val_ptr((char*)%s.as.as_ptr + (hml_to_i64(%s) * hml_to_i64(%s)));",
+                                  result, ptr, offset, elem_size);
+                    codegen_writeln(ctx, "hml_release(&%s);", ptr);
+                    codegen_writeln(ctx, "hml_release(&%s);", offset);
+                    codegen_writeln(ctx, "hml_release(&%s);", elem_size);
+                    free(ptr);
+                    free(offset);
+                    free(elem_size);
+                    break;
+                }
+
+                // Handle callback(fn, arg_types, ret_type) - create FFI callback (stub - not fully implemented)
+                if (strcmp(fn_name, "callback") == 0 && expr->as.call.num_args == 3) {
+                    char *fn = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *arg_types = codegen_expr(ctx, expr->as.call.args[1]);
+                    char *ret_type = codegen_expr(ctx, expr->as.call.args[2]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_callback_create(%s, %s, %s);", result, fn, arg_types, ret_type);
+                    codegen_writeln(ctx, "hml_release(&%s);", fn);
+                    codegen_writeln(ctx, "hml_release(&%s);", arg_types);
+                    codegen_writeln(ctx, "hml_release(&%s);", ret_type);
+                    free(fn);
+                    free(arg_types);
+                    free(ret_type);
+                    break;
+                }
+
+                // Handle callback_free(callback) - free FFI callback
+                if (strcmp(fn_name, "callback_free") == 0 && expr->as.call.num_args == 1) {
+                    char *cb = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "hml_callback_free(%s);", cb);
+                    codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
+                    codegen_writeln(ctx, "hml_release(&%s);", cb);
+                    free(cb);
+                    break;
+                }
+
                 // ========== MATH BUILTINS ==========
 
                 // sqrt(x)
@@ -3091,6 +3154,9 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 } else if (codegen_is_local(ctx, fn_name) && !import_binding) {
                     // It's a true local function variable (not an import) - call through hml_call_function
                     // Fall through to generic handling
+                } else if (import_binding && !import_binding->is_function) {
+                    // Imported variable that holds a function value (e.g., export let sleep = __sleep)
+                    // Fall through to generic call path - will use hml_call_function on the variable
                 } else {
                     // Direct call path for imported functions and module functions
                     // import_binding was already set above

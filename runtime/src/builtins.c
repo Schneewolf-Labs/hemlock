@@ -2040,6 +2040,26 @@ HmlValue hml_buffer_length(HmlValue buf) {
     return hml_val_i32(buf.as.as_buffer->length);
 }
 
+// ========== FFI CALLBACK OPERATIONS ==========
+
+// Create an FFI callback that wraps a Hemlock function
+// This is a stub implementation - full FFI callbacks require libffi closure support
+HmlValue hml_callback_create(HmlValue fn, HmlValue arg_types, HmlValue ret_type) {
+    (void)fn;
+    (void)arg_types;
+    (void)ret_type;
+    // TODO: Implement proper FFI callback using ffi_prep_closure_loc
+    // For now, return null to indicate callbacks are not supported in compiled mode
+    hml_runtime_error("FFI callbacks not yet supported in compiled mode");
+    return hml_val_null();
+}
+
+// Free an FFI callback
+void hml_callback_free(HmlValue callback) {
+    (void)callback;
+    // No-op for stub implementation
+}
+
 // ========== MEMORY OPERATIONS ==========
 
 HmlValue hml_alloc(int32_t size) {
