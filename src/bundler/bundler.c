@@ -31,8 +31,6 @@ static char* find_stdlib_path(void);
 static char* resolve_import_path(BundleContext *ctx, const char *importer_path, const char *import_path);
 static BundledModule* load_module_for_bundle(BundleContext *ctx, const char *absolute_path, int is_entry);
 static int collect_exports(BundledModule *module);
-static Stmt* clone_stmt_with_prefix(Stmt *stmt, const char *prefix);
-static Expr* clone_expr_with_prefix(Expr *expr, const char *prefix);
 
 // ========== HELPER FUNCTIONS ==========
 
@@ -297,36 +295,6 @@ static int collect_exports(BundledModule *module) {
     return 0;
 }
 
-// ========== SYMBOL PREFIXING (for namespace isolation) ==========
-
-static char* prefix_name(const char *name, const char *prefix) {
-    if (!prefix || !name) return name ? strdup(name) : NULL;
-    size_t len = strlen(prefix) + strlen(name) + 2;
-    char *result = malloc(len);
-    snprintf(result, len, "%s$%s", prefix, name);
-    return result;
-}
-
-// Clone expression with prefixed identifiers
-static Expr* clone_expr_with_prefix(Expr *expr, const char *prefix) {
-    if (!expr) return NULL;
-
-    // Use the existing expr_clone for most cases, but handle identifiers specially
-    // For now, we'll do a simple clone without prefixing
-    // Full prefixing would require tracking which names are local vs imported
-    return expr_clone(expr);
-}
-
-// Clone statement with prefixed identifiers
-static Stmt* clone_stmt_with_prefix(Stmt *stmt, const char *prefix) {
-    if (!stmt) return NULL;
-
-    // For now, return a reference without deep cloning
-    // Full implementation would clone and prefix local definitions
-    // This is a simplified version that just references the original
-    return stmt;
-}
-
 // ========== FLATTENING ==========
 
 // Add statement to bundle's flattened output
@@ -380,7 +348,6 @@ static int flatten_module(Bundle *bundle, BundledModule *module) {
                 } else {
                     // For relative imports, check if absolute path ends with /import_path.hml
                     size_t path_len = strlen(dep->absolute_path);
-                    size_t import_len = strlen(import_path);
 
                     // Build expected suffix: /module_name.hml
                     char expected_suffix[256];

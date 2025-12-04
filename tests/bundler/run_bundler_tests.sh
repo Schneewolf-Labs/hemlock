@@ -143,6 +143,24 @@ else
     fail "Multiple stdlib imports bundle" "Bundle command failed"
 fi
 
+# Test 11: Info command on hmlc
+echo "Test 11: Info command on .hmlc"
+OUTPUT=$($HEMLOCK --info "$TMPDIR/stdlib.hmlc" 2>&1)
+if echo "$OUTPUT" | grep -q "Format: HMLC" && echo "$OUTPUT" | grep -q "Statements:"; then
+    pass "Info command shows .hmlc details"
+else
+    fail "Info command on .hmlc" "Expected output not found"
+fi
+
+# Test 12: Info command on hmlb
+echo "Test 12: Info command on .hmlb"
+OUTPUT=$($HEMLOCK --info "$TMPDIR/compressed.hmlb" 2>&1)
+if echo "$OUTPUT" | grep -q "Format: HMLB" && echo "$OUTPUT" | grep -q "Ratio:"; then
+    pass "Info command shows .hmlb compression ratio"
+else
+    fail "Info command on .hmlb" "Expected output not found"
+fi
+
 echo ""
 echo "=== Results ==="
 echo -e "Passed: ${GREEN}$PASSED${NC}"

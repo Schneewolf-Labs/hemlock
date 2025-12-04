@@ -235,6 +235,70 @@ static int compile_file(const char *input_path, const char *output_path, int deb
     return result;
 }
 
+// Show info about a compiled .hmlc file
+static int show_file_info(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        fprintf(stderr, "Error: Cannot open file '%s'\n", path);
+        return 1;
+    }
+
+    // Get file size
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    // Read header
+    uint32_t magic;
+    if (fread(&magic, 4, 1, f) != 1) {
+        fprintf(stderr, "Error: Cannot read file header\n");
+        fclose(f);
+        return 1;
+    }
+
+    printf("=== File Info: %s ===\n", path);
+    printf("Size: %ld bytes\n", file_size);
+
+    if (magic == 0x434C4D48) {  // "HMLC"
+        uint16_t version, flags;
+        uint32_t string_count, stmt_count;
+
+        fread(&version, 2, 1, f);
+        fread(&flags, 2, 1, f);
+        fread(&string_count, 4, 1, f);
+        fread(&stmt_count, 4, 1, f);
+
+        printf("Format: HMLC (compiled AST)\n");
+        printf("Version: %d\n", version);
+        printf("Flags: 0x%04x", flags);
+        if (flags & 0x0001) printf(" [DEBUG]");
+        if (flags & 0x0002) printf(" [COMPRESSED]");
+        printf("\n");
+        printf("Strings: %u\n", string_count);
+        printf("Statements: %u\n", stmt_count);
+    } else if (magic == 0x424C4D48) {  // "HMLB"
+        uint16_t version;
+        uint32_t orig_size;
+
+        fread(&version, 2, 1, f);
+        fread(&orig_size, 4, 1, f);
+
+        long compressed_size = file_size - 10;  // Header is 10 bytes
+        double ratio = (1.0 - (double)compressed_size / orig_size) * 100;
+
+        printf("Format: HMLB (compressed bundle)\n");
+        printf("Version: %d\n", version);
+        printf("Uncompressed: %u bytes\n", orig_size);
+        printf("Compressed: %ld bytes\n", compressed_size);
+        printf("Ratio: %.1f%% reduction\n", ratio);
+    } else {
+        printf("Format: Unknown (magic: 0x%08x)\n", magic);
+    }
+
+    fclose(f);
+    return 0;
+}
+
 // Bundle a .hml file with all its dependencies
 static int bundle_file(const char *input_path, const char *output_path, int verbose, int compressed) {
     BundleOptions opts = bundle_options_default();
@@ -445,6 +509,7 @@ static void print_help(const char *program) {
     printf("    --compile <FILE>     Compile .hml to binary AST (.hmlc)\n");
     printf("    --bundle <FILE>      Bundle .hml with all imports into single file\n");
     printf("    --compress           Use zlib compression for bundle output (.hmlb)\n");
+    printf("    --info <FILE>        Show info about a .hmlc/.hmlb file\n");
     printf("    -o, --output <FILE>  Output path for compiled/bundled file\n");
     printf("    --debug              Include line numbers in compiled output\n");
     printf("    --verbose            Print progress during bundling\n\n");
@@ -459,6 +524,7 @@ static void print_help(const char *program) {
     printf("    %s --compile src.hml -o out.hmlc --debug\n", program);
     printf("    %s --bundle app.hml        # Bundle app.hml + imports -> app.hmlc\n", program);
     printf("    %s --bundle app.hml --compress -o app.hmlb\n", program);
+    printf("    %s --info app.hmlc         # Show compiled file info\n", program);
     printf("    %s lsp                 # Start LSP server (stdio)\n", program);
     printf("    %s lsp --tcp 6969      # Start LSP server (TCP)\n\n", program);
     printf("For more information, visit: https://github.com/nbeerbower/hemlock\n");
@@ -511,6 +577,8 @@ int main(int argc, char **argv) {
     int bundle_mode = 0;
     int bundle_compress = 0;
     int bundle_verbose = 0;
+    int info_mode = 0;
+    const char *file_to_info = NULL;
     const char *file_to_run = NULL;
     const char *file_to_compile = NULL;
     const char *file_to_bundle = NULL;
@@ -573,6 +641,15 @@ int main(int argc, char **argv) {
             bundle_compress = 1;
         } else if (strcmp(argv[i], "--verbose") == 0) {
             bundle_verbose = 1;
+        } else if (strcmp(argv[i], "--info") == 0) {
+            info_mode = 1;
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Error: --info requires a file argument\n");
+                fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+                return 1;
+            }
+            file_to_info = argv[i + 1];
+            i++;  // Skip the file argument
         } else if (argv[i][0] == '-') {
             // Unknown flag
             fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
@@ -606,6 +683,15 @@ int main(int argc, char **argv) {
         }
         int result = bundle_file(file_to_bundle, output_path, bundle_verbose, bundle_compress);
         return result;
+    }
+
+    // Handle info mode
+    if (info_mode) {
+        if (file_to_info == NULL) {
+            fprintf(stderr, "Error: No input file specified for info\n");
+            return 1;
+        }
+        return show_file_info(file_to_info);
     }
 
     if (command_to_run != NULL) {
