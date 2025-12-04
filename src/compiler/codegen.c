@@ -3683,6 +3683,18 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"byte_length\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
+            // Buffer capacity property
+            } else if (strcmp(expr->as.get_property.property, "capacity") == 0) {
+                codegen_writeln(ctx, "HmlValue %s;", result);
+                codegen_writeln(ctx, "if (%s.type == HML_VAL_BUFFER) {", obj);
+                codegen_indent_inc(ctx);
+                codegen_writeln(ctx, "%s = hml_buffer_capacity(%s);", result, obj);
+                codegen_indent_dec(ctx);
+                codegen_writeln(ctx, "} else {");
+                codegen_indent_inc(ctx);
+                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"capacity\");", result, obj);
+                codegen_indent_dec(ctx);
+                codegen_writeln(ctx, "}");
             } else {
                 codegen_writeln(ctx, "HmlValue %s = hml_object_get_field(%s, \"%s\");",
                               result, obj, expr->as.get_property.property);

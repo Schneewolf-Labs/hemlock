@@ -303,6 +303,7 @@ HmlValue hml_builtin_talloc(HmlClosureEnv *env, HmlValue type_name, HmlValue cou
 HmlValue hml_buffer_get(HmlValue buf, HmlValue index);
 void hml_buffer_set(HmlValue buf, HmlValue index, HmlValue val);
 HmlValue hml_buffer_length(HmlValue buf);
+HmlValue hml_buffer_capacity(HmlValue buf);
 
 // FFI callback operations
 HmlValue hml_callback_create(HmlValue fn, HmlValue arg_types, HmlValue ret_type);

@@ -173,7 +173,8 @@ static void print_value_to(FILE *out, HmlValue val) {
             break;
         case HML_VAL_BUFFER:
             if (val.as.as_buffer) {
-                fprintf(out, "buffer[%d]", val.as.as_buffer->length);
+                fprintf(out, "<buffer %p length=%d capacity=%d>",
+                    (void*)val.as.as_buffer->data, val.as.as_buffer->length, val.as.as_buffer->capacity);
             } else {
                 fprintf(out, "buffer[null]");
             }
@@ -1434,12 +1435,17 @@ HmlValue hml_unary_op(HmlUnaryOp op, HmlValue operand) {
             if (!hml_is_integer(operand)) {
                 hml_runtime_error("Bitwise NOT requires integer type");
             }
-            if (operand.type == HML_VAL_I64) {
-                return hml_val_i64(~operand.as.as_i64);
-            } else if (operand.type == HML_VAL_U64) {
-                return hml_val_u64(~operand.as.as_u64);
-            } else {
-                return hml_val_i32(~hml_to_i32(operand));
+            // Preserve the original type
+            switch (operand.type) {
+                case HML_VAL_I8:  return hml_val_i8(~operand.as.as_i8);
+                case HML_VAL_I16: return hml_val_i16(~operand.as.as_i16);
+                case HML_VAL_I32: return hml_val_i32(~operand.as.as_i32);
+                case HML_VAL_I64: return hml_val_i64(~operand.as.as_i64);
+                case HML_VAL_U8:  return hml_val_u8(~operand.as.as_u8);
+                case HML_VAL_U16: return hml_val_u16(~operand.as.as_u16);
+                case HML_VAL_U32: return hml_val_u32(~operand.as.as_u32);
+                case HML_VAL_U64: return hml_val_u64(~operand.as.as_u64);
+                default: return hml_val_i32(~hml_to_i32(operand));
             }
     }
 
@@ -2040,6 +2046,13 @@ HmlValue hml_buffer_length(HmlValue buf) {
     return hml_val_i32(buf.as.as_buffer->length);
 }
 
+HmlValue hml_buffer_capacity(HmlValue buf) {
+    if (buf.type != HML_VAL_BUFFER || !buf.as.as_buffer) {
+        hml_runtime_error("capacity requires buffer");
+    }
+    return hml_val_i32(buf.as.as_buffer->capacity);
+}
+
 // ========== FFI CALLBACK OPERATIONS ==========
 
 // Create an FFI callback that wraps a Hemlock function
@@ -2085,8 +2098,33 @@ void hml_free(HmlValue ptr_or_buffer) {
             }
             free(ptr_or_buffer.as.as_buffer);
         }
+    } else if (ptr_or_buffer.type == HML_VAL_ARRAY) {
+        if (ptr_or_buffer.as.as_array) {
+            HmlArray *arr = ptr_or_buffer.as.as_array;
+            // Release all elements
+            for (int i = 0; i < arr->length; i++) {
+                hml_release(&arr->elements[i]);
+            }
+            free(arr->elements);
+            free(arr);
+        }
+    } else if (ptr_or_buffer.type == HML_VAL_OBJECT) {
+        if (ptr_or_buffer.as.as_object) {
+            HmlObject *obj = ptr_or_buffer.as.as_object;
+            // Release all field values and free names
+            for (int i = 0; i < obj->num_fields; i++) {
+                hml_release(&obj->field_values[i]);
+                free(obj->field_names[i]);
+            }
+            free(obj->field_names);
+            free(obj->field_values);
+            if (obj->type_name) free(obj->type_name);
+            free(obj);
+        }
+    } else if (ptr_or_buffer.type == HML_VAL_NULL) {
+        // free(null) is a safe no-op (like C's free(NULL))
     } else {
-        hml_runtime_error("free() requires pointer or buffer");
+        hml_runtime_error("free() requires pointer, buffer, object, or array");
     }
 }
 
@@ -2223,6 +2261,11 @@ void hml_array_push(HmlValue arr, HmlValue val) {
 
     HmlArray *a = arr.as.as_array;
 
+    // Check element type for typed arrays
+    if (a->element_type != HML_VAL_NULL && val.type != a->element_type) {
+        hml_runtime_error("Type mismatch in typed array - expected element of specific type");
+    }
+
     // Grow if needed
     if (a->length >= a->capacity) {
         int new_cap = (a->capacity == 0) ? 8 : a->capacity * 2;
@@ -2259,6 +2302,11 @@ void hml_array_set(HmlValue arr, HmlValue index, HmlValue val) {
 
     int idx = hml_to_i32(index);
     HmlArray *a = arr.as.as_array;
+
+    // Check element type for typed arrays
+    if (a->element_type != HML_VAL_NULL && val.type != a->element_type) {
+        hml_runtime_error("Type mismatch in typed array - expected element of specific type");
+    }
 
     if (idx < 0) {
         hml_runtime_error("Negative array index not supported");
@@ -2330,6 +2378,11 @@ void hml_array_unshift(HmlValue arr, HmlValue val) {
 
     HmlArray *a = arr.as.as_array;
 
+    // Check element type for typed arrays
+    if (a->element_type != HML_VAL_NULL && val.type != a->element_type) {
+        hml_runtime_error("Type mismatch in typed array - expected element of specific type");
+    }
+
     // Grow if needed
     if (a->length >= a->capacity) {
         int new_cap = (a->capacity == 0) ? 8 : a->capacity * 2;
@@ -2354,6 +2407,11 @@ void hml_array_insert(HmlValue arr, HmlValue index, HmlValue val) {
 
     int idx = hml_to_i32(index);
     HmlArray *a = arr.as.as_array;
+
+    // Check element type for typed arrays
+    if (a->element_type != HML_VAL_NULL && val.type != a->element_type) {
+        hml_runtime_error("Type mismatch in typed array - expected element of specific type");
+    }
 
     if (idx < 0 || idx > a->length) {
         hml_runtime_error("insert index %d out of bounds (length %d)", idx, a->length);
@@ -2613,8 +2671,7 @@ HmlValue hml_validate_typed_array(HmlValue arr, HmlValueType element_type) {
     // Validate all existing elements match the type constraint
     for (int i = 0; i < a->length; i++) {
         if (!hml_type_matches(a->elements[i], element_type)) {
-            hml_runtime_error("Array element type mismatch at index %d: expected %s, got %s",
-                    i, hml_type_name(element_type), hml_type_name(a->elements[i].type));
+            hml_runtime_error("Type mismatch in typed array - expected element of specific type");
         }
     }
 
@@ -4383,8 +4440,7 @@ static void* task_thread_wrapper(void* arg) {
 
 HmlValue hml_spawn(HmlValue fn, HmlValue *args, int num_args) {
     if (fn.type != HML_VAL_FUNCTION) {
-        fprintf(stderr, "Error: spawn() expects a function\n");
-        exit(1);
+        hml_runtime_error("spawn() expects a function");
     }
 
     // Create task
@@ -4429,20 +4485,17 @@ HmlValue hml_spawn(HmlValue fn, HmlValue *args, int num_args) {
 
 HmlValue hml_join(HmlValue task_val) {
     if (task_val.type != HML_VAL_TASK) {
-        fprintf(stderr, "Error: join() expects a task\n");
-        exit(1);
+        hml_runtime_error("join() expects a task");
     }
 
     HmlTask *task = task_val.as.as_task;
 
     if (task->joined) {
-        fprintf(stderr, "Error: Task already joined\n");
-        exit(1);
+        hml_runtime_error("task handle already joined");
     }
 
     if (task->detached) {
-        fprintf(stderr, "Error: Cannot join a detached task\n");
-        exit(1);
+        hml_runtime_error("cannot join detached task");
     }
 
     // Wait for task to complete
@@ -4464,15 +4517,13 @@ HmlValue hml_join(HmlValue task_val) {
 
 void hml_detach(HmlValue task_val) {
     if (task_val.type != HML_VAL_TASK) {
-        fprintf(stderr, "Error: detach() expects a task\n");
-        exit(1);
+        hml_runtime_error("detach() expects a task");
     }
 
     HmlTask *task = task_val.as.as_task;
 
     if (task->joined) {
-        fprintf(stderr, "Error: Cannot detach an already joined task\n");
-        exit(1);
+        hml_runtime_error("cannot detach already joined task");
     }
 
     if (task->detached) {
@@ -4486,8 +4537,7 @@ void hml_detach(HmlValue task_val) {
 // task_debug_info(task) - Print debug information about a task
 void hml_task_debug_info(HmlValue task_val) {
     if (task_val.type != HML_VAL_TASK) {
-        fprintf(stderr, "Error: task_debug_info() expects a task\n");
-        exit(1);
+        hml_runtime_error("task_debug_info() expects a task");
     }
 
     HmlTask *task = task_val.as.as_task;
@@ -4539,8 +4589,7 @@ HmlValue hml_channel(int32_t capacity) {
 
 void hml_channel_send(HmlValue channel, HmlValue value) {
     if (channel.type != HML_VAL_CHANNEL) {
-        fprintf(stderr, "Error: send() expects a channel\n");
-        exit(1);
+        hml_runtime_error("send() expects a channel");
     }
 
     HmlChannel *ch = channel.as.as_channel;
@@ -4554,8 +4603,7 @@ void hml_channel_send(HmlValue channel, HmlValue value) {
 
     if (ch->closed) {
         pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
-        fprintf(stderr, "Error: Cannot send on closed channel\n");
-        exit(1);
+        hml_runtime_error("cannot send to closed channel");
     }
 
     // Add value to buffer
@@ -4570,8 +4618,7 @@ void hml_channel_send(HmlValue channel, HmlValue value) {
 
 HmlValue hml_channel_recv(HmlValue channel) {
     if (channel.type != HML_VAL_CHANNEL) {
-        fprintf(stderr, "Error: recv() expects a channel\n");
-        exit(1);
+        hml_runtime_error("recv() expects a channel");
     }
 
     HmlChannel *ch = channel.as.as_channel;
