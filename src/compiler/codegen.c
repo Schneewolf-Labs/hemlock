@@ -1588,48 +1588,49 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
             } else if (strcmp(expr->as.ident, "absolute_path") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_absolute_path, 1, 1, 0);", result);
             // Unprefixed aliases for math functions (for parity with interpreter)
-            } else if (strcmp(expr->as.ident, "sin") == 0) {
+            // NOTE: Only use builtin if not shadowed by a local variable
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "sin") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_sin, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "cos") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "cos") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_cos, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "tan") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "tan") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_tan, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "asin") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "asin") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_asin, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "acos") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "acos") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_acos, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "atan") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "atan") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_atan, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "atan2") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "atan2") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_atan2, 2, 2, 0);", result);
-            } else if (strcmp(expr->as.ident, "sqrt") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "sqrt") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_sqrt, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "pow") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "pow") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_pow, 2, 2, 0);", result);
-            } else if (strcmp(expr->as.ident, "exp") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "exp") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_exp, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "log") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "log") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_log, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "log10") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "log10") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_log10, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "log2") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "log2") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_log2, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "floor") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "floor") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_floor, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "ceil") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "ceil") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_ceil, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "round") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "round") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_round, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "trunc") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "trunc") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_trunc, 1, 1, 0);", result);
             // Unprefixed aliases for environment functions (for parity with interpreter)
-            } else if (strcmp(expr->as.ident, "getenv") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "getenv") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_getenv, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "setenv") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "setenv") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_setenv, 2, 2, 0);", result);
-            } else if (strcmp(expr->as.ident, "unsetenv") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "unsetenv") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_unsetenv, 1, 1, 0);", result);
-            } else if (strcmp(expr->as.ident, "get_pid") == 0) {
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "get_pid") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_get_pid, 0, 0, 0);", result);
             } else {
                 // Check if this is an imported symbol
