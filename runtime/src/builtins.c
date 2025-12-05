@@ -169,7 +169,8 @@ static void print_value_to(FILE *out, HmlValue val) {
             fprintf(out, "null");
             break;
         case HML_VAL_PTR:
-            fprintf(out, "ptr<%p>", val.as.as_ptr);
+            // Match interpreter behavior: print 0x... instead of ptr<0x...>
+            fprintf(out, "%p", val.as.as_ptr);
             break;
         case HML_VAL_BUFFER:
             if (val.as.as_buffer) {
@@ -193,17 +194,8 @@ static void print_value_to(FILE *out, HmlValue val) {
             }
             break;
         case HML_VAL_OBJECT:
-            if (val.as.as_object) {
-                fprintf(out, "{");
-                for (int i = 0; i < val.as.as_object->num_fields; i++) {
-                    if (i > 0) fprintf(out, ", ");
-                    fprintf(out, "%s: ", val.as.as_object->field_names[i]);
-                    print_value_to(out, val.as.as_object->field_values[i]);
-                }
-                fprintf(out, "}");
-            } else {
-                fprintf(out, "{}");
-            }
+            // Match interpreter behavior: print <object> instead of JSON
+            fprintf(out, "<object>");
             break;
         case HML_VAL_FUNCTION:
             fprintf(out, "<function>");
@@ -1332,6 +1324,19 @@ HmlValue hml_binary_op(HmlBinaryOp op, HmlValue left, HmlValue right) {
             case HML_OP_GREATER_EQUAL: return hml_val_bool(l >= r);
             default:
                 hml_runtime_error("Invalid operation for rune type");
+        }
+    }
+
+    // Pointer arithmetic: ptr + int or ptr - int
+    if (left.type == HML_VAL_PTR && hml_is_numeric(right)) {
+        int64_t offset = hml_to_i64(right);
+        switch (op) {
+            case HML_OP_ADD:
+                return hml_val_ptr((char*)left.as.as_ptr + offset);
+            case HML_OP_SUB:
+                return hml_val_ptr((char*)left.as.as_ptr - offset);
+            default:
+                hml_runtime_error("Invalid operation for pointer type");
         }
     }
 
@@ -2829,6 +2834,40 @@ int hml_object_has_field(HmlValue obj, const char *field) {
     return 0;
 }
 
+// Get number of fields in object
+int hml_object_num_fields(HmlValue obj) {
+    if (obj.type != HML_VAL_OBJECT || !obj.as.as_object) {
+        return 0;
+    }
+    return obj.as.as_object->num_fields;
+}
+
+// Get field name at index
+HmlValue hml_object_key_at(HmlValue obj, int index) {
+    if (obj.type != HML_VAL_OBJECT || !obj.as.as_object) {
+        hml_runtime_error("Object key access requires object");
+    }
+    HmlObject *o = obj.as.as_object;
+    if (index < 0 || index >= o->num_fields) {
+        hml_runtime_error("Object key index out of bounds");
+    }
+    return hml_val_string(o->field_names[index]);
+}
+
+// Get field value at index
+HmlValue hml_object_value_at(HmlValue obj, int index) {
+    if (obj.type != HML_VAL_OBJECT || !obj.as.as_object) {
+        hml_runtime_error("Object value access requires object");
+    }
+    HmlObject *o = obj.as.as_object;
+    if (index < 0 || index >= o->num_fields) {
+        hml_runtime_error("Object value index out of bounds");
+    }
+    HmlValue result = o->field_values[index];
+    hml_retain(&result);
+    return result;
+}
+
 // ========== SERIALIZATION (JSON) ==========
 
 // Visited set for cycle detection
@@ -3324,6 +3363,22 @@ void hml_defer_execute_all(void) {
     while (g_defer_stack) {
         hml_defer_pop_and_execute();
     }
+}
+
+// Helper for deferring HmlValue function calls
+static void hml_defer_call_wrapper(void *arg) {
+    HmlValue *fn_ptr = (HmlValue *)arg;
+    HmlValue result = hml_call_function(*fn_ptr, NULL, 0);
+    hml_release(&result);
+    hml_release(fn_ptr);
+    free(fn_ptr);
+}
+
+void hml_defer_push_call(HmlValue fn) {
+    HmlValue *fn_copy = malloc(sizeof(HmlValue));
+    *fn_copy = fn;
+    hml_retain(fn_copy);
+    hml_defer_push(hml_defer_call_wrapper, fn_copy);
 }
 
 // ========== FUNCTION CALLS ==========
