@@ -2829,6 +2829,40 @@ int hml_object_has_field(HmlValue obj, const char *field) {
     return 0;
 }
 
+// Get number of fields in object
+int hml_object_num_fields(HmlValue obj) {
+    if (obj.type != HML_VAL_OBJECT || !obj.as.as_object) {
+        return 0;
+    }
+    return obj.as.as_object->num_fields;
+}
+
+// Get field name at index
+HmlValue hml_object_key_at(HmlValue obj, int index) {
+    if (obj.type != HML_VAL_OBJECT || !obj.as.as_object) {
+        hml_runtime_error("Object key access requires object");
+    }
+    HmlObject *o = obj.as.as_object;
+    if (index < 0 || index >= o->num_fields) {
+        hml_runtime_error("Object key index out of bounds");
+    }
+    return hml_val_string(o->field_names[index]);
+}
+
+// Get field value at index
+HmlValue hml_object_value_at(HmlValue obj, int index) {
+    if (obj.type != HML_VAL_OBJECT || !obj.as.as_object) {
+        hml_runtime_error("Object value access requires object");
+    }
+    HmlObject *o = obj.as.as_object;
+    if (index < 0 || index >= o->num_fields) {
+        hml_runtime_error("Object value index out of bounds");
+    }
+    HmlValue result = o->field_values[index];
+    hml_retain(&result);
+    return result;
+}
+
 // ========== SERIALIZATION (JSON) ==========
 
 // Visited set for cycle detection

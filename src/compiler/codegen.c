@@ -57,6 +57,9 @@ CodegenContext* codegen_new(FILE *output) {
     ctx->shadow_vars = NULL;
     ctx->num_shadow_vars = 0;
     ctx->shadow_vars_capacity = 0;
+    ctx->const_vars = NULL;
+    ctx->num_const_vars = 0;
+    ctx->const_vars_capacity = 0;
     ctx->try_finally_depth = 0;
     ctx->finally_labels = NULL;
     ctx->return_value_vars = NULL;
@@ -123,6 +126,14 @@ void codegen_free(CodegenContext *ctx) {
                 free(ctx->shadow_vars[i]);
             }
             free(ctx->shadow_vars);
+        }
+
+        // Free const variables tracking
+        if (ctx->const_vars) {
+            for (int i = 0; i < ctx->num_const_vars; i++) {
+                free(ctx->const_vars[i]);
+            }
+            free(ctx->const_vars);
         }
 
         // Free try-finally tracking arrays
@@ -254,6 +265,25 @@ void codegen_remove_shadow(CodegenContext *ctx, const char *name) {
             return;
         }
     }
+}
+
+// Const variable tracking (for preventing reassignment)
+void codegen_add_const(CodegenContext *ctx, const char *name) {
+    if (ctx->num_const_vars >= ctx->const_vars_capacity) {
+        int new_cap = (ctx->const_vars_capacity == 0) ? 8 : ctx->const_vars_capacity * 2;
+        ctx->const_vars = realloc(ctx->const_vars, new_cap * sizeof(char*));
+        ctx->const_vars_capacity = new_cap;
+    }
+    ctx->const_vars[ctx->num_const_vars++] = strdup(name);
+}
+
+int codegen_is_const(CodegenContext *ctx, const char *name) {
+    for (int i = 0; i < ctx->num_const_vars; i++) {
+        if (strcmp(ctx->const_vars[i], name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 // Try-finally context tracking (for return/break to jump to finally first)
@@ -3559,6 +3589,13 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
         }
 
         case EXPR_ASSIGN: {
+            // Check for const reassignment at compile time
+            if (codegen_is_const(ctx, expr->as.assign.name)) {
+                codegen_writeln(ctx, "hml_runtime_error(\"Cannot assign to const variable '%s'\");",
+                               expr->as.assign.name);
+                codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
+                break;
+            }
             char *value = codegen_expr(ctx, expr->as.assign.value);
             // Determine the correct variable name with prefix
             const char *var_name = expr->as.assign.name;
@@ -3977,6 +4014,37 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "%s = hml_binary_op(HML_OP_ADD, %s, hml_val_i32(1));", var, var);
                 codegen_writeln(ctx, "HmlValue %s = %s;", result, var);
                 codegen_writeln(ctx, "hml_retain(&%s);", result);
+            } else if (expr->as.prefix_inc.operand->type == EXPR_INDEX) {
+                // ++arr[i]
+                char *arr = codegen_expr(ctx, expr->as.prefix_inc.operand->as.index.object);
+                char *idx = codegen_expr(ctx, expr->as.prefix_inc.operand->as.index.index);
+                char *old_val = codegen_temp(ctx);
+                char *new_val = codegen_temp(ctx);
+                codegen_writeln(ctx, "HmlValue %s = hml_array_get(%s, %s);", old_val, arr, idx);
+                codegen_writeln(ctx, "HmlValue %s = hml_binary_op(HML_OP_ADD, %s, hml_val_i32(1));", new_val, old_val);
+                codegen_writeln(ctx, "hml_array_set(%s, %s, %s);", arr, idx, new_val);
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, new_val);
+                codegen_writeln(ctx, "hml_retain(&%s);", result);
+                codegen_writeln(ctx, "hml_release(&%s);", old_val);
+                codegen_writeln(ctx, "hml_release(&%s);", new_val);
+                codegen_writeln(ctx, "hml_release(&%s);", idx);
+                codegen_writeln(ctx, "hml_release(&%s);", arr);
+                free(arr); free(idx); free(old_val); free(new_val);
+            } else if (expr->as.prefix_inc.operand->type == EXPR_GET_PROPERTY) {
+                // ++obj.prop
+                char *obj = codegen_expr(ctx, expr->as.prefix_inc.operand->as.get_property.object);
+                const char *prop = expr->as.prefix_inc.operand->as.get_property.property;
+                char *old_val = codegen_temp(ctx);
+                char *new_val = codegen_temp(ctx);
+                codegen_writeln(ctx, "HmlValue %s = hml_object_get_field(%s, \"%s\");", old_val, obj, prop);
+                codegen_writeln(ctx, "HmlValue %s = hml_binary_op(HML_OP_ADD, %s, hml_val_i32(1));", new_val, old_val);
+                codegen_writeln(ctx, "hml_object_set_field(%s, \"%s\", %s);", obj, prop, new_val);
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, new_val);
+                codegen_writeln(ctx, "hml_retain(&%s);", result);
+                codegen_writeln(ctx, "hml_release(&%s);", old_val);
+                codegen_writeln(ctx, "hml_release(&%s);", new_val);
+                codegen_writeln(ctx, "hml_release(&%s);", obj);
+                free(obj); free(old_val); free(new_val);
             } else {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_null(); // Complex prefix inc not supported", result);
             }
@@ -3999,6 +4067,37 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "%s = hml_binary_op(HML_OP_SUB, %s, hml_val_i32(1));", var, var);
                 codegen_writeln(ctx, "HmlValue %s = %s;", result, var);
                 codegen_writeln(ctx, "hml_retain(&%s);", result);
+            } else if (expr->as.prefix_dec.operand->type == EXPR_INDEX) {
+                // --arr[i]
+                char *arr = codegen_expr(ctx, expr->as.prefix_dec.operand->as.index.object);
+                char *idx = codegen_expr(ctx, expr->as.prefix_dec.operand->as.index.index);
+                char *old_val = codegen_temp(ctx);
+                char *new_val = codegen_temp(ctx);
+                codegen_writeln(ctx, "HmlValue %s = hml_array_get(%s, %s);", old_val, arr, idx);
+                codegen_writeln(ctx, "HmlValue %s = hml_binary_op(HML_OP_SUB, %s, hml_val_i32(1));", new_val, old_val);
+                codegen_writeln(ctx, "hml_array_set(%s, %s, %s);", arr, idx, new_val);
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, new_val);
+                codegen_writeln(ctx, "hml_retain(&%s);", result);
+                codegen_writeln(ctx, "hml_release(&%s);", old_val);
+                codegen_writeln(ctx, "hml_release(&%s);", new_val);
+                codegen_writeln(ctx, "hml_release(&%s);", idx);
+                codegen_writeln(ctx, "hml_release(&%s);", arr);
+                free(arr); free(idx); free(old_val); free(new_val);
+            } else if (expr->as.prefix_dec.operand->type == EXPR_GET_PROPERTY) {
+                // --obj.prop
+                char *obj = codegen_expr(ctx, expr->as.prefix_dec.operand->as.get_property.object);
+                const char *prop = expr->as.prefix_dec.operand->as.get_property.property;
+                char *old_val = codegen_temp(ctx);
+                char *new_val = codegen_temp(ctx);
+                codegen_writeln(ctx, "HmlValue %s = hml_object_get_field(%s, \"%s\");", old_val, obj, prop);
+                codegen_writeln(ctx, "HmlValue %s = hml_binary_op(HML_OP_SUB, %s, hml_val_i32(1));", new_val, old_val);
+                codegen_writeln(ctx, "hml_object_set_field(%s, \"%s\", %s);", obj, prop, new_val);
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, new_val);
+                codegen_writeln(ctx, "hml_retain(&%s);", result);
+                codegen_writeln(ctx, "hml_release(&%s);", old_val);
+                codegen_writeln(ctx, "hml_release(&%s);", new_val);
+                codegen_writeln(ctx, "hml_release(&%s);", obj);
+                free(obj); free(old_val); free(new_val);
             } else {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
             }
@@ -4022,6 +4121,37 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "HmlValue %s = %s;", result, var);
                 codegen_writeln(ctx, "hml_retain(&%s);", result);
                 codegen_writeln(ctx, "%s = hml_binary_op(HML_OP_ADD, %s, hml_val_i32(1));", var, var);
+            } else if (expr->as.postfix_inc.operand->type == EXPR_INDEX) {
+                // arr[i]++
+                char *arr = codegen_expr(ctx, expr->as.postfix_inc.operand->as.index.object);
+                char *idx = codegen_expr(ctx, expr->as.postfix_inc.operand->as.index.index);
+                char *old_val = codegen_temp(ctx);
+                char *new_val = codegen_temp(ctx);
+                codegen_writeln(ctx, "HmlValue %s = hml_array_get(%s, %s);", old_val, arr, idx);
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, old_val);  // Return old value
+                codegen_writeln(ctx, "hml_retain(&%s);", result);
+                codegen_writeln(ctx, "HmlValue %s = hml_binary_op(HML_OP_ADD, %s, hml_val_i32(1));", new_val, old_val);
+                codegen_writeln(ctx, "hml_array_set(%s, %s, %s);", arr, idx, new_val);
+                codegen_writeln(ctx, "hml_release(&%s);", old_val);
+                codegen_writeln(ctx, "hml_release(&%s);", new_val);
+                codegen_writeln(ctx, "hml_release(&%s);", idx);
+                codegen_writeln(ctx, "hml_release(&%s);", arr);
+                free(arr); free(idx); free(old_val); free(new_val);
+            } else if (expr->as.postfix_inc.operand->type == EXPR_GET_PROPERTY) {
+                // obj.prop++
+                char *obj = codegen_expr(ctx, expr->as.postfix_inc.operand->as.get_property.object);
+                const char *prop = expr->as.postfix_inc.operand->as.get_property.property;
+                char *old_val = codegen_temp(ctx);
+                char *new_val = codegen_temp(ctx);
+                codegen_writeln(ctx, "HmlValue %s = hml_object_get_field(%s, \"%s\");", old_val, obj, prop);
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, old_val);  // Return old value
+                codegen_writeln(ctx, "hml_retain(&%s);", result);
+                codegen_writeln(ctx, "HmlValue %s = hml_binary_op(HML_OP_ADD, %s, hml_val_i32(1));", new_val, old_val);
+                codegen_writeln(ctx, "hml_object_set_field(%s, \"%s\", %s);", obj, prop, new_val);
+                codegen_writeln(ctx, "hml_release(&%s);", old_val);
+                codegen_writeln(ctx, "hml_release(&%s);", new_val);
+                codegen_writeln(ctx, "hml_release(&%s);", obj);
+                free(obj); free(old_val); free(new_val);
             } else {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
             }
@@ -4044,6 +4174,37 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "HmlValue %s = %s;", result, var);
                 codegen_writeln(ctx, "hml_retain(&%s);", result);
                 codegen_writeln(ctx, "%s = hml_binary_op(HML_OP_SUB, %s, hml_val_i32(1));", var, var);
+            } else if (expr->as.postfix_dec.operand->type == EXPR_INDEX) {
+                // arr[i]--
+                char *arr = codegen_expr(ctx, expr->as.postfix_dec.operand->as.index.object);
+                char *idx = codegen_expr(ctx, expr->as.postfix_dec.operand->as.index.index);
+                char *old_val = codegen_temp(ctx);
+                char *new_val = codegen_temp(ctx);
+                codegen_writeln(ctx, "HmlValue %s = hml_array_get(%s, %s);", old_val, arr, idx);
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, old_val);  // Return old value
+                codegen_writeln(ctx, "hml_retain(&%s);", result);
+                codegen_writeln(ctx, "HmlValue %s = hml_binary_op(HML_OP_SUB, %s, hml_val_i32(1));", new_val, old_val);
+                codegen_writeln(ctx, "hml_array_set(%s, %s, %s);", arr, idx, new_val);
+                codegen_writeln(ctx, "hml_release(&%s);", old_val);
+                codegen_writeln(ctx, "hml_release(&%s);", new_val);
+                codegen_writeln(ctx, "hml_release(&%s);", idx);
+                codegen_writeln(ctx, "hml_release(&%s);", arr);
+                free(arr); free(idx); free(old_val); free(new_val);
+            } else if (expr->as.postfix_dec.operand->type == EXPR_GET_PROPERTY) {
+                // obj.prop--
+                char *obj = codegen_expr(ctx, expr->as.postfix_dec.operand->as.get_property.object);
+                const char *prop = expr->as.postfix_dec.operand->as.get_property.property;
+                char *old_val = codegen_temp(ctx);
+                char *new_val = codegen_temp(ctx);
+                codegen_writeln(ctx, "HmlValue %s = hml_object_get_field(%s, \"%s\");", old_val, obj, prop);
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, old_val);  // Return old value
+                codegen_writeln(ctx, "hml_retain(&%s);", result);
+                codegen_writeln(ctx, "HmlValue %s = hml_binary_op(HML_OP_SUB, %s, hml_val_i32(1));", new_val, old_val);
+                codegen_writeln(ctx, "hml_object_set_field(%s, \"%s\", %s);", obj, prop, new_val);
+                codegen_writeln(ctx, "hml_release(&%s);", old_val);
+                codegen_writeln(ctx, "hml_release(&%s);", new_val);
+                codegen_writeln(ctx, "hml_release(&%s);", obj);
+                free(obj); free(old_val); free(new_val);
             } else {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
             }
@@ -4287,6 +4448,7 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
 
         case STMT_CONST: {
             codegen_add_local(ctx, stmt->as.const_stmt.name);
+            codegen_add_const(ctx, stmt->as.const_stmt.name);
             if (stmt->as.const_stmt.value) {
                 char *value = codegen_expr(ctx, stmt->as.const_stmt.value);
                 codegen_writeln(ctx, "const HmlValue %s = %s;", stmt->as.const_stmt.name, value);
@@ -4367,8 +4529,8 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
         }
 
         case STMT_FOR_IN: {
-            // Generate for-in loop for arrays
-            // for (let val in arr) or for (let key, val in arr)
+            // Generate for-in loop for arrays, objects, or strings
+            // for (let val in iterable) or for (let key, val in iterable)
             codegen_writeln(ctx, "{");
             codegen_indent_inc(ctx);
 
@@ -4376,31 +4538,63 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             char *iter_val = codegen_expr(ctx, stmt->as.for_in.iterable);
             codegen_writeln(ctx, "hml_retain(&%s);", iter_val);
 
-            // Get the length
-            char *len_var = codegen_temp(ctx);
-            codegen_writeln(ctx, "HmlValue %s = hml_array_length(%s);", len_var, iter_val);
+            // Check for valid iterable type (array, object, or string)
+            codegen_writeln(ctx, "if (%s.type != HML_VAL_ARRAY && %s.type != HML_VAL_OBJECT && %s.type != HML_VAL_STRING) {",
+                          iter_val, iter_val, iter_val);
+            codegen_indent_inc(ctx);
+            codegen_writeln(ctx, "hml_release(&%s);", iter_val);
+            codegen_writeln(ctx, "hml_runtime_error(\"for-in requires array, object, or string\");");
+            codegen_indent_dec(ctx);
+            codegen_writeln(ctx, "}");
 
             // Index counter
             char *idx_var = codegen_temp(ctx);
             codegen_writeln(ctx, "int32_t %s = 0;", idx_var);
 
-            codegen_writeln(ctx, "while (%s < %s.as.as_i32) {", idx_var, len_var);
+            // Get the length based on type
+            char *len_var = codegen_temp(ctx);
+            codegen_writeln(ctx, "int32_t %s;", len_var);
+            codegen_writeln(ctx, "if (%s.type == HML_VAL_OBJECT) {", iter_val);
+            codegen_indent_inc(ctx);
+            codegen_writeln(ctx, "%s = hml_object_num_fields(%s);", len_var, iter_val);
+            codegen_indent_dec(ctx);
+            codegen_writeln(ctx, "} else {");
+            codegen_indent_inc(ctx);
+            codegen_writeln(ctx, "%s = hml_array_length(%s).as.as_i32;", len_var, iter_val);
+            codegen_indent_dec(ctx);
+            codegen_writeln(ctx, "}");
+
+            codegen_writeln(ctx, "while (%s < %s) {", idx_var, len_var);
             codegen_indent_inc(ctx);
 
-            // Create key variable if provided
+            // Create key and value variables based on iterable type
             if (stmt->as.for_in.key_var) {
-                codegen_writeln(ctx, "HmlValue %s = hml_val_i32(%s);",
-                              stmt->as.for_in.key_var, idx_var);
+                codegen_writeln(ctx, "HmlValue %s;", stmt->as.for_in.key_var);
                 codegen_add_local(ctx, stmt->as.for_in.key_var);
             }
+            codegen_writeln(ctx, "HmlValue %s;", stmt->as.for_in.value_var);
+            codegen_add_local(ctx, stmt->as.for_in.value_var);
 
-            // Get value at index
+            // Handle object iteration
+            codegen_writeln(ctx, "if (%s.type == HML_VAL_OBJECT) {", iter_val);
+            codegen_indent_inc(ctx);
+            if (stmt->as.for_in.key_var) {
+                codegen_writeln(ctx, "%s = hml_object_key_at(%s, %s);", stmt->as.for_in.key_var, iter_val, idx_var);
+            }
+            codegen_writeln(ctx, "%s = hml_object_value_at(%s, %s);", stmt->as.for_in.value_var, iter_val, idx_var);
+            codegen_indent_dec(ctx);
+            codegen_writeln(ctx, "} else {");
+            codegen_indent_inc(ctx);
+            // Handle array/string iteration
+            if (stmt->as.for_in.key_var) {
+                codegen_writeln(ctx, "%s = hml_val_i32(%s);", stmt->as.for_in.key_var, idx_var);
+            }
             char *idx_val = codegen_temp(ctx);
             codegen_writeln(ctx, "HmlValue %s = hml_val_i32(%s);", idx_val, idx_var);
-            codegen_writeln(ctx, "HmlValue %s = hml_array_get(%s, %s);",
-                          stmt->as.for_in.value_var, iter_val, idx_val);
-            codegen_add_local(ctx, stmt->as.for_in.value_var);
+            codegen_writeln(ctx, "%s = hml_array_get(%s, %s);", stmt->as.for_in.value_var, iter_val, idx_val);
             codegen_writeln(ctx, "hml_release(&%s);", idx_val);
+            codegen_indent_dec(ctx);
+            codegen_writeln(ctx, "}");
 
             // Generate body
             codegen_stmt(ctx, stmt->as.for_in.body);
@@ -4418,7 +4612,6 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             codegen_writeln(ctx, "}");
 
             // Cleanup
-            codegen_writeln(ctx, "hml_release(&%s);", len_var);
             codegen_writeln(ctx, "hml_release(&%s);", iter_val);
 
             codegen_indent_dec(ctx);
@@ -4427,7 +4620,6 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             free(iter_val);
             free(len_var);
             free(idx_var);
-            free(idx_val);
             break;
         }
 
@@ -4614,6 +4806,10 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
 
         case STMT_THROW: {
             char *value = codegen_expr(ctx, stmt->as.throw_stmt.value);
+            // Execute defers before throwing (they must run)
+            if (ctx->defer_stack) {
+                codegen_defer_execute_all(ctx);
+            }
             codegen_writeln(ctx, "hml_throw(%s);", value);
             free(value);
             break;
@@ -5539,6 +5735,7 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
             codegen_add_main_func(ctx, name);  // Also track as function definition
         } else if (stmt->type == STMT_CONST) {
             codegen_add_main_var(ctx, stmt->as.const_stmt.name);
+            codegen_add_const(ctx, stmt->as.const_stmt.name);
         } else if (stmt->type == STMT_LET) {
             codegen_add_main_var(ctx, stmt->as.let.name);
         } else if (stmt->type == STMT_ENUM) {
