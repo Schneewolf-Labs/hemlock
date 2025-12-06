@@ -7,7 +7,7 @@ Hemlock embraces **manual memory management** with explicit control over allocat
 Hemlock follows the principle: "You allocated it, you free it." There is:
 - No garbage collection
 - No automatic resource cleanup
-- No reference counting (in v0.1)
+- No reference counting
 - Full responsibility on the programmer
 
 This explicit approach gives you complete control but requires careful management to avoid memory leaks and dangling pointers.
@@ -140,14 +140,29 @@ free(p);
 
 **Note:** After `realloc()`, the old pointer may be invalid. Always use the returned pointer.
 
-### Typed Allocation (TODO - v0.2)
+### Typed Allocation
 
-Future versions will include typed allocation helpers:
+Hemlock provides typed allocation helpers for convenience:
 
 ```hemlock
-// Planned for v0.2
-let arr = talloc(i32, 100);  // Allocate 100 i32 values
-let size = sizeof(i32);      // Get size of type
+let arr = talloc(i32, 100);  // Allocate 100 i32 values (400 bytes)
+let size = sizeof(i32);      // Returns 4 (bytes)
+```
+
+**`sizeof(type)`** returns the size in bytes of a type:
+- `sizeof(i8)` / `sizeof(u8)` → 1
+- `sizeof(i16)` / `sizeof(u16)` → 2
+- `sizeof(i32)` / `sizeof(u32)` / `sizeof(f32)` → 4
+- `sizeof(i64)` / `sizeof(u64)` / `sizeof(f64)` → 8
+- `sizeof(ptr)` → 8 (on 64-bit systems)
+
+**`talloc(type, count)`** allocates `count` elements of `type`:
+
+```hemlock
+let ints = talloc(i32, 10);   // 40 bytes for 10 i32 values
+let floats = talloc(f64, 5);  // 40 bytes for 5 f64 values
+free(ints);
+free(floats);
 ```
 
 ## Common Patterns
@@ -355,13 +370,12 @@ let p2 = pool_alloc(200);
 free(pool);
 ```
 
-## Limitations (v0.1)
+## Limitations
 
 Current limitations to be aware of:
 
 - **No reference counting** - Objects and arrays are never freed automatically
 - **No cycle detection** - Circular references will leak memory
-- **No typed allocation** - `talloc()` and `sizeof()` planned for v0.2
 - **No custom allocators** - Only system malloc/free
 
 ## Related Topics
