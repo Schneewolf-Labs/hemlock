@@ -1500,10 +1500,14 @@ Value value_deep_copy(Value val) {
             exit(1);
 
         case VAL_FILE:
+            // File handles are OS resources - kernel handles concurrent access
+            // We share by reference (no deep copy needed)
+            return val;
+
         case VAL_SOCKET:
-            // File/socket handles cannot be deep copied - they represent OS resources
-            fprintf(stderr, "Runtime error: Cannot pass file/socket handle to spawned task (use channel to coordinate)\n");
-            exit(1);
+            // Socket handles are OS resources - kernel handles concurrent access
+            // We share by reference (no deep copy needed)
+            return val;
 
         case VAL_FUNCTION:
             // Functions are retained (shared) but their closure env is isolated

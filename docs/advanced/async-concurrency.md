@@ -581,11 +581,11 @@ print(modified.length);  // 4 - has new element
 - Channels (the communication mechanism - intentionally shared)
 - Task handles (for coordination)
 - Functions (code is immutable)
+- File handles (OS manages concurrent access)
+- Socket handles (OS manages concurrent access)
 
 **What cannot be passed:**
 - Raw pointers (`ptr`) - use `buffer` instead
-- File handles - use channels to coordinate file access
-- Socket handles - use channels to coordinate socket access
 
 ### Why Message-Passing?
 
