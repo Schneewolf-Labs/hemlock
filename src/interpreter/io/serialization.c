@@ -1,5 +1,6 @@
 #include "internal.h"
 #include <stdarg.h>
+#include <stdatomic.h>
 
 // ========== RUNTIME ERROR HELPER ==========
 
@@ -356,6 +357,7 @@ Value json_parse_object(JSONParser *p, ExecutionContext *ctx) {
         obj->capacity = 32;
         obj->type_name = NULL;
         obj->ref_count = 1;  // Start with 1 - caller owns the first reference
+        atomic_store(&obj->freed, 0);  // Not freed
         return val_object(obj);
     }
 
@@ -444,6 +446,7 @@ Value json_parse_object(JSONParser *p, ExecutionContext *ctx) {
     obj->capacity = 32;
     obj->type_name = NULL;
     obj->ref_count = 1;  // Start with 1 - caller owns the first reference
+    atomic_store(&obj->freed, 0);  // Not freed
     return val_object(obj);
 }
 

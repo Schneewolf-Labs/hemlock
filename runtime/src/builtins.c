@@ -2500,6 +2500,7 @@ HmlValue hml_array_slice(HmlValue arr, HmlValue start, HmlValue end) {
     result->capacity = (new_len > 0) ? new_len : 1;
     result->elements = malloc(result->capacity * sizeof(HmlValue));
     result->element_type = HML_VAL_NULL;
+    atomic_store(&result->freed, 0);  // Not freed
 
     for (int i = 0; i < new_len; i++) {
         result->elements[i] = a->elements[s + i];
@@ -2574,6 +2575,7 @@ HmlValue hml_array_concat(HmlValue arr1, HmlValue arr2) {
     result->capacity = (new_len > 0) ? new_len : 1;
     result->elements = malloc(result->capacity * sizeof(HmlValue));
     result->element_type = HML_VAL_NULL;
+    atomic_store(&result->freed, 0);  // Not freed
 
     for (int i = 0; i < a1->length; i++) {
         result->elements[i] = a1->elements[i];
@@ -5174,6 +5176,7 @@ HmlValue hml_socket_recv(HmlValue socket_val, HmlValue size) {
     hbuf->length = (int)received;
     hbuf->capacity = sz;
     hbuf->ref_count = 1;
+    atomic_store(&hbuf->freed, 0);  // Not freed
 
     HmlValue result;
     result.type = HML_VAL_BUFFER;
@@ -5267,6 +5270,7 @@ HmlValue hml_socket_recvfrom(HmlValue socket_val, HmlValue size) {
     hbuf->length = (int)received;
     hbuf->capacity = sz;
     hbuf->ref_count = 1;
+    atomic_store(&hbuf->freed, 0);  // Not freed
 
     // Get source address and port
     char addr_str[INET_ADDRSTRLEN];

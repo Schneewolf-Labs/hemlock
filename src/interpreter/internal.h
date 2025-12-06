@@ -103,7 +103,8 @@ void env_define(Environment *env, const char *name, Value value, int is_const, E
 void env_set(Environment *env, const char *name, Value value, ExecutionContext *ctx);
 Value env_get(Environment *env, const char *name, ExecutionContext *ctx);
 
-// Tracking for manually freed objects/arrays (for compatibility with builtin_free)
+// DEPRECATED: These functions are no-ops. Thread-safe double-free detection now uses
+// atomic 'freed' flags on Buffer, Array, and Object structs. Kept for backward compatibility.
 void register_manually_freed_pointer(void *ptr);
 int is_manually_freed_pointer(void *ptr);
 void clear_manually_freed_pointers(void);

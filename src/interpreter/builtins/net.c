@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <poll.h>
+#include <stdatomic.h>
 
 // ========== SOCKET BUILTINS ==========
 
@@ -354,6 +355,7 @@ Value socket_method_recv(SocketHandle *sock, Value *args, int num_args, Executio
         buf->length = 0;
         buf->capacity = 0;
         buf->ref_count = 1;  // Start with 1 - caller owns the first reference
+        atomic_store(&buf->freed, 0);  // Not freed
         return (Value){ .type = VAL_BUFFER, .as.as_buffer = buf };
     }
 
@@ -382,6 +384,7 @@ Value socket_method_recv(SocketHandle *sock, Value *args, int num_args, Executio
         buf->length = 0;
         buf->capacity = 0;
         buf->ref_count = 1;
+        atomic_store(&buf->freed, 0);  // Not freed
         return (Value){ .type = VAL_BUFFER, .as.as_buffer = buf };
     }
 
@@ -390,6 +393,7 @@ Value socket_method_recv(SocketHandle *sock, Value *args, int num_args, Executio
     buf->length = (int)received;
     buf->capacity = size;
     buf->ref_count = 1;  // Start with 1 - caller owns the first reference
+    atomic_store(&buf->freed, 0);  // Not freed
 
     return (Value){ .type = VAL_BUFFER, .as.as_buffer = buf };
 }
@@ -507,6 +511,7 @@ Value socket_method_recvfrom(SocketHandle *sock, Value *args, int num_args, Exec
     buf->length = (int)received;
     buf->capacity = size;
     buf->ref_count = 1;  // Start with 1 - caller owns the first reference
+    atomic_store(&buf->freed, 0);  // Not freed
 
     // Get source address and port based on address family
     char addr_str[INET6_ADDRSTRLEN];

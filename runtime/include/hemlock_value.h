@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdatomic.h>
 
 // Forward declarations for heap-allocated types
 typedef struct HmlString HmlString;
@@ -106,6 +107,7 @@ struct HmlBuffer {
     int length;
     int capacity;
     int ref_count;
+    _Atomic int freed;   // Atomic flag: 1 if freed via free(), 0 otherwise
 };
 
 // Array struct (dynamic array)
@@ -115,6 +117,7 @@ struct HmlArray {
     int capacity;
     int ref_count;
     HmlValueType element_type;  // HML_VAL_NULL for untyped
+    _Atomic int freed;   // Atomic flag: 1 if freed via free(), 0 otherwise
 };
 
 // Object struct (JavaScript-style)
@@ -125,6 +128,7 @@ struct HmlObject {
     int num_fields;
     int capacity;
     int ref_count;
+    _Atomic int freed;   // Atomic flag: 1 if freed via free(), 0 otherwise
 };
 
 // Function struct (user-defined or closure)

@@ -1,4 +1,5 @@
 #include "internal.h"
+#include <stdatomic.h>
 
 // Helper: Get the size of a type
 int get_type_size(TypeKind kind) {
@@ -70,42 +71,38 @@ Value builtin_free(Value *args, int num_args, ExecutionContext *ctx) {
     } else if (args[0].type == VAL_BUFFER) {
         Buffer *buf = args[0].as.as_buffer;
 
-        // Release once to drop the env_get() retain
-        value_release(args[0]);
-
-        // After releasing env_get() reference, buffer should have ref_count == 2:
-        // - 1 from initial creation (val_buffer returns ref_count=1)
-        // - 1 from environment ownership (env_define/env_set retained)
-        // Both references point to the same buffer in the environment
+        // Atomically check and set the freed flag to detect double-free
+        int expected = 0;
+        if (!atomic_compare_exchange_strong(&buf->freed, &expected, 1)) {
+            fprintf(stderr, "Runtime error: double free detected on buffer\n");
+            exit(1);
+        }
 
         // Safety check: don't allow free on buffers shared outside the environment
-        if (buf->ref_count > 2) {
+        // Note: we check BEFORE calling value_release since that would skip due to freed flag
+        if (buf->ref_count > 3) {  // 3 = creation + env + env_get
             fprintf(stderr, "Runtime error: Cannot free buffer with %d active references. "
                     "Ensure exclusive ownership before calling free().\n", buf->ref_count);
             exit(1);
         }
 
-        // Release the environment's reference and the creation reference
-        // This brings ref_count to 0, allowing the free
-        if (buf->ref_count >= 1) {
-            buf->ref_count = 0;  // Force to 0 for manual free
-            register_manually_freed_pointer(buf);
-        }
-
+        // Free the internal data but keep the struct alive for cleanup to check freed flag
         free(buf->data);
-        free(buf);
+        buf->data = NULL;
+        buf->length = 0;
+        buf->capacity = 0;
+        // Note: We don't free(buf) here - the struct must remain accessible so cleanup
+        // can check the freed flag. The struct will leak, but this is manual memory
+        // management and the user has explicitly freed the buffer's data.
         return val_null();
     } else if (args[0].type == VAL_OBJECT) {
         Object *obj = args[0].as.as_object;
 
-        // Release once to drop the env_get() retain
-        value_release(args[0]);
-
-        // Force ref_count to 0 for manual free (similar to buffer/array handling)
-        // This handles the extra reference from creation + environment ownership
-        if (obj->ref_count >= 1) {
-            obj->ref_count = 0;
-            register_manually_freed_pointer(obj);
+        // Atomically check and set the freed flag to detect double-free
+        int expected = 0;
+        if (!atomic_compare_exchange_strong(&obj->freed, &expected, 1)) {
+            fprintf(stderr, "Runtime error: double free detected on object\n");
+            exit(1);
         }
 
         // Release all field values (decrements their ref_counts)
@@ -113,32 +110,37 @@ Value builtin_free(Value *args, int num_args, ExecutionContext *ctx) {
             value_release(obj->field_values[i]);
             free(obj->field_names[i]);
         }
-        // Free object structure
+        // Free internal data but keep struct alive for cleanup to check freed flag
         free(obj->field_names);
         free(obj->field_values);
         if (obj->type_name) free(obj->type_name);
-        free(obj);
+        obj->field_names = NULL;
+        obj->field_values = NULL;
+        obj->type_name = NULL;
+        obj->num_fields = 0;
+        obj->capacity = 0;
+        // Note: We don't free(obj) here - struct must remain for freed flag check
         return val_null();
     } else if (args[0].type == VAL_ARRAY) {
         Array *arr = args[0].as.as_array;
 
-        // Release once to drop the env_get() retain
-        value_release(args[0]);
-
-        // Force ref_count to 0 for manual free (similar to buffer handling)
-        // This handles the extra reference from creation + environment ownership
-        if (arr->ref_count >= 1) {
-            arr->ref_count = 0;
-            register_manually_freed_pointer(arr);
+        // Atomically check and set the freed flag to detect double-free
+        int expected = 0;
+        if (!atomic_compare_exchange_strong(&arr->freed, &expected, 1)) {
+            fprintf(stderr, "Runtime error: double free detected on array\n");
+            exit(1);
         }
 
         // Release all elements (decrements their ref_counts)
         for (int i = 0; i < arr->length; i++) {
             value_release(arr->elements[i]);
         }
-        // Free array structure
+        // Free internal data but keep struct alive for cleanup to check freed flag
         free(arr->elements);
-        free(arr);
+        arr->elements = NULL;
+        arr->length = 0;
+        arr->capacity = 0;
+        // Note: We don't free(arr) here - struct must remain for freed flag check
         return val_null();
     } else if (args[0].type == VAL_NULL) {
         // free(null) is a safe no-op (like C's free(NULL))

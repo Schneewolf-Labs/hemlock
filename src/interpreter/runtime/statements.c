@@ -1,4 +1,5 @@
 #include "internal.h"
+#include <stdatomic.h>
 
 // ========== STATEMENT EVALUATION ==========
 
@@ -397,6 +398,7 @@ void eval_stmt(Stmt *stmt, Environment *env, ExecutionContext *ctx) {
             obj->field_names = malloc(sizeof(char*) * type->num_variants);
             obj->field_values = malloc(sizeof(Value) * type->num_variants);
             obj->ref_count = 1;
+            atomic_store(&obj->freed, 0);  // Not freed
 
             for (int i = 0; i < type->num_variants; i++) {
                 obj->field_names[i] = strdup(type->variant_names[i]);
