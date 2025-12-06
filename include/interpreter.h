@@ -3,6 +3,7 @@
 
 #include "ast.h"
 #include <stdint.h>
+#include <stdatomic.h>
 #include <stdio.h>
 
 // Value types that can exist at runtime
@@ -56,6 +57,7 @@ typedef struct {
     int length;
     int capacity;
     int ref_count;       // Reference count for memory management
+    _Atomic int freed;   // Atomic flag: 1 if freed via free(), 0 otherwise
 } Buffer;
 
 // Array struct (dynamic array)
@@ -65,6 +67,7 @@ typedef struct {
     int capacity;
     int ref_count;       // Reference count for memory management
     Type *element_type;  // Optional: type constraint for array elements (NULL = untyped)
+    _Atomic int freed;   // Atomic flag: 1 if freed via free(), 0 otherwise
 } Array;
 
 // File handle struct
@@ -95,6 +98,7 @@ typedef struct {
     int num_fields;
     int capacity;
     int ref_count;       // Reference count for memory management
+    _Atomic int freed;   // Atomic flag: 1 if freed via free(), 0 otherwise
 } Object;
 
 // Function struct (user-defined function)

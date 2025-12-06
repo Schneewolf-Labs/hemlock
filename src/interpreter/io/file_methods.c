@@ -1,5 +1,6 @@
 #include "internal.h"
 #include <stdarg.h>
+#include <stdatomic.h>
 
 // ========== RUNTIME ERROR HELPER ==========
 
@@ -112,6 +113,7 @@ Value call_file_method(FileHandle *file, const char *method, Value *args, int nu
             buf->length = 0;
             buf->capacity = 0;
             buf->ref_count = 1;  // Start with 1 - caller owns the first reference
+            atomic_store(&buf->freed, 0);  // Not freed
             return (Value){ .type = VAL_BUFFER, .as.as_buffer = buf };
         }
 
@@ -132,6 +134,7 @@ Value call_file_method(FileHandle *file, const char *method, Value *args, int nu
         buf->length = read_bytes;
         buf->capacity = size;
         buf->ref_count = 1;  // Start with 1 - caller owns the first reference
+        atomic_store(&buf->freed, 0);  // Not freed
 
         return (Value){ .type = VAL_BUFFER, .as.as_buffer = buf };
     }

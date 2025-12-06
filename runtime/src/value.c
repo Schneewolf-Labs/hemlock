@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdatomic.h>
 
 // ========== VALUE CONSTRUCTORS ==========
 
@@ -153,6 +154,7 @@ HmlValue hml_val_buffer(int size) {
     b->length = size;
     b->capacity = size;
     b->ref_count = 1;
+    atomic_store(&b->freed, 0);  // Not freed
 
     HmlValue v;
     v.type = HML_VAL_BUFFER;
@@ -170,6 +172,7 @@ HmlValue hml_val_array(void) {
     a->capacity = 0;
     a->ref_count = 1;
     a->element_type = HML_VAL_NULL;  // Untyped
+    atomic_store(&a->freed, 0);  // Not freed
 
     v.as.as_array = a;
     return v;
@@ -186,6 +189,7 @@ HmlValue hml_val_object(void) {
     o->num_fields = 0;
     o->capacity = 0;
     o->ref_count = 1;
+    atomic_store(&o->freed, 0);  // Not freed
 
     v.as.as_object = o;
     return v;

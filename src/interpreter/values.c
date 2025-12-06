@@ -205,7 +205,7 @@ void buffer_retain(Buffer *buf) {
 void buffer_release(Buffer *buf) {
     if (!buf) return;
     // Skip if already manually freed via builtin_free()
-    if (is_manually_freed_pointer(buf)) return;
+    if (atomic_load(&buf->freed)) return;
     int old_count = __atomic_sub_fetch(&buf->ref_count, 1, __ATOMIC_SEQ_CST);
     if (old_count == 0) {
         buffer_free(buf);
@@ -233,6 +233,7 @@ Value val_buffer(int size) {
     buf->length = size;
     buf->capacity = size;
     buf->ref_count = 1;  // Start with 1 - caller owns the first reference
+    atomic_store(&buf->freed, 0);  // Not freed
     v.as.as_buffer = buf;
     return v;
 }
@@ -256,6 +257,7 @@ Array* array_new(void) {
     arr->length = 0;
     arr->ref_count = 1;  // Start with 1 - caller owns the first reference
     arr->element_type = NULL;  // Untyped array
+    atomic_store(&arr->freed, 0);  // Not freed
     arr->elements = malloc(sizeof(Value) * arr->capacity);
     if (!arr->elements) {
         free(arr);
@@ -289,7 +291,7 @@ void array_retain(Array *arr) {
 void array_release(Array *arr) {
     if (!arr) return;
     // Skip if already manually freed via builtin_free()
-    if (is_manually_freed_pointer(arr)) return;
+    if (atomic_load(&arr->freed)) return;
     int old_count = __atomic_sub_fetch(&arr->ref_count, 1, __ATOMIC_SEQ_CST);
     if (old_count == 0) {
         array_free(arr);
@@ -433,7 +435,7 @@ void object_retain(Object *obj) {
 void object_release(Object *obj) {
     if (!obj) return;
     // Skip if already manually freed via builtin_free()
-    if (is_manually_freed_pointer(obj)) return;
+    if (atomic_load(&obj->freed)) return;
     int old_count = __atomic_sub_fetch(&obj->ref_count, 1, __ATOMIC_SEQ_CST);
     if (old_count == 0) {
         object_free(obj);
@@ -513,6 +515,7 @@ Object* object_new(char *type_name, int initial_capacity) {
     obj->num_fields = 0;
     obj->capacity = initial_capacity;
     obj->ref_count = 1;  // Start with 1 - caller owns the first reference
+    atomic_store(&obj->freed, 0);  // Not freed
     return obj;
 }
 
@@ -1167,7 +1170,7 @@ static void object_free_internal(Object *obj, VisitedSet *visited) {
     if (!obj) return;
 
     // Check if manually freed via builtin_free()
-    if (is_manually_freed_pointer(obj)) return;
+    if (atomic_load(&obj->freed)) return;
 
     // Check if already visited (cycle detected)
     if (visited_set_contains(visited, obj)) {
@@ -1194,7 +1197,7 @@ static void array_free_internal(Array *arr, VisitedSet *visited) {
     if (!arr) return;
 
     // Check if manually freed via builtin_free()
-    if (is_manually_freed_pointer(arr)) return;
+    if (atomic_load(&arr->freed)) return;
 
     // Check if already visited (cycle detected)
     if (visited_set_contains(visited, arr)) {

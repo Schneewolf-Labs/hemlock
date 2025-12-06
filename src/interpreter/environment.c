@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <stdatomic.h>
 
 // ========== ENVIRONMENT ==========
 
@@ -46,62 +47,22 @@ Environment* env_new(Environment *parent) {
 
 // ========== CYCLE BREAKING ==========
 
-// Global set to track manually freed objects/arrays (for compatibility with builtin_free)
-// When builtin_free() manually frees an object/array while it's still referenced in the
-// environment, we register it here so env_break_cycles() can skip it without crashing.
-static pthread_mutex_t manually_freed_mutex = PTHREAD_MUTEX_INITIALIZER;
-static void **manually_freed_pointers = NULL;
-static int manually_freed_count = 0;
-static int manually_freed_capacity = 0;
+// DEPRECATED: The global manually_freed_pointers array has been replaced with
+// atomic 'freed' flags on Buffer, Array, and Object structs for thread-safe
+// double-free detection. These functions are kept as no-ops for backward compatibility.
 
 void register_manually_freed_pointer(void *ptr) {
-    pthread_mutex_lock(&manually_freed_mutex);
-
-    if (!manually_freed_pointers) {
-        manually_freed_capacity = 16;
-        manually_freed_pointers = malloc(sizeof(void*) * manually_freed_capacity);
-        if (!manually_freed_pointers) {
-            fprintf(stderr, "Runtime error: Memory allocation failed\n");
-            exit(1);
-        }
-    }
-
-    // Grow if needed
-    if (manually_freed_count >= manually_freed_capacity) {
-        manually_freed_capacity *= 2;
-        void **new_pointers = realloc(manually_freed_pointers, sizeof(void*) * manually_freed_capacity);
-        if (!new_pointers) {
-            fprintf(stderr, "Runtime error: Memory allocation failed\n");
-            exit(1);
-        }
-        manually_freed_pointers = new_pointers;
-    }
-
-    manually_freed_pointers[manually_freed_count++] = ptr;
-
-    pthread_mutex_unlock(&manually_freed_mutex);
+    (void)ptr;  // No-op - freed flag is now set atomically on the struct itself
 }
 
 int is_manually_freed_pointer(void *ptr) {
-    pthread_mutex_lock(&manually_freed_mutex);
-
-    int result = 0;
-    for (int i = 0; i < manually_freed_count; i++) {
-        if (manually_freed_pointers[i] == ptr) {
-            result = 1;
-            break;
-        }
-    }
-
-    pthread_mutex_unlock(&manually_freed_mutex);
-    return result;
+    (void)ptr;
+    // No-op - callers should use atomic_load(&struct->freed) instead
+    return 0;
 }
 
 void clear_manually_freed_pointers(void) {
-    pthread_mutex_lock(&manually_freed_mutex);
-    manually_freed_count = 0;
-    // Don't free the array, just reset count for reuse
-    pthread_mutex_unlock(&manually_freed_mutex);
+    // No-op - nothing to clear since we no longer track globally
 }
 
 // Visited set for tracking processed pointers during cycle breaking
@@ -178,7 +139,7 @@ static void value_break_cycles_internal(Value val, VisitedSet *visited) {
             if (val.as.as_object) {
                 Object *obj = val.as.as_object;
                 // Skip objects that have been manually freed via builtin_free()
-                if (is_manually_freed_pointer(obj)) {
+                if (atomic_load(&obj->freed)) {
                     return;
                 }
                 // Check if already visited (cycle detection)
@@ -198,7 +159,7 @@ static void value_break_cycles_internal(Value val, VisitedSet *visited) {
             if (val.as.as_array) {
                 Array *arr = val.as.as_array;
                 // Skip arrays that have been manually freed via builtin_free()
-                if (is_manually_freed_pointer(arr)) {
+                if (atomic_load(&arr->freed)) {
                     return;
                 }
                 // Check if already visited (cycle detection)
