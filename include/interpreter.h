@@ -84,6 +84,7 @@ typedef struct {
     int type;            // SOCK_STREAM, SOCK_DGRAM
     int closed;          // Whether socket is closed
     int listening;       // Whether listening (server socket)
+    int nonblocking;     // Whether socket is in non-blocking mode
 } SocketHandle;
 
 // Object struct (JavaScript-style object)
