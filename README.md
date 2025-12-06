@@ -150,7 +150,7 @@ See [Bundling & Packaging](docs/advanced/bundling-packaging.md) for details.
 
 ## Project Status
 
-Hemlock v0.1 is released with:
+Hemlock v1.0 is released with:
 
 - Full type system with 64-bit integers and Unicode support
 - Manual memory management with safe and unsafe options
@@ -159,7 +159,7 @@ Hemlock v0.1 is released with:
 - FFI for C interop
 - Compiler backend (C code generation)
 - LSP server for IDE support
-- 618+ tests (100% pass rate)
+- 479 tests (100% pass rate)
 
 ## Philosophy
 

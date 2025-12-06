@@ -318,14 +318,12 @@ sizeof(type): i32
 
 **Returns:** Size in bytes
 
-**Examples (Future):**
+**Examples:**
 ```hemlock
 let int_size = sizeof(i32);      // 4
 let ptr_size = sizeof(ptr);      // 8
 let float_size = sizeof(f64);    // 8
 ```
-
-**Status:** Parsed but not implemented (v0.1)
 
 ---
 
@@ -344,7 +342,7 @@ talloc(type, count: i32): ptr
 
 **Returns:** Pointer to allocated array
 
-**Examples (Future):**
+**Examples:**
 ```hemlock
 let arr = talloc(i32, 100);      // Array of 100 i32s
 let floats = talloc(f64, 50);    // Array of 50 f64s
@@ -352,8 +350,6 @@ let floats = talloc(f64, 50);    // Array of 50 f64s
 free(arr);
 free(floats);
 ```
-
-**Status:** Parsed but not implemented (v0.1)
 
 ---
 
