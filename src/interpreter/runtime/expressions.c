@@ -381,6 +381,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
             // Numeric operations
             if (!is_numeric(left) || !is_numeric(right)) {
                 runtime_error(ctx, "Binary operation requires numeric operands");
+                goto binary_cleanup;
             }
 
             // Determine result type and promote operands

@@ -413,6 +413,13 @@ Value promote_value(Value val, ValueType target_type) {
             } else {
                 return val_f64((double)value_to_int(val));
             }
+        case VAL_RUNE:
+            // Rune is a Unicode codepoint (u32)
+            if (val.type == VAL_RUNE) {
+                return val;
+            } else {
+                return val_rune((uint32_t)value_to_int(val));
+            }
         default:
             fprintf(stderr, "Runtime error: Cannot promote to type\n");
             exit(1);
