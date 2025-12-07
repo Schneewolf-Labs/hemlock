@@ -346,12 +346,19 @@ static int flatten_module(Bundle *bundle, BundledModule *module) {
                         matches = 1;
                     }
                 } else {
-                    // For relative imports, check if absolute path ends with /import_path.hml
+                    // For relative imports, check if absolute path ends with /import_path
                     size_t path_len = strlen(dep->absolute_path);
+                    size_t import_len = strlen(import_path);
 
-                    // Build expected suffix: /module_name.hml
+                    // Build expected suffix: /module_name (with .hml only if not already present)
                     char expected_suffix[256];
-                    snprintf(expected_suffix, sizeof(expected_suffix), "/%s.hml", import_path);
+                    if (import_len >= 4 && strcmp(import_path + import_len - 4, ".hml") == 0) {
+                        // Import already ends with .hml
+                        snprintf(expected_suffix, sizeof(expected_suffix), "/%s", import_path);
+                    } else {
+                        // Add .hml extension
+                        snprintf(expected_suffix, sizeof(expected_suffix), "/%s.hml", import_path);
+                    }
                     size_t suffix_len = strlen(expected_suffix);
 
                     if (path_len >= suffix_len) {
@@ -374,8 +381,23 @@ static int flatten_module(Bundle *bundle, BundledModule *module) {
     for (int i = 0; i < module->num_statements; i++) {
         Stmt *stmt = module->statements[i];
 
-        // Skip import statements (dependencies already flattened)
+        // Handle import statements: generate alias assignments for aliased imports
         if (stmt->type == STMT_IMPORT) {
+            // For each aliased import, generate: let alias = original;
+            if (!stmt->as.import_stmt.is_namespace && stmt->as.import_stmt.import_aliases) {
+                for (int j = 0; j < stmt->as.import_stmt.num_imports; j++) {
+                    char *alias = stmt->as.import_stmt.import_aliases[j];
+                    char *original = stmt->as.import_stmt.import_names[j];
+
+                    // Only generate assignment if there's an alias different from the original
+                    if (alias && strcmp(alias, original) != 0) {
+                        // Create: let alias = original;
+                        Expr *var_ref = expr_ident(original);
+                        Stmt *let_stmt = stmt_let(alias, var_ref);
+                        add_flattened_stmt(bundle, let_stmt);
+                    }
+                }
+            }
             continue;
         }
 
