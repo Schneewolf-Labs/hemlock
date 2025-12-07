@@ -908,7 +908,29 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
             }
 
             // Evaluate the function expression
-            Value func = eval_expr(expr->as.call.func, env, ctx);
+            // For method calls, we already have method_self - don't re-evaluate the object
+            Value func;
+            if (is_method_call && method_self.type == VAL_OBJECT) {
+                // Get the method from the object directly
+                const char *method_name = expr->as.call.func->as.get_property.property;
+                Object *obj = method_self.as.as_object;
+                int found = 0;
+                for (int i = 0; i < obj->num_fields; i++) {
+                    if (strcmp(obj->field_names[i], method_name) == 0) {
+                        func = obj->field_values[i];
+                        value_retain(func);
+                        found = 1;
+                        break;
+                    }
+                }
+                if (!found) {
+                    runtime_error(ctx, "Object has no method '%s'", method_name);
+                    value_release(method_self);
+                    return val_null();
+                }
+            } else {
+                func = eval_expr(expr->as.call.func, env, ctx);
+            }
 
             // Evaluate arguments
             Value *args = NULL;
@@ -1304,9 +1326,9 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 return value;
             }
 
-            // For strings and buffers, value must be an integer (byte)
-            if (!is_integer(value)) {
-                runtime_error(ctx, "Index value must be an integer (byte) for strings/buffers");
+            // For strings and buffers, value must be an integer (byte) or rune
+            if (!is_integer(value) && value.type != VAL_RUNE) {
+                runtime_error(ctx, "Index value must be an integer (byte) or rune for strings/buffers");
             }
 
             if (object.type == VAL_STRING) {

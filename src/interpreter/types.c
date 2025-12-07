@@ -264,6 +264,7 @@ int32_t value_to_int(Value val) {
         case VAL_U16: return val.as.as_u16;
         case VAL_U32: return (int32_t)val.as.as_u32;  // potential overflow
         case VAL_U64: return (int32_t)val.as.as_u64;  // potential overflow
+        case VAL_RUNE: return (int32_t)val.as.as_rune;  // rune is a uint32_t codepoint
         case VAL_BOOL: return val.as.as_bool;
         default:
             fprintf(stderr, "Runtime error: Cannot convert to int\n");
