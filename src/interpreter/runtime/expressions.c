@@ -242,6 +242,42 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 goto binary_cleanup;
             }
 
+            // String + object/array concatenation (auto-serialize to JSON)
+            if (expr->as.binary.op == OP_ADD && left.type == VAL_STRING && (right.type == VAL_OBJECT || right.type == VAL_ARRAY)) {
+                VisitedSet visited;
+                visited_init(&visited);
+                char *right_json = serialize_value(right, &visited, ctx);
+                visited_free(&visited);
+                if (right_json == NULL) {
+                    // Serialization failed (exception already thrown)
+                    goto binary_cleanup;
+                }
+                String *right_string = string_new(right_json);
+                free(right_json);
+                String *result = string_concat(left.as.as_string, right_string);
+                free(right_string);
+                binary_result = (Value){ .type = VAL_STRING, .as.as_string = result };
+                goto binary_cleanup;
+            }
+
+            // Object/array + string concatenation (auto-serialize to JSON)
+            if (expr->as.binary.op == OP_ADD && (left.type == VAL_OBJECT || left.type == VAL_ARRAY) && right.type == VAL_STRING) {
+                VisitedSet visited;
+                visited_init(&visited);
+                char *left_json = serialize_value(left, &visited, ctx);
+                visited_free(&visited);
+                if (left_json == NULL) {
+                    // Serialization failed (exception already thrown)
+                    goto binary_cleanup;
+                }
+                String *left_string = string_new(left_json);
+                free(left_json);
+                String *result = string_concat(left_string, right.as.as_string);
+                free(left_string);
+                binary_result = (Value){ .type = VAL_STRING, .as.as_string = result };
+                goto binary_cleanup;
+            }
+
             // Pointer arithmetic
             if (left.type == VAL_PTR && is_integer(right)) {
                 if (expr->as.binary.op == OP_ADD) {
