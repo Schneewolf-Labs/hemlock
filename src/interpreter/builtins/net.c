@@ -73,6 +73,16 @@ Value builtin_socket_create(Value *args, int num_args, ExecutionContext *ctx) {
     int type = value_to_int(args[1]);
     int protocol = value_to_int(args[2]);
 
+    // Normalize protocol=0 to appropriate protocol for socket type
+    // This is required on macOS where protocol=0 creates broken sockets
+    if (protocol == 0) {
+        if (type == SOCK_STREAM) {
+            protocol = IPPROTO_TCP;
+        } else if (type == SOCK_DGRAM) {
+            protocol = IPPROTO_UDP;
+        }
+    }
+
     int fd = socket(domain, type, protocol);
     if (fd < 0) {
         return throw_runtime_error(ctx, "Failed to create socket: %s", strerror(errno));

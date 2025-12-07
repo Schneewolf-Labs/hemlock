@@ -256,6 +256,10 @@ void register_builtins(Environment *env, int argc, char **argv, ExecutionContext
     env_set(env, "SOCK_STREAM", val_i32(SOCK_STREAM), ctx);  // TCP
     env_set(env, "SOCK_DGRAM", val_i32(SOCK_DGRAM), ctx);    // UDP
 
+    // Socket constants - Protocol
+    env_set(env, "IPPROTO_TCP", val_i32(IPPROTO_TCP), ctx);  // TCP protocol
+    env_set(env, "IPPROTO_UDP", val_i32(IPPROTO_UDP), ctx);  // UDP protocol
+
     // Socket constants - Socket options level
     env_set(env, "SOL_SOCKET", val_i32(SOL_SOCKET), ctx);
 
