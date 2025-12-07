@@ -1184,6 +1184,37 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                         result = obj->field_values[i];
                         // Retain the field value so it survives object release
                         value_retain(result);
+
+                        // If the result is a function, bind 'self' to the object
+                        // This enables method references like spawn(obj.method, ...)
+                        if (result.type == VAL_FUNCTION) {
+                            Function *orig_fn = result.as.as_function;
+
+                            // Create a new environment with 'self' bound
+                            Environment *bound_env = env_new(orig_fn->closure_env);
+                            env_define(bound_env, "self", object, 0, ctx);
+
+                            // Create a shallow copy of the function with the new closure
+                            Function *bound_fn = malloc(sizeof(Function));
+                            bound_fn->is_async = orig_fn->is_async;
+                            bound_fn->param_names = orig_fn->param_names;
+                            bound_fn->param_types = orig_fn->param_types;
+                            bound_fn->param_defaults = orig_fn->param_defaults;
+                            bound_fn->num_params = orig_fn->num_params;
+                            bound_fn->return_type = orig_fn->return_type;
+                            bound_fn->body = orig_fn->body;
+                            bound_fn->closure_env = bound_env;
+                            bound_fn->ref_count = 1;
+                            bound_fn->is_bound = 1;  // Mark as bound - don't free param arrays
+
+                            // Note: object is retained by env_define above
+                            // Note: result (orig_fn) was retained at line 1186
+                            // We don't release it here since bound_fn shares pointers with it
+
+                            // Return the bound function (no need to release object, env_define holds it)
+                            return val_function(bound_fn);
+                        }
+
                         value_release(object);
                         return result;
                     }
@@ -1439,6 +1470,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
             // This ensures that when stored in the environment and later retained by tasks,
             // the function isn't prematurely freed when the environment is cleaned up
             fn->ref_count = 1;
+            fn->is_bound = 0;  // Not a bound method - owns param arrays
 
             return val_function(fn);
         }

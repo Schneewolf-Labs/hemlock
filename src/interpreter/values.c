@@ -447,22 +447,25 @@ void object_release(Object *obj) {
 void function_free(Function *fn) {
     if (!fn) return;
 
-    // Free parameter names
-    if (fn->param_names) {
-        for (int i = 0; i < fn->num_params; i++) {
-            if (fn->param_names[i]) free(fn->param_names[i]);
+    // Bound methods share param arrays with their original function, don't free them
+    if (!fn->is_bound) {
+        // Free parameter names
+        if (fn->param_names) {
+            for (int i = 0; i < fn->num_params; i++) {
+                if (fn->param_names[i]) free(fn->param_names[i]);
+            }
+            free(fn->param_names);
         }
-        free(fn->param_names);
-    }
 
-    // Free parameter types (Type structs are owned by AST, just free the array)
-    if (fn->param_types) {
-        free(fn->param_types);
-    }
+        // Free parameter types (Type structs are owned by AST, just free the array)
+        if (fn->param_types) {
+            free(fn->param_types);
+        }
 
-    // Free parameter defaults array (Expr* pointers are owned by AST, just free the array)
-    if (fn->param_defaults) {
-        free(fn->param_defaults);
+        // Free parameter defaults array (Expr* pointers are owned by AST, just free the array)
+        if (fn->param_defaults) {
+            free(fn->param_defaults);
+        }
     }
 
     // Release closure environment (reference counted)
