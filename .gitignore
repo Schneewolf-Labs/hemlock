@@ -82,3 +82,8 @@ cscope.*
 
 # Generated documentation
 docs/docs.html
+
+# Hemlock bytecode/bundle files
+*.hmlc
+*.hmlb
+*.hmlp
