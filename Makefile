@@ -1,9 +1,9 @@
 CC = gcc
 # Use _DARWIN_C_SOURCE on macOS for BSD types, _POSIX_C_SOURCE on Linux
 ifeq ($(shell uname),Darwin)
-    CFLAGS = -Wall -Wextra -std=c11 -g -D_DARWIN_C_SOURCE -Iinclude -Isrc
+    CFLAGS = -Wall -Wextra -std=c11 -O2 -g -D_DARWIN_C_SOURCE -Iinclude -Isrc
 else
-    CFLAGS = -Wall -Wextra -std=c11 -g -D_POSIX_C_SOURCE=200809L -Iinclude -Isrc
+    CFLAGS = -Wall -Wextra -std=c11 -O2 -g -D_POSIX_C_SOURCE=200809L -Iinclude -Isrc
 endif
 SRC_DIR = src
 BUILD_DIR = build
