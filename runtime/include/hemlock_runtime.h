@@ -218,8 +218,10 @@ HmlValue hml_sizeof(HmlValue type_name);
 HmlValue hml_string_concat(HmlValue a, HmlValue b);
 HmlValue hml_string_length(HmlValue str);
 HmlValue hml_string_byte_length(HmlValue str);
+HmlValue hml_string_char_count(HmlValue str);  // UTF-8 codepoint count
 HmlValue hml_string_char_at(HmlValue str, HmlValue index);
 HmlValue hml_string_byte_at(HmlValue str, HmlValue index);
+HmlValue hml_string_rune_at(HmlValue str, HmlValue index);  // UTF-8 aware rune at char index
 HmlValue hml_string_substr(HmlValue str, HmlValue start, HmlValue length);
 HmlValue hml_string_slice(HmlValue str, HmlValue start, HmlValue end);
 HmlValue hml_string_find(HmlValue str, HmlValue needle);

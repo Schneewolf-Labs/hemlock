@@ -219,6 +219,11 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             codegen_indent_inc(ctx);
             codegen_writeln(ctx, "%s = hml_object_num_fields(%s);", len_var, iter_val);
             codegen_indent_dec(ctx);
+            codegen_writeln(ctx, "} else if (%s.type == HML_VAL_STRING) {", iter_val);
+            codegen_indent_inc(ctx);
+            // Use UTF-8 character count for strings
+            codegen_writeln(ctx, "%s = hml_string_char_count(%s).as.as_i32;", len_var, iter_val);
+            codegen_indent_dec(ctx);
             codegen_writeln(ctx, "} else {");
             codegen_indent_inc(ctx);
             codegen_writeln(ctx, "%s = hml_array_length(%s).as.as_i32;", len_var, iter_val);
@@ -244,9 +249,20 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             }
             codegen_writeln(ctx, "%s = hml_object_value_at(%s, %s);", stmt->as.for_in.value_var, iter_val, idx_var);
             codegen_indent_dec(ctx);
+            codegen_writeln(ctx, "} else if (%s.type == HML_VAL_STRING) {", iter_val);
+            codegen_indent_inc(ctx);
+            // Handle string iteration - use UTF-8 aware rune extraction
+            if (stmt->as.for_in.key_var) {
+                codegen_writeln(ctx, "%s = hml_val_i32(%s);", stmt->as.for_in.key_var, idx_var);
+            }
+            char *idx_val_str = codegen_temp(ctx);
+            codegen_writeln(ctx, "HmlValue %s = hml_val_i32(%s);", idx_val_str, idx_var);
+            codegen_writeln(ctx, "%s = hml_string_rune_at(%s, %s);", stmt->as.for_in.value_var, iter_val, idx_val_str);
+            codegen_writeln(ctx, "hml_release(&%s);", idx_val_str);
+            codegen_indent_dec(ctx);
             codegen_writeln(ctx, "} else {");
             codegen_indent_inc(ctx);
-            // Handle array/string iteration
+            // Handle array iteration
             if (stmt->as.for_in.key_var) {
                 codegen_writeln(ctx, "%s = hml_val_i32(%s);", stmt->as.for_in.key_var, idx_var);
             }

@@ -1975,6 +1975,62 @@ static uint32_t utf8_decode_char(const char *s, int *bytes_read) {
     return codepoint;
 }
 
+// Count UTF-8 codepoints in a string
+HmlValue hml_string_char_count(HmlValue str) {
+    if (str.type != HML_VAL_STRING || !str.as.as_string) {
+        return hml_val_i32(0);
+    }
+    HmlString *s = str.as.as_string;
+
+    // Use cached char_length if available
+    if (s->char_length >= 0) {
+        return hml_val_i32(s->char_length);
+    }
+
+    // Count UTF-8 codepoints
+    int count = 0;
+    int byte_pos = 0;
+    while (byte_pos < s->length) {
+        byte_pos += utf8_char_len((unsigned char)s->data[byte_pos]);
+        count++;
+    }
+
+    // Cache the result
+    s->char_length = count;
+    return hml_val_i32(count);
+}
+
+// Get rune at character index (UTF-8 aware)
+HmlValue hml_string_rune_at(HmlValue str, HmlValue index) {
+    if (str.type != HML_VAL_STRING || !str.as.as_string) {
+        return hml_val_null();
+    }
+    HmlString *s = str.as.as_string;
+    int32_t idx = hml_to_i32(index);
+
+    if (idx < 0) {
+        return hml_val_null();
+    }
+
+    // Navigate to the character index
+    int byte_pos = 0;
+    int char_idx = 0;
+    while (byte_pos < s->length && char_idx < idx) {
+        byte_pos += utf8_char_len((unsigned char)s->data[byte_pos]);
+        char_idx++;
+    }
+
+    // Check if we found the character
+    if (byte_pos >= s->length) {
+        return hml_val_null();
+    }
+
+    // Decode the UTF-8 codepoint at this position
+    int bytes_read;
+    uint32_t codepoint = utf8_decode_char(s->data + byte_pos, &bytes_read);
+    return hml_val_rune(codepoint);
+}
+
 // Convert string to array of runes (codepoints)
 HmlValue hml_string_chars(HmlValue str) {
     if (str.type != HML_VAL_STRING || !str.as.as_string) {
