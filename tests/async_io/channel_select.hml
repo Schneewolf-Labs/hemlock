@@ -114,16 +114,16 @@ async fn test_select_multi_producer() {
     let ch1 = channel(10);
     let ch2 = channel(10);
 
-    // First producer (slower)
+    // First producer (slower - 500ms delay)
     let p1 = spawn(async fn(ch) {
-        __sleep(0.05);
+        __sleep(0.5);
         ch.send("from_p1");
         return null;
     }, ch1);
 
-    // Second producer (faster)
+    // Second producer (faster - sends immediately)
     let p2 = spawn(async fn(ch) {
-        __sleep(0.02);
+        __sleep(0.01);
         ch.send("from_p2");
         return null;
     }, ch2);
