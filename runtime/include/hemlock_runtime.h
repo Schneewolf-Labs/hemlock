@@ -218,8 +218,10 @@ HmlValue hml_sizeof(HmlValue type_name);
 HmlValue hml_string_concat(HmlValue a, HmlValue b);
 HmlValue hml_string_length(HmlValue str);
 HmlValue hml_string_byte_length(HmlValue str);
+HmlValue hml_string_char_count(HmlValue str);  // UTF-8 codepoint count
 HmlValue hml_string_char_at(HmlValue str, HmlValue index);
 HmlValue hml_string_byte_at(HmlValue str, HmlValue index);
+HmlValue hml_string_rune_at(HmlValue str, HmlValue index);  // UTF-8 aware rune at char index
 HmlValue hml_string_substr(HmlValue str, HmlValue start, HmlValue length);
 HmlValue hml_string_slice(HmlValue str, HmlValue start, HmlValue end);
 HmlValue hml_string_find(HmlValue str, HmlValue needle);
@@ -233,6 +235,7 @@ HmlValue hml_string_ends_with(HmlValue str, HmlValue suffix);
 HmlValue hml_string_replace(HmlValue str, HmlValue old, HmlValue new_str);
 HmlValue hml_string_replace_all(HmlValue str, HmlValue old, HmlValue new_str);
 HmlValue hml_string_repeat(HmlValue str, HmlValue count);
+HmlValue hml_string_concat_many(HmlValue arr);  // Concatenate array of strings
 
 // String index access (returns rune)
 HmlValue hml_string_index(HmlValue str, HmlValue index);
@@ -364,6 +367,8 @@ HmlValue hml_channel(int32_t capacity);
 void hml_channel_send(HmlValue channel, HmlValue value);
 HmlValue hml_channel_recv(HmlValue channel);
 void hml_channel_close(HmlValue channel);
+HmlValue hml_select(HmlValue channels, HmlValue timeout);
+HmlValue hml_poll(HmlValue fds, HmlValue timeout);
 
 // ========== FILE I/O ==========
 

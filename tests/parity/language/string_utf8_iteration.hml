@@ -1,0 +1,38 @@
+// Test UTF-8 string iteration in for-in loops
+// Should iterate over Unicode codepoints (runes), not bytes
+
+// ASCII string
+let ascii = "Hello";
+let count = 0;
+for (let ch in ascii) {
+    print(ch);
+    count = count + 1;
+}
+print("ASCII count: " + count);
+
+// UTF-8 with emojis (rocket is 4 bytes)
+let emoji = "Hi!";
+count = 0;
+for (let ch in emoji) {
+    print(ch);
+    count = count + 1;
+}
+print("Emoji count: " + count);
+
+// Mixed UTF-8
+let mixed = "cafe";
+count = 0;
+for (let ch in mixed) {
+    print(ch);
+    count = count + 1;
+}
+print("Mixed count: " + count);
+
+// Chinese characters (3 bytes each)
+let chinese = "abc";
+count = 0;
+for (let ch in chinese) {
+    print(ch);
+    count = count + 1;
+}
+print("CJK count: " + count);
