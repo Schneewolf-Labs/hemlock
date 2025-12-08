@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <stdatomic.h>
 
@@ -936,7 +937,7 @@ void print_value(Value val) {
             printf("%d", val.as.as_i32);
             break;
         case VAL_I64:
-            printf("%ld", val.as.as_i64);
+            printf("%" PRId64, val.as.as_i64);
             break;
         case VAL_U8:
             printf("%u", val.as.as_u8);
@@ -948,7 +949,7 @@ void print_value(Value val) {
             printf("%u", val.as.as_u32);
             break;
         case VAL_U64:
-            printf("%lu", val.as.as_u64);
+            printf("%" PRIu64, val.as.as_u64);
             break;
         case VAL_F32:
             printf("%g", val.as.as_f32);
@@ -1073,7 +1074,7 @@ char* value_to_string(Value val) {
             snprintf(buffer, sizeof(buffer), "%d", val.as.as_i32);
             return strdup(buffer);
         case VAL_I64:
-            snprintf(buffer, sizeof(buffer), "%ld", val.as.as_i64);
+            snprintf(buffer, sizeof(buffer), "%" PRId64, val.as.as_i64);
             return strdup(buffer);
         case VAL_U8:
             snprintf(buffer, sizeof(buffer), "%u", val.as.as_u8);
@@ -1085,7 +1086,7 @@ char* value_to_string(Value val) {
             snprintf(buffer, sizeof(buffer), "%u", val.as.as_u32);
             return strdup(buffer);
         case VAL_U64:
-            snprintf(buffer, sizeof(buffer), "%lu", val.as.as_u64);
+            snprintf(buffer, sizeof(buffer), "%" PRIu64, val.as.as_u64);
             return strdup(buffer);
         case VAL_F32:
             snprintf(buffer, sizeof(buffer), "%g", val.as.as_f32);

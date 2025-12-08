@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <inttypes.h>
 
 // ========== OBJECT TYPE REGISTRY ==========
 
@@ -548,7 +549,7 @@ Value convert_to_type(Value value, Type *target_type, Environment *env, Executio
                 int_val = (int64_t)float_val;
             }
             if (int_val < -128 || int_val > 127) {
-                fprintf(stderr, "Runtime error: Value %ld out of range for i8 [-128, 127]\n", int_val);
+                fprintf(stderr, "Runtime error: Value %" PRId64 " out of range for i8 [-128, 127]\n", int_val);
                 exit(1);
             }
             return val_i8((int8_t)int_val);
@@ -558,7 +559,7 @@ Value convert_to_type(Value value, Type *target_type, Environment *env, Executio
                 int_val = (int64_t)float_val;
             }
             if (int_val < -32768 || int_val > 32767) {
-                fprintf(stderr, "Runtime error: Value %ld out of range for i16 [-32768, 32767]\n", int_val);
+                fprintf(stderr, "Runtime error: Value %" PRId64 " out of range for i16 [-32768, 32767]\n", int_val);
                 exit(1);
             }
             return val_i16((int16_t)int_val);
@@ -568,7 +569,7 @@ Value convert_to_type(Value value, Type *target_type, Environment *env, Executio
                 int_val = (int64_t)float_val;
             }
             if (int_val < -2147483648LL || int_val > 2147483647LL) {
-                fprintf(stderr, "Runtime error: Value %ld out of range for i32 [-2147483648, 2147483647]\n", int_val);
+                fprintf(stderr, "Runtime error: Value %" PRId64 " out of range for i32 [-2147483648, 2147483647]\n", int_val);
                 exit(1);
             }
             return val_i32((int32_t)int_val);
@@ -586,7 +587,7 @@ Value convert_to_type(Value value, Type *target_type, Environment *env, Executio
                 int_val = (int64_t)float_val;
             }
             if (int_val < 0 || int_val > 255) {
-                fprintf(stderr, "Runtime error: Value %ld out of range for u8 [0, 255]\n", int_val);
+                fprintf(stderr, "Runtime error: Value %" PRId64 " out of range for u8 [0, 255]\n", int_val);
                 exit(1);
             }
             return val_u8((uint8_t)int_val);
@@ -596,7 +597,7 @@ Value convert_to_type(Value value, Type *target_type, Environment *env, Executio
                 int_val = (int64_t)float_val;
             }
             if (int_val < 0 || int_val > 65535) {
-                fprintf(stderr, "Runtime error: Value %ld out of range for u16 [0, 65535]\n", int_val);
+                fprintf(stderr, "Runtime error: Value %" PRId64 " out of range for u16 [0, 65535]\n", int_val);
                 exit(1);
             }
             return val_u16((uint16_t)int_val);
@@ -606,7 +607,7 @@ Value convert_to_type(Value value, Type *target_type, Environment *env, Executio
                 int_val = (int64_t)float_val;
             }
             if (int_val < 0 || int_val > 4294967295LL) {
-                fprintf(stderr, "Runtime error: Value %ld out of range for u32 [0, 4294967295]\n", int_val);
+                fprintf(stderr, "Runtime error: Value %" PRId64 " out of range for u32 [0, 4294967295]\n", int_val);
                 exit(1);
             }
             return val_u32((uint32_t)int_val);
@@ -616,7 +617,7 @@ Value convert_to_type(Value value, Type *target_type, Environment *env, Executio
                 int_val = (int64_t)float_val;
             }
             if (int_val < 0) {
-                fprintf(stderr, "Runtime error: Value %ld out of range for u64 [0, 18446744073709551615]\n", int_val);
+                fprintf(stderr, "Runtime error: Value %" PRId64 " out of range for u64 [0, 18446744073709551615]\n", int_val);
                 exit(1);
             }
             return val_u64((uint64_t)int_val);
@@ -664,7 +665,7 @@ Value convert_to_type(Value value, Type *target_type, Environment *env, Executio
             if (is_integer(value)) {
                 int64_t codepoint = value_to_int(value);
                 if (codepoint < 0 || codepoint > 0x10FFFF) {
-                    fprintf(stderr, "Runtime error: Value %ld out of range for rune [0, 0x10FFFF]\n", codepoint);
+                    fprintf(stderr, "Runtime error: Value %" PRId64 " out of range for rune [0, 0x10FFFF]\n", codepoint);
                     exit(1);
                 }
                 return val_rune((uint32_t)codepoint);

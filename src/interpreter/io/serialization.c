@@ -1,6 +1,7 @@
 #include "internal.h"
 #include <stdarg.h>
 #include <stdatomic.h>
+#include <inttypes.h>
 
 // ========== RUNTIME ERROR HELPER ==========
 
@@ -100,7 +101,7 @@ char* serialize_value(Value val, VisitedSet *visited, ExecutionContext *ctx) {
             snprintf(buffer, sizeof(buffer), "%d", val.as.as_i32);
             return strdup(buffer);
         case VAL_I64:
-            snprintf(buffer, sizeof(buffer), "%ld", val.as.as_i64);
+            snprintf(buffer, sizeof(buffer), "%" PRId64, val.as.as_i64);
             return strdup(buffer);
         case VAL_U8:
             snprintf(buffer, sizeof(buffer), "%u", val.as.as_u8);
@@ -112,7 +113,7 @@ char* serialize_value(Value val, VisitedSet *visited, ExecutionContext *ctx) {
             snprintf(buffer, sizeof(buffer), "%u", val.as.as_u32);
             return strdup(buffer);
         case VAL_U64:
-            snprintf(buffer, sizeof(buffer), "%lu", val.as.as_u64);
+            snprintf(buffer, sizeof(buffer), "%" PRIu64, val.as.as_u64);
             return strdup(buffer);
         case VAL_F32:
             snprintf(buffer, sizeof(buffer), "%g", val.as.as_f32);
