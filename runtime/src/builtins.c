@@ -28,6 +28,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <fcntl.h>
+#include <poll.h>
 
 #ifdef HML_HAVE_ZLIB
 #include <zlib.h>
@@ -4814,6 +4815,213 @@ void hml_channel_close(HmlValue channel) {
     pthread_cond_broadcast((pthread_cond_t*)ch->not_empty);
     pthread_cond_broadcast((pthread_cond_t*)ch->not_full);
     pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
+}
+
+// select(channels, timeout_ms?) - wait on multiple channels
+HmlValue hml_select(HmlValue channels, HmlValue timeout) {
+    if (channels.type != HML_VAL_ARRAY) {
+        hml_runtime_error("select() expects array of channels as first argument");
+    }
+
+    HmlArray *arr = channels.as.as_array;
+    if (arr->length == 0) {
+        hml_runtime_error("select() requires at least one channel");
+    }
+
+    // Validate all elements are channels
+    for (int i = 0; i < arr->length; i++) {
+        if (arr->elements[i].type != HML_VAL_CHANNEL) {
+            hml_runtime_error("select() array must contain only channels");
+        }
+    }
+
+    // Get timeout in milliseconds (-1 means infinite)
+    int timeout_ms = -1;
+    if (timeout.type != HML_VAL_NULL) {
+        timeout_ms = hml_to_i32(timeout);
+    }
+
+    // Calculate deadline
+    struct timespec deadline;
+    struct timespec *deadline_ptr = NULL;
+    if (timeout_ms >= 0) {
+        clock_gettime(CLOCK_REALTIME, &deadline);
+        deadline.tv_sec += timeout_ms / 1000;
+        deadline.tv_nsec += (timeout_ms % 1000) * 1000000;
+        if (deadline.tv_nsec >= 1000000000) {
+            deadline.tv_sec++;
+            deadline.tv_nsec -= 1000000000;
+        }
+        deadline_ptr = &deadline;
+    }
+
+    // Polling loop
+    while (1) {
+        // Check each channel for available data
+        for (int i = 0; i < arr->length; i++) {
+            HmlChannel *ch = arr->elements[i].as.as_channel;
+            pthread_mutex_t *mutex = (pthread_mutex_t*)ch->mutex;
+
+            pthread_mutex_lock(mutex);
+
+            // Check if channel has data
+            if (ch->count > 0) {
+                // Read the value
+                HmlValue msg = ch->buffer[ch->head];
+                ch->head = (ch->head + 1) % ch->capacity;
+                ch->count--;
+
+                // Signal that buffer is not full
+                pthread_cond_signal((pthread_cond_t*)ch->not_full);
+                pthread_mutex_unlock(mutex);
+
+                // Create result object { channel, value }
+                HmlValue result = hml_val_object();
+                hml_object_set_field(result, "channel", arr->elements[i]);
+                hml_object_set_field(result, "value", msg);
+                return result;
+            }
+
+            // Check if channel is closed and empty
+            if (ch->closed) {
+                pthread_mutex_unlock(mutex);
+                // Return object with null value for closed channel
+                HmlValue result = hml_val_object();
+                hml_object_set_field(result, "channel", arr->elements[i]);
+                hml_object_set_field(result, "value", hml_val_null());
+                return result;
+            }
+
+            pthread_mutex_unlock(mutex);
+        }
+
+        // Check timeout
+        if (deadline_ptr) {
+            struct timespec now;
+            clock_gettime(CLOCK_REALTIME, &now);
+            if (now.tv_sec > deadline_ptr->tv_sec ||
+                (now.tv_sec == deadline_ptr->tv_sec && now.tv_nsec >= deadline_ptr->tv_nsec)) {
+                return hml_val_null();  // Timeout
+            }
+        }
+
+        // Sleep briefly before polling again (1ms)
+        usleep(1000);
+    }
+}
+
+// Helper to get fd from a socket, file, or object with fd field
+static int hml_get_fd_from_value(HmlValue val) {
+    if (val.type == HML_VAL_SOCKET) {
+        HmlSocket *s = val.as.as_socket;
+        return s ? s->fd : -1;
+    }
+    if (val.type == HML_VAL_FILE) {
+        HmlFileHandle *f = val.as.as_file;
+        if (f && f->fp) {
+            return fileno(f->fp);
+        }
+        return -1;
+    }
+    if (val.type == HML_VAL_OBJECT) {
+        HmlValue fd_val = hml_object_get_field(val, "fd");
+        if (hml_is_integer(fd_val)) {
+            return hml_to_i32(fd_val);
+        }
+    }
+    return -1;
+}
+
+// poll(fds, timeout_ms) - wait for I/O events on file descriptors
+HmlValue hml_poll(HmlValue fds, HmlValue timeout) {
+    if (fds.type != HML_VAL_ARRAY) {
+        hml_runtime_error("poll() expects array as first argument");
+    }
+
+    HmlArray *arr = fds.as.as_array;
+    int timeout_ms = hml_to_i32(timeout);
+
+    if (arr->length == 0) {
+        // Return empty array
+        HmlValue result = hml_val_array();
+        return result;
+    }
+
+    // Build pollfd array
+    struct pollfd *pfds = malloc(sizeof(struct pollfd) * arr->length);
+    if (!pfds) {
+        hml_runtime_error("poll() memory allocation failed");
+    }
+
+    // Store original fd values for return
+    HmlValue *original_fds = malloc(sizeof(HmlValue) * arr->length);
+    if (!original_fds) {
+        free(pfds);
+        hml_runtime_error("poll() memory allocation failed");
+    }
+
+    for (int i = 0; i < arr->length; i++) {
+        HmlValue item = arr->elements[i];
+
+        if (item.type != HML_VAL_OBJECT) {
+            free(pfds);
+            free(original_fds);
+            hml_runtime_error("poll() array elements must be objects with 'fd' and 'events'");
+        }
+
+        // Get fd field
+        HmlValue fd_val = hml_object_get_field(item, "fd");
+        HmlValue events_val = hml_object_get_field(item, "events");
+
+        int fd = hml_get_fd_from_value(fd_val);
+        if (fd < 0) {
+            free(pfds);
+            free(original_fds);
+            hml_runtime_error("poll() fd must be a socket or file");
+        }
+
+        if (!hml_is_integer(events_val)) {
+            free(pfds);
+            free(original_fds);
+            hml_runtime_error("poll() events must be an integer");
+        }
+
+        pfds[i].fd = fd;
+        pfds[i].events = (short)hml_to_i32(events_val);
+        pfds[i].revents = 0;
+        original_fds[i] = fd_val;
+        hml_retain(&original_fds[i]);
+    }
+
+    // Call poll
+    int result = poll(pfds, arr->length, timeout_ms);
+
+    if (result < 0) {
+        for (int i = 0; i < arr->length; i++) {
+            hml_release(&original_fds[i]);
+        }
+        free(pfds);
+        free(original_fds);
+        hml_runtime_error("poll() failed");
+    }
+
+    // Build result array with fds that have events
+    HmlValue result_arr = hml_val_array();
+
+    for (int i = 0; i < arr->length; i++) {
+        if (pfds[i].revents != 0) {
+            HmlValue obj = hml_val_object();
+            hml_object_set_field(obj, "fd", original_fds[i]);
+            hml_object_set_field(obj, "revents", hml_val_i32(pfds[i].revents));
+            hml_array_push(result_arr, obj);
+            hml_release(&obj);
+        }
+        hml_release(&original_fds[i]);
+    }
+
+    free(pfds);
+    free(original_fds);
+    return result_arr;
 }
 
 // ========== CALL STACK TRACKING ==========

@@ -367,6 +367,8 @@ HmlValue hml_channel(int32_t capacity);
 void hml_channel_send(HmlValue channel, HmlValue value);
 HmlValue hml_channel_recv(HmlValue channel);
 void hml_channel_close(HmlValue channel);
+HmlValue hml_select(HmlValue channels, HmlValue timeout);
+HmlValue hml_poll(HmlValue fds, HmlValue timeout);
 
 // ========== FILE I/O ==========
 

@@ -92,6 +92,15 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_i32(SO_RCVTIMEO);", result);
             } else if (strcmp(expr->as.ident, "SO_SNDTIMEO") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_i32(SO_SNDTIMEO);", result);
+            // Poll constants
+            } else if (strcmp(expr->as.ident, "POLLIN") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_i32(POLLIN);", result);
+            } else if (strcmp(expr->as.ident, "POLLOUT") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_i32(POLLOUT);", result);
+            } else if (strcmp(expr->as.ident, "POLLERR") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_i32(POLLERR);", result);
+            } else if (strcmp(expr->as.ident, "POLLHUP") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_i32(POLLHUP);", result);
             // Handle math constants (builtins)
             } else if (strcmp(expr->as.ident, "__PI") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_f64(3.14159265358979323846);", result);
@@ -1632,6 +1641,34 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     codegen_writeln(ctx, "HmlValue %s = hml_string_concat_many(%s);", result, arr);
                     codegen_writeln(ctx, "hml_release(&%s);", arr);
                     free(arr);
+                    break;
+                }
+
+                // select(channels, timeout_ms?) - wait on multiple channels
+                if (strcmp(fn_name, "select") == 0 && (expr->as.call.num_args == 1 || expr->as.call.num_args == 2)) {
+                    char *channels = codegen_expr(ctx, expr->as.call.args[0]);
+                    if (expr->as.call.num_args == 2) {
+                        char *timeout = codegen_expr(ctx, expr->as.call.args[1]);
+                        codegen_writeln(ctx, "HmlValue %s = hml_select(%s, %s);", result, channels, timeout);
+                        codegen_writeln(ctx, "hml_release(&%s);", timeout);
+                        free(timeout);
+                    } else {
+                        codegen_writeln(ctx, "HmlValue %s = hml_select(%s, hml_val_null());", result, channels);
+                    }
+                    codegen_writeln(ctx, "hml_release(&%s);", channels);
+                    free(channels);
+                    break;
+                }
+
+                // poll(fds, timeout_ms) - wait for I/O events
+                if (strcmp(fn_name, "poll") == 0 && expr->as.call.num_args == 2) {
+                    char *fds = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *timeout = codegen_expr(ctx, expr->as.call.args[1]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_poll(%s, %s);", result, fds, timeout);
+                    codegen_writeln(ctx, "hml_release(&%s);", fds);
+                    codegen_writeln(ctx, "hml_release(&%s);", timeout);
+                    free(fds);
+                    free(timeout);
                     break;
                 }
 
