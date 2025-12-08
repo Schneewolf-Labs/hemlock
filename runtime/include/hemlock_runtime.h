@@ -235,6 +235,7 @@ HmlValue hml_string_ends_with(HmlValue str, HmlValue suffix);
 HmlValue hml_string_replace(HmlValue str, HmlValue old, HmlValue new_str);
 HmlValue hml_string_replace_all(HmlValue str, HmlValue old, HmlValue new_str);
 HmlValue hml_string_repeat(HmlValue str, HmlValue count);
+HmlValue hml_string_concat_many(HmlValue arr);  // Concatenate array of strings
 
 // String index access (returns rune)
 HmlValue hml_string_index(HmlValue str, HmlValue index);

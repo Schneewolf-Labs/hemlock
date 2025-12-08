@@ -1905,6 +1905,42 @@ HmlValue hml_string_repeat(HmlValue str, HmlValue count) {
     return hml_val_string_owned(result, new_len, new_len + 1);
 }
 
+// Concatenate an array of strings into a single string
+HmlValue hml_string_concat_many(HmlValue arr) {
+    if (arr.type != HML_VAL_ARRAY || !arr.as.as_array) {
+        hml_runtime_error("string_concat_many() requires array argument");
+    }
+
+    HmlArray *a = arr.as.as_array;
+
+    // Handle empty array
+    if (a->length == 0) {
+        return hml_val_string("");
+    }
+
+    // Calculate total length needed
+    int total_len = 0;
+    for (int i = 0; i < a->length; i++) {
+        if (a->elements[i].type == HML_VAL_STRING && a->elements[i].as.as_string) {
+            total_len += a->elements[i].as.as_string->length;
+        }
+    }
+
+    // Allocate and build result
+    char *result = malloc(total_len + 1);
+    int pos = 0;
+    for (int i = 0; i < a->length; i++) {
+        if (a->elements[i].type == HML_VAL_STRING && a->elements[i].as.as_string) {
+            HmlString *s = a->elements[i].as.as_string;
+            memcpy(result + pos, s->data, s->length);
+            pos += s->length;
+        }
+    }
+    result[total_len] = '\0';
+
+    return hml_val_string_owned(result, total_len, total_len + 1);
+}
+
 // String indexing (returns char at position as rune)
 HmlValue hml_string_index(HmlValue str, HmlValue index) {
     return hml_string_char_at(str, index);

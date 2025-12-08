@@ -1626,6 +1626,15 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     break;
                 }
 
+                // string_concat_many(array)
+                if (strcmp(fn_name, "string_concat_many") == 0 && expr->as.call.num_args == 1) {
+                    char *arr = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_string_concat_many(%s);", result, arr);
+                    codegen_writeln(ctx, "hml_release(&%s);", arr);
+                    free(arr);
+                    break;
+                }
+
                 // ========== INTERNAL HELPER BUILTINS ==========
 
                 // read_u32(buffer) - read 32-bit unsigned int from buffer
