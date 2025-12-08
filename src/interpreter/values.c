@@ -505,20 +505,6 @@ static uint32_t djb2_hash(const char *str) {
     return hash;
 }
 
-// Initialize hash table for an object with given capacity
-static void object_hash_init(Object *obj, int hash_capacity) {
-    obj->hash_capacity = hash_capacity;
-    obj->hash_table = malloc(sizeof(int) * hash_capacity);
-    if (!obj->hash_table) {
-        fprintf(stderr, "Runtime error: Memory allocation failed for hash table\n");
-        exit(1);
-    }
-    // Initialize all slots to -1 (empty)
-    for (int i = 0; i < hash_capacity; i++) {
-        obj->hash_table[i] = -1;
-    }
-}
-
 // Rebuild hash table (called when fields are added and hash table needs rehashing)
 static void object_hash_rebuild(Object *obj) {
     // Use 2x num_fields as hash table size for good performance
@@ -578,23 +564,6 @@ int object_lookup_field(Object *obj, const char *name) {
         }
     }
     return -1;  // Not found
-}
-
-// Add a field to object's hash table (called when field is added)
-static void object_hash_add(Object *obj, const char *name, int field_index) {
-    // Check if we need to rebuild (load factor > 0.7)
-    if (obj->num_fields * 10 > obj->hash_capacity * 7) {
-        object_hash_rebuild(obj);
-    }
-
-    uint32_t hash = djb2_hash(name);
-    int slot = hash % obj->hash_capacity;
-
-    // Linear probing to find empty slot
-    while (obj->hash_table[slot] != -1) {
-        slot = (slot + 1) % obj->hash_capacity;
-    }
-    obj->hash_table[slot] = field_index;
 }
 
 Object* object_new(char *type_name, int initial_capacity) {

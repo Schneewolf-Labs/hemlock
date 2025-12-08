@@ -429,10 +429,14 @@ static int show_file_info(const char *path) {
         uint16_t version, flags;
         uint32_t string_count, stmt_count;
 
-        fread(&version, 2, 1, f);
-        fread(&flags, 2, 1, f);
-        fread(&string_count, 4, 1, f);
-        fread(&stmt_count, 4, 1, f);
+        if (fread(&version, 2, 1, f) != 1 ||
+            fread(&flags, 2, 1, f) != 1 ||
+            fread(&string_count, 4, 1, f) != 1 ||
+            fread(&stmt_count, 4, 1, f) != 1) {
+            fprintf(stderr, "Error: Cannot read HMLC header\n");
+            fclose(f);
+            return 1;
+        }
 
         printf("Format: HMLC (compiled AST)\n");
         printf("Version: %d\n", version);
@@ -446,8 +450,12 @@ static int show_file_info(const char *path) {
         uint16_t version;
         uint32_t orig_size;
 
-        fread(&version, 2, 1, f);
-        fread(&orig_size, 4, 1, f);
+        if (fread(&version, 2, 1, f) != 1 ||
+            fread(&orig_size, 4, 1, f) != 1) {
+            fprintf(stderr, "Error: Cannot read HMLB header\n");
+            fclose(f);
+            return 1;
+        }
 
         long compressed_size = file_size - 10;  // Header is 10 bytes
         double ratio = (1.0 - (double)compressed_size / orig_size) * 100;

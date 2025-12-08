@@ -214,7 +214,8 @@ char* resolve_module_path(ModuleCache *cache, const char *importer_path, const c
     // If import_path is absolute, use it directly
     else if (import_path[0] == '/') {
         // Already absolute
-        strncpy(resolved, import_path, PATH_MAX);
+        strncpy(resolved, import_path, PATH_MAX - 1);
+        resolved[PATH_MAX - 1] = '\0';
     }
     // Check for package import (owner/repo or owner/repo/subpath)
     else if (is_package_import(import_path)) {
@@ -369,7 +370,8 @@ char* resolve_module_path(ModuleCache *cache, const char *importer_path, const c
 
         if (importer_path) {
             // Resolve relative to the importing file's directory
-            strncpy(importer_dir, importer_path, PATH_MAX);
+            strncpy(importer_dir, importer_path, PATH_MAX - 1);
+            importer_dir[PATH_MAX - 1] = '\0';
             char *dir = dirname(importer_dir);
             base_dir = dir;
         } else {
@@ -425,7 +427,12 @@ Stmt** parse_module_file(const char *path, int *stmt_count, ExecutionContext *ct
     fseek(file, 0, SEEK_SET);
 
     char *source = malloc(file_size + 1);
-    fread(source, 1, file_size, file);
+    if (fread(source, 1, file_size, file) != (size_t)file_size) {
+        fprintf(stderr, "Error: Failed to read module file: %s\n", path);
+        free(source);
+        fclose(file);
+        return NULL;
+    }
     source[file_size] = '\0';
     fclose(file);
 

@@ -109,7 +109,8 @@ static char* resolve_import_path(BundleContext *ctx, const char *importer_path, 
     }
     // Absolute path
     else if (import_path[0] == '/') {
-        strncpy(resolved, import_path, PATH_MAX);
+        strncpy(resolved, import_path, PATH_MAX - 1);
+        resolved[PATH_MAX - 1] = '\0';
     }
     // Relative path
     else {
@@ -117,7 +118,8 @@ static char* resolve_import_path(BundleContext *ctx, const char *importer_path, 
         char importer_dir[PATH_MAX];
 
         if (importer_path) {
-            strncpy(importer_dir, importer_path, PATH_MAX);
+            strncpy(importer_dir, importer_path, PATH_MAX - 1);
+            importer_dir[PATH_MAX - 1] = '\0';
             base_dir = dirname(importer_dir);
         } else {
             base_dir = ctx->current_dir;
