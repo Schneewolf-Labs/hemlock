@@ -933,6 +933,27 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                     return result;
                 }
 
+                // Special handling for buffer methods (to_string)
+                if (method_self.type == VAL_BUFFER) {
+                    const char *method = expr->as.call.func->as.get_property.property;
+
+                    if (strcmp(method, "to_string") == 0) {
+                        Buffer *buf = method_self.as.as_buffer;
+                        // Convert buffer to string (interpret as UTF-8)
+                        char *str_data = malloc(buf->length + 1);
+                        memcpy(str_data, buf->data, buf->length);
+                        str_data[buf->length] = '\0';
+                        Value result = val_string(str_data);
+                        free(str_data);
+                        VALUE_RELEASE(method_self);
+                        return result;
+                    }
+
+                    runtime_error(ctx, "Unknown buffer method '%s'", method);
+                    VALUE_RELEASE(method_self);
+                    return val_null();
+                }
+
                 // Special handling for channel methods
                 if (method_self.type == VAL_CHANNEL) {
                     const char *method = expr->as.call.func->as.get_property.property;

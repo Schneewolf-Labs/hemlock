@@ -1,26 +1,76 @@
-// Test HTTP requests (requires libwebsockets and network)
-// Run with: ./hemlock tests/stdlib_http/test_http_requests.hml
+// Test HTTP client requests against stdlib HttpServer
+// No external dependencies - pure Hemlock!
 // Requires: libwebsockets-dev installed and 'make stdlib' run
 
-import * as http from "@stdlib/http";
+import { get, post, fetch, post_json, is_success, is_client_error, is_server_error, is_redirect, HttpServer } from "@stdlib/http";
+import { sleep } from "@stdlib/time";
 
-print("Testing HTTP requests with libwebsockets...");
-print("Requires: libwebsockets-dev + make stdlib");
+print("Testing HTTP client with HttpServer...");
 print("");
 
 let tests_passed = 0;
 let tests_failed = 0;
 
-// Test 1: HTTP GET request
-print("Test 1: HTTP GET request");
+// Create and configure HTTP server
+let server_port = 18765;
+let server = HttpServer("127.0.0.1", server_port);
+
+// Define routes
+server.route("GET", "/hello", fn(req) {
+    return {
+        status: 200,
+        body: "Hello World",
+        content_type: "text/plain"
+    };
+});
+
+server.route("GET", "/json", fn(req) {
+    return {
+        status: 200,
+        body: `{"test": true, "message": "hello", "number": 42}`,
+        content_type: "application/json"
+    };
+});
+
+server.route("POST", "/echo", fn(req) {
+    return {
+        status: 200,
+        body: `{"received": "` + req.body + `"}`,
+        content_type: "application/json"
+    };
+});
+
+server.route("POST", "/json", fn(req) {
+    return {
+        status: 200,
+        body: `{"success": true, "method": "POST"}`,
+        content_type: "application/json"
+    };
+});
+
+// Start server in background (will handle 5 requests)
+async fn run_server(srv, count: i32) {
+    srv.serve(count);
+    return null;
+}
+
+let server_task = spawn(run_server, server, 5);
+
+// Give server time to start
+sleep(0.1);
+
+let base_url = "http://127.0.0.1:" + server_port;
+
+// Test 1: HTTP GET request for text
+print("Test 1: HTTP GET request (text)");
 try {
-    let response = http.get("http://httpbin.org/get", []);
+    let response = get(base_url + "/hello", []);
 
     assert(response != null, "Response should not be null");
     assert(response.status_code != null, "Status code should exist");
     assert(response.body != null, "Body should exist");
 
-    if (http.is_success(response.status_code)) {
+    if (is_success(response.status_code) && response.body.contains("Hello")) {
         print("✓ GET request successful (status: " + response.status_code + ")");
         tests_passed = tests_passed + 1;
     } else {
@@ -34,18 +84,61 @@ try {
 
 print("");
 
-// Test 2: HTTP POST request
-print("Test 2: HTTP POST request");
+// Test 2: HTTP GET request for JSON
+print("Test 2: HTTP GET request (JSON)");
 try {
-    let response2 = http.post("http://httpbin.org/post", "test=data", []);
+    let response2 = get(base_url + "/json", []);
 
     assert(response2 != null, "Response should not be null");
 
-    if (http.is_success(response2.status_code)) {
-        print("✓ POST request successful (status: " + response2.status_code + ")");
+    if (is_success(response2.status_code) && response2.body.contains("test")) {
+        print("✓ GET JSON successful (status: " + response2.status_code + ")");
         tests_passed = tests_passed + 1;
     } else {
-        print("✗ POST request failed with status: " + response2.status_code);
+        print("✗ GET JSON failed with status: " + response2.status_code);
+        tests_failed = tests_failed + 1;
+    }
+} catch (e) {
+    print("✗ GET JSON threw exception: " + e);
+    tests_failed = tests_failed + 1;
+}
+
+print("");
+
+// Test 3: fetch() convenience function
+print("Test 3: fetch() convenience function");
+try {
+    let body = fetch(base_url + "/hello");
+
+    assert(body != null, "Body should not be null");
+    assert(body.length > 0, "Body should have content");
+
+    if (body.contains("Hello")) {
+        print("✓ fetch() returned " + body.length + " bytes");
+        tests_passed = tests_passed + 1;
+    } else {
+        print("✗ fetch() returned unexpected content");
+        tests_failed = tests_failed + 1;
+    }
+} catch (e) {
+    print("✗ fetch() threw exception: " + e);
+    tests_failed = tests_failed + 1;
+}
+
+print("");
+
+// Test 4: HTTP POST request
+print("Test 4: HTTP POST request");
+try {
+    let response4 = post(base_url + "/echo", "test=data", []);
+
+    assert(response4 != null, "Response should not be null");
+
+    if (is_success(response4.status_code)) {
+        print("✓ POST request successful (status: " + response4.status_code + ")");
+        tests_passed = tests_passed + 1;
+    } else {
+        print("✗ POST request failed with status: " + response4.status_code);
         tests_failed = tests_failed + 1;
     }
 } catch (e) {
@@ -55,63 +148,28 @@ try {
 
 print("");
 
-// Test 3: fetch() convenience function
-print("Test 3: fetch() convenience function");
+// Test 5: 404 response handling
+print("Test 5: 404 response handling");
 try {
-    let body = http.fetch("http://httpbin.org/get");
+    let response5 = get(base_url + "/nonexistent", []);
 
-    assert(body != null, "Body should not be null");
-    assert(body.length > 0, "Body should have content");
+    assert(response5 != null, "Response should not be null");
 
-    print("✓ fetch() returned " + body.length + " bytes");
-    tests_passed = tests_passed + 1;
-} catch (e) {
-    print("✗ fetch() threw exception: " + e);
-    tests_failed = tests_failed + 1;
-}
-
-print("");
-
-// Test 4: POST JSON
-print("Test 4: POST JSON");
-try {
-    let data = { test: "value", number: 42 };
-    let response4 = http.post_json("http://httpbin.org/post", data);
-
-    assert(response4 != null, "Response should not be null");
-
-    if (http.is_success(response4.status_code)) {
-        print("✓ POST JSON successful");
+    if (response5.status_code == 404) {
+        print("✓ 404 response handled correctly");
         tests_passed = tests_passed + 1;
     } else {
-        print("✗ POST JSON failed");
+        print("✗ Expected 404, got: " + response5.status_code);
         tests_failed = tests_failed + 1;
     }
 } catch (e) {
-    print("✗ POST JSON threw exception: " + e);
+    print("✗ 404 request threw exception: " + e);
     tests_failed = tests_failed + 1;
 }
 
-print("");
-
-// Test 5: HTTPS request
-print("Test 5: HTTPS request (SSL/TLS)");
-try {
-    let response5 = http.get("https://httpbin.org/get", []);
-
-    assert(response5 != null, "HTTPS response should not be null");
-
-    if (http.is_success(response5.status_code)) {
-        print("✓ HTTPS request successful");
-        tests_passed = tests_passed + 1;
-    } else {
-        print("✗ HTTPS request failed");
-        tests_failed = tests_failed + 1;
-    }
-} catch (e) {
-    print("✗ HTTPS request threw exception: " + e);
-    tests_failed = tests_failed + 1;
-}
+// Wait for server to finish
+join(server_task);
+server.close();
 
 print("");
 print("========================================");
@@ -125,8 +183,7 @@ if (tests_failed > 0) {
     print("Some tests failed. Common issues:");
     print("  - lws_wrapper.so not compiled (run: make stdlib)");
     print("  - libwebsockets not installed");
-    print("  - No network connectivity");
-    print("  - httpbin.org is down");
+    print("  - Port " + server_port + " already in use");
 }
 
 print("");

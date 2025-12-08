@@ -1,6 +1,8 @@
 // Test joining a detached task
 // Expected: ERROR
 
+import { sleep } from "@stdlib/time";
+
 async fn compute(n: i32): i32 {
     return n * 2;
 }
@@ -15,3 +17,6 @@ try {
 } catch (e) {
     print("PASS: Caught join on detached task: " + e);
 }
+
+// Give detached task time to complete before program exits
+sleep(0.05);

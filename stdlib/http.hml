@@ -260,6 +260,190 @@ export fn url_encode(str) {
     return result;
 }
 
+// ========== HTTP SERVER ==========
+
+import { TcpListener } from "@stdlib/net";
+
+// HttpServer - Simple HTTP server for handling requests
+// Usage:
+//   let server = HttpServer("127.0.0.1", 8080);
+//   server.route("GET", "/", fn(req) { return { status: 200, body: "Hello!" }; });
+//   server.route("POST", "/api", fn(req) { return { status: 200, body: req.body }; });
+//   server.serve(10);  // Handle 10 requests then stop
+//   server.close();
+export fn HttpServer(host: string, port: i32) {
+    let listener = TcpListener(host, port);
+    let routes = [];
+
+    return {
+        host: host,
+        port: port,
+        _listener: listener,
+        _routes: routes,
+
+        // Register a route handler
+        // handler(req) should return { status: i32, body: string, content_type?: string }
+        route: fn(method: string, path: string, handler) {
+            self._routes.push({
+                method: method,
+                path: path,
+                handler: handler
+            });
+        },
+
+        // Handle a single request and return
+        handle_one: fn() {
+            let stream = self._listener.accept();
+            defer stream.close();
+
+            // Read the request
+            let request_buf = stream.read(8192);
+            let request_str = request_buf.to_string();
+
+            // Parse request
+            let req = self._parse_request(request_str);
+
+            // Find matching route
+            let response = self._handle_request(req);
+
+            // Send response
+            let response_str = self._build_response(response);
+            stream.write(response_str);
+        },
+
+        // Serve requests until count is reached (0 = infinite)
+        serve: fn(count: i32) {
+            let handled = 0;
+            while (count == 0 || handled < count) {
+                self.handle_one();
+                handled = handled + 1;
+            }
+        },
+
+        // Serve requests in background (async)
+        serve_async: fn(count: i32) {
+            let srv = self;
+            return spawn(fn() {
+                srv.serve(count);
+            });
+        },
+
+        // Close the server
+        close: fn() {
+            self._listener.close();
+        },
+
+        // Internal: Parse HTTP request string into object
+        _parse_request: fn(request_str: string) {
+            let lines = request_str.split("\r\n");
+            let first_line = lines[0];
+            let parts = first_line.split(" ");
+
+            let method = parts[0];
+            let path = parts[1];
+            let version = "HTTP/1.1";
+            if (parts.length > 2) {
+                version = parts[2];
+            }
+
+            // Parse headers
+            let headers = {};
+            let i = 1;
+            let body_start = -1;
+            while (i < lines.length) {
+                let line = lines[i];
+                if (line == "") {
+                    body_start = i + 1;
+                    break;
+                }
+                let colon = line.find(":");
+                if (colon > 0) {
+                    let key = line.substr(0, colon).trim().to_lower();
+                    let value = line.substr(colon + 1, line.length - colon - 1).trim();
+                    headers[key] = value;
+                }
+                i = i + 1;
+            }
+
+            // Extract body
+            let body = "";
+            if (body_start > 0 && body_start < lines.length) {
+                let body_lines = [];
+                let j = body_start;
+                while (j < lines.length) {
+                    body_lines.push(lines[j]);
+                    j = j + 1;
+                }
+                body = body_lines.join("\r\n");
+            }
+
+            return {
+                method: method,
+                path: path,
+                version: version,
+                headers: headers,
+                body: body
+            };
+        },
+
+        // Internal: Find route and call handler
+        _handle_request: fn(req) {
+            let i = 0;
+            while (i < self._routes.length) {
+                let route = self._routes[i];
+                if (route.method == req.method && route.path == req.path) {
+                    return route.handler(req);
+                }
+                i = i + 1;
+            }
+
+            // No route found - return 404
+            return {
+                status: 404,
+                body: `{"error": "Not Found", "path": "` + req.path + `"}`,
+                content_type: "application/json"
+            };
+        },
+
+        // Internal: Build HTTP response string
+        _build_response: fn(response) {
+            let status = response.status;
+            if (status == null) {
+                status = 200;
+            }
+
+            let body = response.body;
+            if (body == null) {
+                body = "";
+            }
+
+            let content_type = response.content_type;
+            if (content_type == null) {
+                content_type = "text/plain";
+            }
+
+            let status_text = "OK";
+            if (status == 201) { status_text = "Created"; }
+            else if (status == 204) { status_text = "No Content"; }
+            else if (status == 400) { status_text = "Bad Request"; }
+            else if (status == 401) { status_text = "Unauthorized"; }
+            else if (status == 403) { status_text = "Forbidden"; }
+            else if (status == 404) { status_text = "Not Found"; }
+            else if (status == 405) { status_text = "Method Not Allowed"; }
+            else if (status == 500) { status_text = "Internal Server Error"; }
+
+            let resp = "HTTP/1.1 " + status + " " + status_text + "\r\n";
+            resp = resp + "Content-Type: " + content_type + "\r\n";
+            resp = resp + "Content-Length: " + body.length + "\r\n";
+            resp = resp + "Connection: close\r\n";
+            resp = resp + "\r\n";
+            resp = resp + body;
+
+            return resp;
+        }
+    };
+}
+
 // ========== NOTES ==========
 //
 // This module uses libwebsockets via FFI for production HTTP/HTTPS support.
@@ -269,6 +453,7 @@ export fn url_encode(str) {
 // - SSL/TLS via libwebsockets
 // - No dependency on curl binary
 // - Production performance
+// - Simple HTTP server for testing and lightweight use cases
 //
 // Requirements:
 // - libwebsockets-dev package installed
@@ -280,4 +465,5 @@ export fn url_encode(str) {
 // - Response headers not yet parsed (returns empty string)
 // - download() only checks status, doesn't write to file (needs file I/O)
 // - url_encode() only encodes common characters (not RFC 3986 compliant)
+// - HttpServer is single-threaded and handles one request at a time
 //
