@@ -218,7 +218,12 @@ void* hemlock_to_c_value(Value val, Type *type) {
             *(int32_t*)storage = val.as.as_i32;
             break;
         case TYPE_I64:
-            *(int64_t*)storage = val.as.as_i64;
+            // Allow ptr values to be passed as i64 (useful for variadic C functions)
+            if (val.type == VAL_PTR) {
+                *(int64_t*)storage = (int64_t)(intptr_t)val.as.as_ptr;
+            } else {
+                *(int64_t*)storage = val.as.as_i64;
+            }
             break;
         case TYPE_U8:
             *(uint8_t*)storage = val.as.as_u8;
@@ -230,7 +235,12 @@ void* hemlock_to_c_value(Value val, Type *type) {
             *(uint32_t*)storage = val.as.as_u32;
             break;
         case TYPE_U64:
-            *(uint64_t*)storage = val.as.as_u64;
+            // Allow ptr values to be passed as u64 (useful for variadic C functions)
+            if (val.type == VAL_PTR) {
+                *(uint64_t*)storage = (uint64_t)(uintptr_t)val.as.as_ptr;
+            } else {
+                *(uint64_t*)storage = val.as.as_u64;
+            }
             break;
         case TYPE_F32:
             *(float*)storage = val.as.as_f32;

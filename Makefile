@@ -93,6 +93,24 @@ $(BUILD_DIR)/bundler:
 $(TARGET): $(OBJS)
 	$(CC) $(OBJS) -o $(TARGET) $(LDFLAGS)
 
+# Special rule for ffi.c - compile with -O0 to work around an optimizer bug
+# that causes infinite loops when FFI functions are called from Hemlock code
+# with while loops in helper functions. The root cause appears to be undefined
+# behavior exposed only at -O1/-O2 optimization levels.
+$(BUILD_DIR)/interpreter/ffi.o: $(SRC_DIR)/interpreter/ffi.c | $(BUILD_DIR)
+	mkdir -p $(dir $@)
+	$(CC) $(subst -O2,-O0,$(CFLAGS)) -c $< -o $@
+
+# Special rule for statements.c - compile with -O0 for same optimizer bug
+$(BUILD_DIR)/interpreter/runtime/statements.o: $(SRC_DIR)/interpreter/runtime/statements.c | $(BUILD_DIR)
+	mkdir -p $(dir $@)
+	$(CC) $(subst -O2,-O0,$(CFLAGS)) -c $< -o $@
+
+# Special rule for expressions.c - compile with -O0 for same optimizer bug
+$(BUILD_DIR)/interpreter/runtime/expressions.o: $(SRC_DIR)/interpreter/runtime/expressions.c | $(BUILD_DIR)
+	mkdir -p $(dir $@)
+	$(CC) $(subst -O2,-O0,$(CFLAGS)) -c $< -o $@
+
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
 	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@

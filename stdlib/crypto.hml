@@ -442,8 +442,10 @@ extern fn EVP_PKEY_CTX_set_rsa_keygen_bits(ctx: ptr, bits: i32): i32;
 // int EVP_PKEY_keygen(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey)
 extern fn EVP_PKEY_keygen(ctx: ptr, ppkey: ptr): i32;
 
-// EVP_PKEY *EVP_PKEY_Q_keygen(OSSL_LIB_CTX *libctx, const char *propq, const char *type, size_t bits)
+// EVP_PKEY *EVP_PKEY_Q_keygen(OSSL_LIB_CTX *libctx, const char *propq, const char *type, ...)
 // OpenSSL 3.x simplified API - returns pointer directly, no need for pointer-to-pointer
+// Note: This is variadic. For RSA pass bits (u64), for EC pass curve name (ptr).
+// The FFI layer handles ptr-to-u64 coercion for variadic functions.
 extern fn EVP_PKEY_Q_keygen(libctx: ptr, propq: ptr, type_name: ptr, bits: u64): ptr;
 
 // EVP_PKEY_CTX *EVP_PKEY_CTX_new_from_name(OSSL_LIB_CTX *libctx, const char *name, const char *propquery)
