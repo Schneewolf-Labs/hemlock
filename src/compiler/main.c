@@ -283,23 +283,8 @@ static int compile_c(const Options *opts, const char *c_file) {
 #endif
 
     // OpenSSL/libcrypto is required - the runtime links against it for hash functions
-    // Just check if the library file exists rather than test compilation
-    char crypto_flag[64] = "";
-#ifdef __APPLE__
-    // On macOS, check in Homebrew path
-    if (system("test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib 2>/dev/null || "
-               "test -f /usr/local/opt/openssl@3/lib/libcrypto.dylib 2>/dev/null") == 0) {
-        strcpy(crypto_flag, " -lcrypto");
-    }
-#else
-    // On Linux, check standard paths
-    if (system("test -f /usr/lib/x86_64-linux-gnu/libcrypto.so 2>/dev/null || "
-               "test -f /usr/lib/libcrypto.so 2>/dev/null || "
-               "test -f /lib/x86_64-linux-gnu/libcrypto.so.3 2>/dev/null || "
-               "ldconfig -p 2>/dev/null | grep -q libcrypto") == 0) {
-        strcpy(crypto_flag, " -lcrypto");
-    }
-#endif
+    // The runtime always needs libcrypto, so always link it
+    char crypto_flag[64] = " -lcrypto";
 
     snprintf(cmd, sizeof(cmd),
         "%s %s -o %s %s -I%s/runtime/include -L%s%s -lhemlock_runtime -lm -lpthread -lffi -ldl%s%s%s",
