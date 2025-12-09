@@ -267,9 +267,8 @@ static int compile_c(const Options *opts, const char *c_file) {
     }
 
     // OpenSSL/libcrypto is required for hash functions (sha256, sha512, md5)
-    char ssl_include_path[256] = "";
 #ifdef __APPLE__
-    // On macOS, add OpenSSL library and include paths from Homebrew
+    // On macOS, add OpenSSL library path from Homebrew
     FILE *ssl_fp = popen("brew --prefix openssl@3 2>/dev/null", "r");
     if (ssl_fp) {
         char ssl_path[256];
@@ -278,23 +277,29 @@ static int compile_c(const Options *opts, const char *c_file) {
             char tmp[128];
             snprintf(tmp, sizeof(tmp), " -L%s/lib", ssl_path);
             strcat(extra_lib_paths, tmp);
-            snprintf(ssl_include_path, sizeof(ssl_include_path), "-I%s/include", ssl_path);
         }
         pclose(ssl_fp);
     }
 #endif
 
     // OpenSSL/libcrypto is required - the runtime links against it for hash functions
-    // We test by trying to compile a program that actually uses an OpenSSL symbol
+    // Just check if the library file exists rather than test compilation
     char crypto_flag[64] = "";
-    char crypto_test_cmd[1024];
-    snprintf(crypto_test_cmd, sizeof(crypto_test_cmd),
-        "echo '#include <openssl/sha.h>\nint main(){SHA256(0,0,0);return 0;}' | "
-        "gcc -x c - %s %s -lcrypto -o /dev/null 2>/dev/null",
-        ssl_include_path, extra_lib_paths);
-    if (system(crypto_test_cmd) == 0) {
+#ifdef __APPLE__
+    // On macOS, check in Homebrew path
+    if (system("test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib 2>/dev/null || "
+               "test -f /usr/local/opt/openssl@3/lib/libcrypto.dylib 2>/dev/null") == 0) {
         strcpy(crypto_flag, " -lcrypto");
     }
+#else
+    // On Linux, check standard paths
+    if (system("test -f /usr/lib/x86_64-linux-gnu/libcrypto.so 2>/dev/null || "
+               "test -f /usr/lib/libcrypto.so 2>/dev/null || "
+               "test -f /lib/x86_64-linux-gnu/libcrypto.so.3 2>/dev/null || "
+               "ldconfig -p 2>/dev/null | grep -q libcrypto") == 0) {
+        strcpy(crypto_flag, " -lcrypto");
+    }
+#endif
 
     snprintf(cmd, sizeof(cmd),
         "%s %s -o %s %s -I%s/runtime/include -L%s%s -lhemlock_runtime -lm -lpthread -lffi -ldl%s%s%s",
