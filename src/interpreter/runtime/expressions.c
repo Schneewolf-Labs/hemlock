@@ -213,6 +213,81 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 }
             }
 
+            // FAST PATH: i64 operations
+            if (left.type == VAL_I64 && right.type == VAL_I64) {
+                int64_t l = left.as.as_i64;
+                int64_t r = right.as.as_i64;
+                switch (expr->as.binary.op) {
+                    case OP_ADD: return val_i64(l + r);
+                    case OP_SUB: return val_i64(l - r);
+                    case OP_MUL: return val_i64(l * r);
+                    case OP_DIV:
+                        if (r == 0) { runtime_error(ctx, "Division by zero"); return val_null(); }
+                        return val_i64(l / r);
+                    case OP_MOD:
+                        if (r == 0) { runtime_error(ctx, "Division by zero"); return val_null(); }
+                        return val_i64(l % r);
+                    case OP_LESS: return val_bool(l < r);
+                    case OP_LESS_EQUAL: return val_bool(l <= r);
+                    case OP_GREATER: return val_bool(l > r);
+                    case OP_GREATER_EQUAL: return val_bool(l >= r);
+                    case OP_EQUAL: return val_bool(l == r);
+                    case OP_NOT_EQUAL: return val_bool(l != r);
+                    case OP_BIT_AND: return val_i64(l & r);
+                    case OP_BIT_OR: return val_i64(l | r);
+                    case OP_BIT_XOR: return val_i64(l ^ r);
+                    case OP_BIT_LSHIFT: return val_i64(l << r);
+                    case OP_BIT_RSHIFT: return val_i64(l >> r);
+                    default: break;
+                }
+            }
+
+            // FAST PATH: f64 operations
+            if (left.type == VAL_F64 && right.type == VAL_F64) {
+                double l = left.as.as_f64;
+                double r = right.as.as_f64;
+                switch (expr->as.binary.op) {
+                    case OP_ADD: return val_f64(l + r);
+                    case OP_SUB: return val_f64(l - r);
+                    case OP_MUL: return val_f64(l * r);
+                    case OP_DIV:
+                        if (r == 0.0) { runtime_error(ctx, "Division by zero"); return val_null(); }
+                        return val_f64(l / r);
+                    case OP_LESS: return val_bool(l < r);
+                    case OP_LESS_EQUAL: return val_bool(l <= r);
+                    case OP_GREATER: return val_bool(l > r);
+                    case OP_GREATER_EQUAL: return val_bool(l >= r);
+                    case OP_EQUAL: return val_bool(l == r);
+                    case OP_NOT_EQUAL: return val_bool(l != r);
+                    default: break;
+                }
+            }
+
+            // FAST PATH: Mixed i32/i64 - promote to i64
+            if ((left.type == VAL_I32 && right.type == VAL_I64) ||
+                (left.type == VAL_I64 && right.type == VAL_I32)) {
+                int64_t l = (left.type == VAL_I64) ? left.as.as_i64 : (int64_t)left.as.as_i32;
+                int64_t r = (right.type == VAL_I64) ? right.as.as_i64 : (int64_t)right.as.as_i32;
+                switch (expr->as.binary.op) {
+                    case OP_ADD: return val_i64(l + r);
+                    case OP_SUB: return val_i64(l - r);
+                    case OP_MUL: return val_i64(l * r);
+                    case OP_DIV:
+                        if (r == 0) { runtime_error(ctx, "Division by zero"); return val_null(); }
+                        return val_i64(l / r);
+                    case OP_MOD:
+                        if (r == 0) { runtime_error(ctx, "Division by zero"); return val_null(); }
+                        return val_i64(l % r);
+                    case OP_LESS: return val_bool(l < r);
+                    case OP_LESS_EQUAL: return val_bool(l <= r);
+                    case OP_GREATER: return val_bool(l > r);
+                    case OP_GREATER_EQUAL: return val_bool(l >= r);
+                    case OP_EQUAL: return val_bool(l == r);
+                    case OP_NOT_EQUAL: return val_bool(l != r);
+                    default: break;
+                }
+            }
+
             // String concatenation
             if (expr->as.binary.op == OP_ADD && left.type == VAL_STRING && right.type == VAL_STRING) {
                 String *result = string_concat(left.as.as_string, right.as.as_string);
@@ -837,10 +912,11 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 if (method_self.type == VAL_FILE) {
                     const char *method = expr->as.call.func->as.get_property.property;
 
-                    // Evaluate arguments
+                    // Evaluate arguments (stack-allocated for small counts)
+                    Value method_stack_args[8];
                     Value *args = NULL;
                     if (expr->as.call.num_args > 0) {
-                        args = malloc(sizeof(Value) * expr->as.call.num_args);
+                        args = (expr->as.call.num_args <= 8) ? method_stack_args : malloc(sizeof(Value) * expr->as.call.num_args);
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             args[i] = eval_expr(expr->as.call.args[i], env, ctx);
                         }
@@ -852,7 +928,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             VALUE_RELEASE(args[i]);
                         }
-                        free(args);
+                        if (args != method_stack_args) free(args);
                     }
                     VALUE_RELEASE(method_self);  // Release method receiver
                     return result;
@@ -862,10 +938,11 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 if (method_self.type == VAL_SOCKET) {
                     const char *method = expr->as.call.func->as.get_property.property;
 
-                    // Evaluate arguments
+                    // Evaluate arguments (stack-allocated for small counts)
+                    Value method_stack_args[8];
                     Value *args = NULL;
                     if (expr->as.call.num_args > 0) {
-                        args = malloc(sizeof(Value) * expr->as.call.num_args);
+                        args = (expr->as.call.num_args <= 8) ? method_stack_args : malloc(sizeof(Value) * expr->as.call.num_args);
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             args[i] = eval_expr(expr->as.call.args[i], env, ctx);
                         }
@@ -877,7 +954,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             VALUE_RELEASE(args[i]);
                         }
-                        free(args);
+                        if (args != method_stack_args) free(args);
                     }
                     VALUE_RELEASE(method_self);  // Release method receiver
                     return result;
@@ -887,10 +964,11 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 if (method_self.type == VAL_ARRAY) {
                     const char *method = expr->as.call.func->as.get_property.property;
 
-                    // Evaluate arguments
+                    // Evaluate arguments (stack-allocated for small counts)
+                    Value method_stack_args[8];
                     Value *args = NULL;
                     if (expr->as.call.num_args > 0) {
-                        args = malloc(sizeof(Value) * expr->as.call.num_args);
+                        args = (expr->as.call.num_args <= 8) ? method_stack_args : malloc(sizeof(Value) * expr->as.call.num_args);
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             args[i] = eval_expr(expr->as.call.args[i], env, ctx);
                         }
@@ -902,7 +980,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             VALUE_RELEASE(args[i]);
                         }
-                        free(args);
+                        if (args != method_stack_args) free(args);
                     }
                     VALUE_RELEASE(method_self);  // Release method receiver
                     return result;
@@ -912,10 +990,11 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 if (method_self.type == VAL_STRING) {
                     const char *method = expr->as.call.func->as.get_property.property;
 
-                    // Evaluate arguments
+                    // Evaluate arguments (stack-allocated for small counts)
+                    Value method_stack_args[8];
                     Value *args = NULL;
                     if (expr->as.call.num_args > 0) {
-                        args = malloc(sizeof(Value) * expr->as.call.num_args);
+                        args = (expr->as.call.num_args <= 8) ? method_stack_args : malloc(sizeof(Value) * expr->as.call.num_args);
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             args[i] = eval_expr(expr->as.call.args[i], env, ctx);
                         }
@@ -927,7 +1006,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             VALUE_RELEASE(args[i]);
                         }
-                        free(args);
+                        if (args != method_stack_args) free(args);
                     }
                     VALUE_RELEASE(method_self);  // Release method receiver
                     return result;
@@ -958,10 +1037,11 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 if (method_self.type == VAL_CHANNEL) {
                     const char *method = expr->as.call.func->as.get_property.property;
 
-                    // Evaluate arguments
+                    // Evaluate arguments (stack-allocated for small counts)
+                    Value method_stack_args[8];
                     Value *args = NULL;
                     if (expr->as.call.num_args > 0) {
-                        args = malloc(sizeof(Value) * expr->as.call.num_args);
+                        args = (expr->as.call.num_args <= 8) ? method_stack_args : malloc(sizeof(Value) * expr->as.call.num_args);
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             args[i] = eval_expr(expr->as.call.args[i], env, ctx);
                         }
@@ -973,7 +1053,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             VALUE_RELEASE(args[i]);
                         }
-                        free(args);
+                        if (args != method_stack_args) free(args);
                     }
                     VALUE_RELEASE(method_self);  // Release method receiver
                     return result;
@@ -1043,10 +1123,18 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 func = eval_expr(expr->as.call.func, env, ctx);
             }
 
-            // Evaluate arguments
+            // Evaluate arguments - use stack allocation for small arg counts (common case)
+            #define MAX_STACK_ARGS 8
+            Value stack_args[MAX_STACK_ARGS];
             Value *args = NULL;
+            int args_on_heap = 0;
             if (expr->as.call.num_args > 0) {
-                args = malloc(sizeof(Value) * expr->as.call.num_args);
+                if (expr->as.call.num_args <= MAX_STACK_ARGS) {
+                    args = stack_args;
+                } else {
+                    args = malloc(sizeof(Value) * expr->as.call.num_args);
+                    args_on_heap = 1;
+                }
                 for (int i = 0; i < expr->as.call.num_args; i++) {
                     args[i] = eval_expr(expr->as.call.args[i], env, ctx);
                 }
@@ -1092,7 +1180,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             VALUE_RELEASE(args[i]);
                         }
-                        free(args);
+                        if (args_on_heap) free(args);
                     }
                     return val_null();
                 }
@@ -1115,7 +1203,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             VALUE_RELEASE(args[i]);
                         }
-                        free(args);
+                        if (args_on_heap) free(args);
                     }
                     return val_null();
                 }
@@ -1229,8 +1317,8 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 }
             }
 
-            // Free args array
-            if (args) {
+            // Free args array (only if heap-allocated)
+            if (args_on_heap) {
                 free(args);
             }
 

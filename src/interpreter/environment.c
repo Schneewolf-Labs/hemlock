@@ -9,7 +9,7 @@
 // Pre-allocate environments to avoid malloc/free overhead in recursive calls
 // Uses a free list for O(1) alloc/free
 
-#define ENV_POOL_SIZE 128
+#define ENV_POOL_SIZE 1024
 #define ENV_DEFAULT_CAPACITY 16
 
 typedef struct {
@@ -516,13 +516,18 @@ static void env_grow(Environment *env) {
 }
 
 // O(1) hash table lookup - returns index or -1 if not found
-static int env_lookup(Environment *env, const char *name, uint32_t hash) {
+// Fast path for short identifiers using first 8 bytes comparison
+static inline int env_lookup(Environment *env, const char *name, uint32_t hash) {
     int slot = hash % env->hash_capacity;
     int start_slot = slot;
 
     while (env->hash_table[slot] != -1) {
         int idx = env->hash_table[slot];
-        if (strcmp(env->names[idx], name) == 0) {
+        const char *stored = env->names[idx];
+        // Fast comparison: check if pointers match (interned strings)
+        // or if first chars match before full strcmp
+        if (stored == name ||
+            (stored[0] == name[0] && strcmp(stored, name) == 0)) {
             return idx;
         }
         slot = (slot + 1) % env->hash_capacity;
@@ -611,6 +616,17 @@ void env_define_borrowed(Environment *env, const char *name, Value value, int is
 
 // Set a variable (for reassignment or implicit definition in loops/functions)
 void env_set(Environment *env, const char *name, Value value, ExecutionContext *ctx) {
+    // Fast path: check first variable (common for loop counters and function params)
+    if (env->count > 0 && env->names[0][0] == name[0] &&
+        (env->names[0] == name || strcmp(env->names[0], name) == 0)) {
+        if (!env->is_const[0]) {
+            VALUE_RELEASE(env->values[0]);
+            VALUE_RETAIN(value);
+            env->values[0] = value;
+            return;
+        }
+    }
+
     uint32_t hash = hash_string(name);
 
     // Check current scope using hash table
@@ -674,6 +690,15 @@ void env_set(Environment *env, const char *name, Value value, ExecutionContext *
 }
 
 Value env_get(Environment *env, const char *name, ExecutionContext *ctx) {
+    // Fast path: check if first variable in current scope matches
+    // This is common for function parameters (e.g., fn fib(n) - looking up 'n')
+    if (env->count > 0 && env->names[0][0] == name[0] &&
+        (env->names[0] == name || strcmp(env->names[0], name) == 0)) {
+        Value val = env->values[0];
+        VALUE_RETAIN(val);
+        return val;
+    }
+
     uint32_t hash = hash_string(name);
 
     // Search current and parent scopes using hash table
