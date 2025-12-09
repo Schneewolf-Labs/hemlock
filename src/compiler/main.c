@@ -284,7 +284,12 @@ static int compile_c(const Options *opts, const char *c_file) {
 
     // OpenSSL/libcrypto is required - the runtime links against it for hash functions
     // The runtime always needs libcrypto, so always link it
+    // On Linux, use --no-as-needed to ensure the library is linked even if not directly referenced
+#ifdef __APPLE__
     char crypto_flag[64] = " -lcrypto";
+#else
+    char crypto_flag[64] = " -Wl,--no-as-needed -lcrypto";
+#endif
 
     snprintf(cmd, sizeof(cmd),
         "%s %s -o %s %s -I%s/runtime/include -L%s%s -lhemlock_runtime -lm -lpthread -lffi -ldl%s%s%s",
