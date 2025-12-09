@@ -286,6 +286,7 @@ int hml_object_has_field(HmlValue obj, const char *field);
 int hml_object_num_fields(HmlValue obj);
 HmlValue hml_object_key_at(HmlValue obj, int index);
 HmlValue hml_object_value_at(HmlValue obj, int index);
+HmlValue hml_object_keys(HmlValue obj);
 
 // ========== SERIALIZATION (JSON) ==========
 
@@ -662,6 +663,12 @@ HmlValue hml_lws_response_headers(HmlValue resp);
 // Free HTTP response
 HmlValue hml_lws_response_free(HmlValue resp);
 
+// Get redirect URL from response (if any)
+HmlValue hml_lws_response_redirect(HmlValue resp);
+
+// Get response body as binary buffer (preserves null bytes)
+HmlValue hml_lws_response_body_binary(HmlValue resp);
+
 // Builtin wrappers for function-as-value
 HmlValue hml_builtin_lws_http_get(HmlClosureEnv *env, HmlValue url);
 HmlValue hml_builtin_lws_http_post(HmlClosureEnv *env, HmlValue url, HmlValue body, HmlValue content_type);
@@ -669,6 +676,8 @@ HmlValue hml_builtin_lws_response_status(HmlClosureEnv *env, HmlValue resp);
 HmlValue hml_builtin_lws_response_body(HmlClosureEnv *env, HmlValue resp);
 HmlValue hml_builtin_lws_response_headers(HmlClosureEnv *env, HmlValue resp);
 HmlValue hml_builtin_lws_response_free(HmlClosureEnv *env, HmlValue resp);
+HmlValue hml_builtin_lws_response_redirect(HmlClosureEnv *env, HmlValue resp);
+HmlValue hml_builtin_lws_response_body_binary(HmlClosureEnv *env, HmlValue resp);
 
 // WebSocket client functions
 HmlValue hml_lws_ws_connect(HmlValue url);
@@ -701,6 +710,18 @@ HmlValue hml_builtin_lws_msg_free(HmlClosureEnv *env, HmlValue msg);
 HmlValue hml_builtin_lws_ws_server_create(HmlClosureEnv *env, HmlValue host, HmlValue port);
 HmlValue hml_builtin_lws_ws_server_accept(HmlClosureEnv *env, HmlValue server, HmlValue timeout_ms);
 HmlValue hml_builtin_lws_ws_server_close(HmlClosureEnv *env, HmlValue server);
+
+// ========== CRYPTOGRAPHIC HASH FUNCTIONS ==========
+
+// Hash functions - return hex string
+HmlValue hml_hash_sha256(HmlValue input);
+HmlValue hml_hash_sha512(HmlValue input);
+HmlValue hml_hash_md5(HmlValue input);
+
+// Builtin wrappers for function-as-value usage
+HmlValue hml_builtin_hash_sha256(HmlClosureEnv *env, HmlValue input);
+HmlValue hml_builtin_hash_sha512(HmlClosureEnv *env, HmlValue input);
+HmlValue hml_builtin_hash_md5(HmlClosureEnv *env, HmlValue input);
 
 // ========== CALL STACK TRACKING ==========
 

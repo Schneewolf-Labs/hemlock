@@ -266,10 +266,35 @@ static int compile_c(const Options *opts, const char *c_file) {
         strcpy(websockets_flag, " -lwebsockets");
     }
 
+    // OpenSSL/libcrypto is required for hash functions (sha256, sha512, md5)
+#ifdef __APPLE__
+    // On macOS, add OpenSSL library path from Homebrew
+    FILE *ssl_fp = popen("brew --prefix openssl@3 2>/dev/null", "r");
+    if (ssl_fp) {
+        char ssl_path[256];
+        if (fgets(ssl_path, sizeof(ssl_path), ssl_fp)) {
+            ssl_path[strcspn(ssl_path, "\n")] = 0;
+            char tmp[128];
+            snprintf(tmp, sizeof(tmp), " -L%s/lib", ssl_path);
+            strcat(extra_lib_paths, tmp);
+        }
+        pclose(ssl_fp);
+    }
+#endif
+
+    // OpenSSL/libcrypto is required - the runtime links against it for hash functions
+    // The runtime always needs libcrypto, so always link it
+    // On Linux, use --no-as-needed to ensure the library is linked even if not directly referenced
+#ifdef __APPLE__
+    char crypto_flag[64] = " -lcrypto";
+#else
+    char crypto_flag[64] = " -Wl,--no-as-needed -lcrypto";
+#endif
+
     snprintf(cmd, sizeof(cmd),
-        "%s %s -o %s %s -I%s/runtime/include -L%s%s -lhemlock_runtime -lm -lpthread -lffi -ldl%s%s",
+        "%s %s -o %s %s -I%s/runtime/include -L%s%s -lhemlock_runtime -lm -lpthread -lffi -ldl%s%s%s",
         opts->cc, opt_flag, opts->output_file, c_file,
-        runtime_path, runtime_path, extra_lib_paths, zlib_flag, websockets_flag);
+        runtime_path, runtime_path, extra_lib_paths, zlib_flag, websockets_flag, crypto_flag);
 
     if (opts->verbose) {
         printf("Running: %s\n", cmd);

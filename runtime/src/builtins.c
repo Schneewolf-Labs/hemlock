@@ -34,6 +34,10 @@
 #include <zlib.h>
 #endif
 
+// OpenSSL for cryptographic hash functions
+#include <openssl/sha.h>
+#include <openssl/md5.h>
+
 #ifdef __linux__
 #include <sys/sysinfo.h>
 #endif
@@ -2982,6 +2986,24 @@ HmlValue hml_object_value_at(HmlValue obj, int index) {
     return result;
 }
 
+// Get all keys of an object as an array
+HmlValue hml_object_keys(HmlValue obj) {
+    if (obj.type != HML_VAL_OBJECT || !obj.as.as_object) {
+        hml_runtime_error("Object has no method 'keys'");
+    }
+    HmlObject *o = obj.as.as_object;
+
+    // Create a new array to hold the keys
+    HmlValue arr = hml_val_array();
+
+    // Add each field name to the array
+    for (int i = 0; i < o->num_fields; i++) {
+        hml_array_push(arr, hml_val_string(o->field_names[i]));
+    }
+
+    return arr;
+}
+
 // ========== SERIALIZATION (JSON) ==========
 
 // Visited set for cycle detection
@@ -3524,8 +3546,8 @@ HmlValue hml_call_function(HmlValue fn, HmlValue *args, int num_args) {
 
         // Build args array with nulls for missing optional parameters
         // Use num_params (from function definition) to determine how many args to pass
-        HmlValue padded_args[6] = {0};  // Max 5 params + 1 for safety
-        for (int i = 0; i < num_params && i < 5; i++) {
+        HmlValue padded_args[9] = {0};  // Max 8 params + 1 for safety
+        for (int i = 0; i < num_params && i < 8; i++) {
             if (i < num_args) {
                 padded_args[i] = args[i];
             } else {
@@ -3567,8 +3589,23 @@ HmlValue hml_call_function(HmlValue fn, HmlValue *args, int num_args) {
                 Fn5 f = (Fn5)fn_ptr;
                 return f(env, padded_args[0], padded_args[1], padded_args[2], padded_args[3], padded_args[4]);
             }
+            case 6: {
+                typedef HmlValue (*Fn6)(HmlClosureEnv*, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue);
+                Fn6 f = (Fn6)fn_ptr;
+                return f(env, padded_args[0], padded_args[1], padded_args[2], padded_args[3], padded_args[4], padded_args[5]);
+            }
+            case 7: {
+                typedef HmlValue (*Fn7)(HmlClosureEnv*, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue);
+                Fn7 f = (Fn7)fn_ptr;
+                return f(env, padded_args[0], padded_args[1], padded_args[2], padded_args[3], padded_args[4], padded_args[5], padded_args[6]);
+            }
+            case 8: {
+                typedef HmlValue (*Fn8)(HmlClosureEnv*, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue);
+                Fn8 f = (Fn8)fn_ptr;
+                return f(env, padded_args[0], padded_args[1], padded_args[2], padded_args[3], padded_args[4], padded_args[5], padded_args[6], padded_args[7]);
+            }
             default:
-                hml_runtime_error("Functions with more than 5 arguments not supported");
+                hml_runtime_error("Functions with more than 8 arguments not supported");
         }
     }
 
@@ -3712,6 +3749,10 @@ HmlValue hml_call_method(HmlValue obj, const char *method, HmlValue *args, int n
     // Get the method function from the object
     HmlValue fn = hml_object_get_field(obj, method);
     if (fn.type == HML_VAL_NULL) {
+        // Fallback to built-in object methods if no custom method exists
+        if (strcmp(method, "keys") == 0 && num_args == 0) {
+            return hml_object_keys(obj);
+        }
         hml_runtime_error("Object has no method '%s'", method);
     }
 
@@ -6671,6 +6712,86 @@ HmlValue hml_builtin_adler32(HmlClosureEnv *env, HmlValue data) {
 
 #endif /* HML_HAVE_ZLIB */
 
+// ========== CRYPTOGRAPHIC HASH FUNCTIONS (OpenSSL) ==========
+
+// Helper: Convert bytes to hexadecimal string
+static HmlValue bytes_to_hex_string(const unsigned char *bytes, size_t len) {
+    static const char hex_chars[] = "0123456789abcdef";
+    char *hex = malloc(len * 2 + 1);
+    if (!hex) return hml_val_string("");
+
+    for (size_t i = 0; i < len; i++) {
+        hex[i * 2] = hex_chars[(bytes[i] >> 4) & 0x0F];
+        hex[i * 2 + 1] = hex_chars[bytes[i] & 0x0F];
+    }
+    hex[len * 2] = '\0';
+
+    HmlValue result = hml_val_string(hex);
+    free(hex);
+    return result;
+}
+
+// SHA-256 hash - returns hex string
+HmlValue hml_hash_sha256(HmlValue input) {
+    if (input.type != HML_VAL_STRING) {
+        hml_runtime_error("sha256() requires string argument");
+    }
+
+    const char *data = input.as.as_string->data;
+    size_t len = input.as.as_string->length;
+
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256((const unsigned char *)data, len, hash);
+
+    return bytes_to_hex_string(hash, SHA256_DIGEST_LENGTH);
+}
+
+// SHA-512 hash - returns hex string
+HmlValue hml_hash_sha512(HmlValue input) {
+    if (input.type != HML_VAL_STRING) {
+        hml_runtime_error("sha512() requires string argument");
+    }
+
+    const char *data = input.as.as_string->data;
+    size_t len = input.as.as_string->length;
+
+    unsigned char hash[SHA512_DIGEST_LENGTH];
+    SHA512((const unsigned char *)data, len, hash);
+
+    return bytes_to_hex_string(hash, SHA512_DIGEST_LENGTH);
+}
+
+// MD5 hash - returns hex string
+HmlValue hml_hash_md5(HmlValue input) {
+    if (input.type != HML_VAL_STRING) {
+        hml_runtime_error("md5() requires string argument");
+    }
+
+    const char *data = input.as.as_string->data;
+    size_t len = input.as.as_string->length;
+
+    unsigned char hash[MD5_DIGEST_LENGTH];
+    MD5((const unsigned char *)data, len, hash);
+
+    return bytes_to_hex_string(hash, MD5_DIGEST_LENGTH);
+}
+
+// Builtin wrappers for function-as-value usage
+HmlValue hml_builtin_hash_sha256(HmlClosureEnv *env, HmlValue input) {
+    (void)env;
+    return hml_hash_sha256(input);
+}
+
+HmlValue hml_builtin_hash_sha512(HmlClosureEnv *env, HmlValue input) {
+    (void)env;
+    return hml_hash_sha512(input);
+}
+
+HmlValue hml_builtin_hash_md5(HmlClosureEnv *env, HmlValue input) {
+    (void)env;
+    return hml_hash_md5(input);
+}
+
 // ========== INTERNAL HELPER OPERATIONS ==========
 
 // Read a u32 value from a pointer
@@ -6898,6 +7019,7 @@ typedef struct {
     int status_code;
     int complete;
     int failed;
+    char *redirect_url;
 } hml_http_response_t;
 
 // HTTP callback
@@ -6906,34 +7028,95 @@ static int hml_http_callback(struct lws *wsi, enum lws_callback_reasons reason,
     hml_http_response_t *resp = (hml_http_response_t *)user;
 
     switch (reason) {
+        case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER:
+            // Add custom headers to the HTTP request
+            {
+                unsigned char **p = (unsigned char **)in;
+                unsigned char *end = (*p) + len;
+
+                // Add User-Agent header (required by GitHub API)
+                const char *ua = "User-Agent: hemlock/1.0\r\n";
+                size_t ua_len = strlen(ua);
+                if (end - *p >= (int)ua_len) {
+                    memcpy(*p, ua, ua_len);
+                    *p += ua_len;
+                }
+
+                // Add Accept header for JSON APIs
+                const char *accept = "Accept: application/json\r\n";
+                size_t accept_len = strlen(accept);
+                if (end - *p >= (int)accept_len) {
+                    memcpy(*p, accept, accept_len);
+                    *p += accept_len;
+                }
+            }
+            break;
+
         case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-            resp->failed = 1;
-            resp->complete = 1;
+            if (resp) {
+                resp->failed = 1;
+                resp->complete = 1;
+            }
             break;
 
         case LWS_CALLBACK_ESTABLISHED_CLIENT_HTTP:
-            resp->status_code = lws_http_client_http_response(wsi);
+            if (resp) {
+                resp->status_code = lws_http_client_http_response(wsi);
+
+                // Capture Location header for redirects (3xx responses)
+                if (resp->status_code >= 300 && resp->status_code < 400) {
+                    char location[1024];
+                    int loc_len = lws_hdr_copy(wsi, location, sizeof(location), WSI_TOKEN_HTTP_LOCATION);
+                    if (loc_len > 0) {
+                        location[loc_len] = '\0';
+                        resp->redirect_url = strdup(location);
+                        resp->complete = 1;
+                    }
+                }
+            }
             break;
 
-        case LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ:
-            if (resp->body_len + len >= resp->body_capacity) {
-                resp->body_capacity = (resp->body_len + len + 1) * 2;
-                char *new_body = realloc(resp->body, resp->body_capacity);
-                if (!new_body) {
-                    resp->failed = 1;
-                    resp->complete = 1;
+        case LWS_CALLBACK_RECEIVE_CLIENT_HTTP:
+            // This callback tells us there's data available - we must consume it
+            {
+                char buffer[4096 + LWS_PRE];
+                char *px = buffer + LWS_PRE;
+                int lenx = sizeof(buffer) - LWS_PRE;
+
+                if (lws_http_client_read(wsi, &px, &lenx) < 0)
                     return -1;
-                }
-                resp->body = new_body;
             }
-            memcpy(resp->body + resp->body_len, in, len);
-            resp->body_len += len;
-            resp->body[resp->body_len] = '\0';
+            return 0;
+
+        case LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ:
+            // Accumulate response body - this is called after lws_http_client_read
+            if (resp) {
+                if (resp->body_len + len >= resp->body_capacity) {
+                    resp->body_capacity = (resp->body_len + len + 1) * 2;
+                    char *new_body = realloc(resp->body, resp->body_capacity);
+                    if (!new_body) {
+                        resp->failed = 1;
+                        resp->complete = 1;
+                        return -1;
+                    }
+                    resp->body = new_body;
+                }
+                memcpy(resp->body + resp->body_len, in, len);
+                resp->body_len += len;
+                resp->body[resp->body_len] = '\0';
+            }
             return 0;
 
         case LWS_CALLBACK_COMPLETED_CLIENT_HTTP:
+            if (resp) {
+                resp->complete = 1;
+            }
+            break;
+
         case LWS_CALLBACK_CLOSED_CLIENT_HTTP:
-            resp->complete = 1;
+            if (resp) {
+                resp->complete = 1;
+            }
             break;
 
         default:
@@ -7016,7 +7199,7 @@ HmlValue hml_lws_http_get(HmlValue url_val) {
         hml_runtime_error("__lws_http_get() expects string URL");
     }
 
-    const char *url = url_val.as.as_string;
+    const char *url = url_val.as.as_string->data;
     char host[256], path[512];
     int port, ssl;
 
@@ -7041,9 +7224,10 @@ HmlValue hml_lws_http_get(HmlValue url_val) {
     memset(&info, 0, sizeof(info));
     info.options = LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
     info.port = CONTEXT_PORT_NO_LISTEN;
+    info.max_http_header_data = 16384;  // 16KB for large headers (e.g., GitHub API)
 
     static const struct lws_protocols protocols[] = {
-        { "http", hml_http_callback, 0, 4096, 0, NULL, 0 },
+        { "http", hml_http_callback, 0, 16384, 0, NULL, 0 },
         { NULL, NULL, 0, 0, 0, NULL, 0 }
     };
     info.protocols = protocols;
@@ -7070,8 +7254,11 @@ HmlValue hml_lws_http_get(HmlValue url_val) {
     struct lws *wsi;
     connect_info.pwsi = &wsi;
 
+    // Disable automatic redirects - we'll handle them at the hemlock layer
+    connect_info.ssl_connection = LCCSCF_HTTP_NO_FOLLOW_REDIRECT;
+
     if (ssl) {
-        connect_info.ssl_connection = LCCSCF_USE_SSL |
+        connect_info.ssl_connection |= LCCSCF_USE_SSL |
                                        LCCSCF_ALLOW_SELFSIGNED |
                                        LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK;
     }
@@ -7105,7 +7292,7 @@ HmlValue hml_lws_http_post(HmlValue url_val, HmlValue body_val, HmlValue content
         hml_runtime_error("__lws_http_post() expects string arguments");
     }
 
-    const char *url = url_val.as.as_string;
+    const char *url = url_val.as.as_string->data;
     (void)body_val;  // Not fully implemented yet
     (void)content_type_val;
     
@@ -7133,12 +7320,13 @@ HmlValue hml_lws_http_post(HmlValue url_val, HmlValue body_val, HmlValue content
     memset(&info, 0, sizeof(info));
     info.options = LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
     info.port = CONTEXT_PORT_NO_LISTEN;
+    info.max_http_header_data = 16384;
 
-    static const struct lws_protocols protocols[] = {
-        { "http", hml_http_callback, 0, 4096, 0, NULL, 0 },
+    static const struct lws_protocols post_protocols[] = {
+        { "http", hml_http_callback, 0, 16384, 0, NULL, 0 },
         { NULL, NULL, 0, 0, 0, NULL, 0 }
     };
-    info.protocols = protocols;
+    info.protocols = post_protocols;
 
     struct lws_context *context = lws_create_context(&info);
     if (!context) {
@@ -7156,14 +7344,16 @@ HmlValue hml_lws_http_post(HmlValue url_val, HmlValue body_val, HmlValue content
     connect_info.host = host;
     connect_info.origin = host;
     connect_info.method = "POST";
-    connect_info.protocol = protocols[0].name;
+    connect_info.protocol = post_protocols[0].name;
     connect_info.userdata = resp;
 
     struct lws *wsi;
     connect_info.pwsi = &wsi;
 
+    connect_info.ssl_connection = LCCSCF_HTTP_NO_FOLLOW_REDIRECT;
+
     if (ssl) {
-        connect_info.ssl_connection = LCCSCF_USE_SSL |
+        connect_info.ssl_connection |= LCCSCF_USE_SSL |
                                        LCCSCF_ALLOW_SELFSIGNED |
                                        LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK;
     }
@@ -7224,10 +7414,40 @@ HmlValue hml_lws_response_free(HmlValue resp_val) {
         hml_http_response_t *resp = (hml_http_response_t *)resp_val.as.as_ptr;
         if (resp) {
             if (resp->body) free(resp->body);
+            if (resp->redirect_url) free(resp->redirect_url);
             free(resp);
         }
     }
     return hml_val_null();
+}
+
+// Get redirect URL from response (if any)
+HmlValue hml_lws_response_redirect(HmlValue resp_val) {
+    if (resp_val.type != HML_VAL_PTR) {
+        return hml_val_null();
+    }
+    hml_http_response_t *resp = (hml_http_response_t *)resp_val.as.as_ptr;
+    if (!resp || !resp->redirect_url) {
+        return hml_val_null();
+    }
+    return hml_val_string(resp->redirect_url);
+}
+
+// Get response body as binary buffer (preserves null bytes)
+HmlValue hml_lws_response_body_binary(HmlValue resp_val) {
+    if (resp_val.type != HML_VAL_PTR) {
+        return hml_val_buffer(0);
+    }
+    hml_http_response_t *resp = (hml_http_response_t *)resp_val.as.as_ptr;
+    if (!resp || !resp->body || resp->body_len == 0) {
+        return hml_val_buffer(0);
+    }
+    // Create buffer and copy data (preserves binary data including null bytes)
+    HmlValue buf = hml_val_buffer(resp->body_len);
+    if (buf.type == HML_VAL_BUFFER && buf.as.as_buffer) {
+        memcpy(buf.as.as_buffer->data, resp->body, resp->body_len);
+    }
+    return buf;
 }
 
 // Builtin wrappers
@@ -7259,6 +7479,16 @@ HmlValue hml_builtin_lws_response_headers(HmlClosureEnv *env, HmlValue resp) {
 HmlValue hml_builtin_lws_response_free(HmlClosureEnv *env, HmlValue resp) {
     (void)env;
     return hml_lws_response_free(resp);
+}
+
+HmlValue hml_builtin_lws_response_redirect(HmlClosureEnv *env, HmlValue resp) {
+    (void)env;
+    return hml_lws_response_redirect(resp);
+}
+
+HmlValue hml_builtin_lws_response_body_binary(HmlClosureEnv *env, HmlValue resp) {
+    (void)env;
+    return hml_lws_response_body_binary(resp);
 }
 
 // ========== WEBSOCKET SUPPORT ==========
