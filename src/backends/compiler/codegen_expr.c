@@ -2601,6 +2601,16 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     codegen_writeln(ctx, "hml_socket_set_timeout(%s, %s);",
                                   obj_val, arg_temps[0]);
                     codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
+                } else if (strcmp(method, "set_nonblocking") == 0 && expr->as.call.num_args == 1) {
+                    codegen_writeln(ctx, "hml_socket_set_nonblocking(%s, %s);",
+                                  obj_val, arg_temps[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
+                } else if (strcmp(method, "recv_timeout") == 0 && expr->as.call.num_args == 1) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_channel_recv_timeout(%s, %s);",
+                                  result, obj_val, arg_temps[0]);
+                } else if (strcmp(method, "send_timeout") == 0 && expr->as.call.num_args == 2) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_channel_send_timeout(%s, %s, %s);",
+                                  result, obj_val, arg_temps[0], arg_temps[1]);
                 // Serialization methods
                 } else if (strcmp(method, "serialize") == 0 && expr->as.call.num_args == 0) {
                     codegen_writeln(ctx, "HmlValue %s = hml_serialize(%s);", result, obj_val);
