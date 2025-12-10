@@ -320,9 +320,7 @@ free(dest);
 
 ---
 
-## Typed Memory Operations (TODO)
-
-**Note:** These functions are documented but not fully implemented yet.
+## Typed Memory Operations
 
 ### sizeof
 
@@ -334,16 +332,44 @@ sizeof(type): i32
 ```
 
 **Parameters:**
-- `type` - Type name (e.g., `i32`, `f64`, `ptr`)
+- `type` - Type identifier (e.g., `i32`, `f64`, `ptr`)
 
-**Returns:** Size in bytes
+**Returns:** Size in bytes (i32)
+
+**Type Sizes:**
+
+| Type | Size (bytes) |
+|------|--------------|
+| `i8` | 1 |
+| `i16` | 2 |
+| `i32`, `integer` | 4 |
+| `i64` | 8 |
+| `u8`, `byte` | 1 |
+| `u16` | 2 |
+| `u32` | 4 |
+| `u64` | 8 |
+| `f32` | 4 |
+| `f64`, `number` | 8 |
+| `bool` | 1 |
+| `ptr` | 8 |
+| `rune` | 4 |
 
 **Examples:**
 ```hemlock
 let int_size = sizeof(i32);      // 4
 let ptr_size = sizeof(ptr);      // 8
 let float_size = sizeof(f64);    // 8
+let byte_size = sizeof(u8);      // 1
+let rune_size = sizeof(rune);    // 4
+
+// Calculate array allocation size
+let count = 100;
+let total = sizeof(i32) * count; // 400 bytes
 ```
+
+**Behavior:**
+- Returns 0 for unknown types
+- Accepts both type identifiers and type strings
 
 ---
 
@@ -357,24 +383,36 @@ talloc(type, count: i32): ptr
 ```
 
 **Parameters:**
-- `type` - Type to allocate
-- `count` - Number of elements
+- `type` - Type to allocate (e.g., `i32`, `f64`, `ptr`)
+- `count` - Number of elements (must be positive)
 
 **Returns:** Pointer to allocated array, or `null` on allocation failure
 
 **Examples:**
 ```hemlock
-let arr = talloc(i32, 100);      // Array of 100 i32s
-let floats = talloc(f64, 50);    // Array of 50 f64s
+let arr = talloc(i32, 100);      // Array of 100 i32s (400 bytes)
+let floats = talloc(f64, 50);    // Array of 50 f64s (400 bytes)
+let bytes = talloc(u8, 1024);    // Array of 1024 bytes
+
+// Always check for allocation failure
+if (arr == null) {
+    panic("allocation failed");
+}
+
+// Use the allocated memory
+// ...
 
 free(arr);
 free(floats);
+free(bytes);
 ```
 
 **Behavior:**
+- Allocates `sizeof(type) * count` bytes
 - Returns uninitialized memory
-- Memory must be manually freed
+- Memory must be manually freed with `free()`
 - Returns `null` on allocation failure (caller must check)
+- Panics if count is not positive
 
 ---
 
@@ -620,8 +658,8 @@ free(p2);
 | `realloc` | `(ptr: ptr, new_size: i32)`            | `ptr`    | Resize allocation          |
 | `memset`  | `(ptr: ptr, byte: i32, size: i32)`     | `null`   | Fill memory                |
 | `memcpy`  | `(dest: ptr, src: ptr, size: i32)`     | `null`   | Copy memory                |
-| `sizeof`  | `(type)`                               | `i32`    | Get type size (TODO)       |
-| `talloc`  | `(type, count: i32)`                   | `ptr`    | Allocate typed array (TODO)|
+| `sizeof`  | `(type)`                               | `i32`    | Get type size in bytes     |
+| `talloc`  | `(type, count: i32)`                   | `ptr`    | Allocate typed array       |
 
 ---
 
