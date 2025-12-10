@@ -1558,6 +1558,125 @@ HmlValue hml_unary_op(HmlUnaryOp op, HmlValue operand) {
 
 // ========== STRING OPERATIONS ==========
 
+// Helper: Encode a Unicode codepoint to UTF-8, returns number of bytes written
+static int encode_utf8(uint32_t cp, char *out) {
+    if (cp < 0x80) {
+        out[0] = (char)cp;
+        return 1;
+    } else if (cp < 0x800) {
+        out[0] = (char)(0xC0 | (cp >> 6));
+        out[1] = (char)(0x80 | (cp & 0x3F));
+        return 2;
+    } else if (cp < 0x10000) {
+        out[0] = (char)(0xE0 | (cp >> 12));
+        out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        out[2] = (char)(0x80 | (cp & 0x3F));
+        return 3;
+    } else {
+        out[0] = (char)(0xF0 | (cp >> 18));
+        out[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
+        out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        out[3] = (char)(0x80 | (cp & 0x3F));
+        return 4;
+    }
+}
+
+// OPTIMIZATION: In-place string append for pattern "x = x + y"
+// If the left string has refcount == 1, we can mutate it in place
+// This turns O(n²) repeated concatenation into O(n) amortized
+HmlValue hml_string_append_inplace(HmlValue *dest, HmlValue src) {
+    // Only works if dest is a string with refcount 1
+    if (dest->type != HML_VAL_STRING || !dest->as.as_string) {
+        // Fall back to regular concat
+        HmlValue result = hml_string_concat(*dest, src);
+        hml_release(dest);
+        *dest = result;
+        return result;
+    }
+
+    HmlString *sd = dest->as.as_string;
+
+    // If refcount > 1, we can't mutate - fall back to concat
+    if (sd->ref_count > 1) {
+        HmlValue result = hml_string_concat(*dest, src);
+        hml_release(dest);
+        *dest = result;
+        return result;
+    }
+
+    // FAST PATH: Appending a single rune (common in character-by-character string building)
+    if (src.type == HML_VAL_RUNE) {
+        char utf8_buf[4];
+        int char_len = encode_utf8(src.as.as_rune, utf8_buf);
+        int new_len = sd->length + char_len;
+
+        // Grow capacity if needed
+        if (new_len + 1 > sd->capacity) {
+            int new_capacity = sd->capacity * 2;
+            if (new_capacity < new_len + 1) new_capacity = new_len + 1;
+            if (new_capacity < 32) new_capacity = 32;
+
+            char *new_data = realloc(sd->data, new_capacity);
+            if (!new_data) {
+                HmlValue result = hml_string_concat(*dest, src);
+                hml_release(dest);
+                *dest = result;
+                return result;
+            }
+            sd->data = new_data;
+            sd->capacity = new_capacity;
+        }
+
+        memcpy(sd->data + sd->length, utf8_buf, char_len);
+        sd->length = new_len;
+        sd->data[new_len] = '\0';
+        sd->char_length = -1;
+        return *dest;
+    }
+
+    // Get source string
+    HmlValue str_src = (src.type == HML_VAL_STRING) ? src : hml_to_string(src);
+    HmlString *ss = str_src.as.as_string;
+    int src_len = ss ? ss->length : 0;
+
+    if (src_len == 0) {
+        if (src.type != HML_VAL_STRING) hml_release(&str_src);
+        return *dest;
+    }
+
+    int new_len = sd->length + src_len;
+
+    // Grow capacity if needed (with 2x growth factor for amortized O(1))
+    if (new_len + 1 > sd->capacity) {
+        int new_capacity = sd->capacity * 2;
+        if (new_capacity < new_len + 1) new_capacity = new_len + 1;
+        if (new_capacity < 32) new_capacity = 32;  // Minimum capacity
+
+        char *new_data = realloc(sd->data, new_capacity);
+        if (!new_data) {
+            // Allocation failed - fall back to regular concat
+            if (src.type != HML_VAL_STRING) hml_release(&str_src);
+            HmlValue result = hml_string_concat(*dest, src);
+            hml_release(dest);
+            *dest = result;
+            return result;
+        }
+        sd->data = new_data;
+        sd->capacity = new_capacity;
+    }
+
+    // Append in place
+    memcpy(sd->data + sd->length, ss->data, src_len);
+    sd->length = new_len;
+    sd->data[new_len] = '\0';
+    sd->char_length = -1;  // Invalidate cached char length
+
+    if (src.type != HML_VAL_STRING) hml_release(&str_src);
+
+    // Return the same value (refcount unchanged since we're mutating in place)
+    return *dest;
+}
+
 HmlValue hml_string_concat(HmlValue a, HmlValue b) {
     // FAST PATH: Both are already strings - avoid hml_to_string overhead
     if (a.type == HML_VAL_STRING && b.type == HML_VAL_STRING &&

@@ -2785,6 +2785,51 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
                 break;
             }
+
+            // OPTIMIZATION: Detect pattern "x = x + y" for in-place string append
+            // This turns O(n²) repeated string concatenation into O(n) amortized
+            Expr *val_expr = expr->as.assign.value;
+            if (val_expr->type == EXPR_BINARY && val_expr->as.binary.op == OP_ADD) {
+                Expr *left = val_expr->as.binary.left;
+                Expr *right = val_expr->as.binary.right;
+
+                // Check if left operand is the same variable being assigned
+                if (left->type == EXPR_IDENT && strcmp(left->as.ident, expr->as.assign.name) == 0) {
+                    // Check if right operand looks like a string (literal, variable, or string index)
+                    // String indexing (json[pos]) returns a rune which can be converted to string
+                    int likely_string = (right->type == EXPR_STRING) ||
+                                       (right->type == EXPR_IDENT) ||
+                                       (right->type == EXPR_INDEX);  // str[i] returns rune, converts to string
+
+                    if (likely_string) {
+                        // Generate in-place append
+                        char *rhs = codegen_expr(ctx, right);
+
+                        // Determine the correct variable name with prefix
+                        const char *var_name = expr->as.assign.name;
+                        char prefixed_var[256];
+                        if (ctx->current_module && !codegen_is_local(ctx, var_name)) {
+                            snprintf(prefixed_var, sizeof(prefixed_var), "%s%s",
+                                    ctx->current_module->module_prefix, var_name);
+                            var_name = prefixed_var;
+                        } else if (codegen_is_main_var(ctx, expr->as.assign.name)) {
+                            snprintf(prefixed_var, sizeof(prefixed_var), "_main_%s", expr->as.assign.name);
+                            var_name = prefixed_var;
+                        }
+
+                        // Use in-place append - this modifies dest directly if refcount==1
+                        codegen_writeln(ctx, "hml_string_append_inplace(&%s, %s);", var_name, rhs);
+                        codegen_writeln(ctx, "hml_release_if_needed(&%s);", rhs);
+                        free(rhs);
+
+                        // Result is the variable itself
+                        codegen_writeln(ctx, "HmlValue %s = %s;", result, var_name);
+                        codegen_writeln(ctx, "hml_retain(&%s);", result);
+                        break;
+                    }
+                }
+            }
+
             char *value = codegen_expr(ctx, expr->as.assign.value);
             // Determine the correct variable name with prefix
             const char *var_name = expr->as.assign.name;
