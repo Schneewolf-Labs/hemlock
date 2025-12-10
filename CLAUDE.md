@@ -165,7 +165,7 @@ Typed arrays: `let nums: array<i32> = [1, 2, 3];`
 
 ---
 
-## Standard Library (21 modules)
+## Standard Library (23 modules)
 
 Import with `@stdlib/` prefix:
 ```hemlock
@@ -177,6 +177,8 @@ import { TcpStream, UdpSocket } from "@stdlib/net";
 
 | Module | Description |
 |--------|-------------|
+| `async` | ThreadPool, parallel_map |
+| `async_fs` | Async file I/O operations |
 | `collections` | HashMap, Queue, Stack, Set, LinkedList |
 | `math` | sin, cos, sqrt, pow, rand, PI, E |
 | `time` | now, time_ms, sleep, clock |
@@ -226,7 +228,7 @@ hemlock/
 │   ├── compiler/         # C code generation
 │   └── lsp/              # Language Server Protocol
 ├── runtime/              # Compiled program runtime
-├── stdlib/               # Standard library (21 modules)
+├── stdlib/               # Standard library (23 modules)
 │   └── docs/             # Module documentation
 ├── docs/                 # Full documentation
 │   ├── language-guide/   # Types, strings, arrays, etc.
@@ -393,7 +395,7 @@ make parity
 - Arrays with 18 methods including map/filter/reduce
 - Manual memory management with `talloc()` and `sizeof()`
 - Async/await with true pthread parallelism
-- 21 stdlib modules
+- 23 stdlib modules
 - FFI for C interop
 - defer, try/catch/finally/throw, panic
 - File I/O, signal handling, command execution
