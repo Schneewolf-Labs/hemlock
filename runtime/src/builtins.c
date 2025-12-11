@@ -1469,6 +1469,10 @@ HmlValue hml_binary_op(HmlBinaryOp op, HmlValue left, HmlValue right) {
             default:
                 hml_runtime_error("Invalid operation for floats");
         }
+        // Return f32 or f64 based on the promoted type
+        if (result_type == HML_VAL_F32) {
+            return hml_val_f32((float)result);
+        }
         return hml_val_f64(result);
     }
 

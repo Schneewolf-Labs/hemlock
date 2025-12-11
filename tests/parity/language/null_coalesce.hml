@@ -1,0 +1,59 @@
+// Test null coalescing operator (??)
+
+// Basic null coalescing
+let a = null;
+print(a ?? "default");
+
+// Non-null value
+let b = "hello";
+print(b ?? "default");
+
+// With numbers
+let c = null;
+print(c ?? 42);
+
+let d = 100;
+print(d ?? 42);
+
+// Chained null coalescing
+let e = null;
+let f = null;
+let g = "found";
+print(e ?? f ?? g);
+
+// All null
+let h = null;
+let i = null;
+print(h ?? i ?? "fallback");
+
+// With zero (should NOT coalesce - zero is not null)
+let zero = 0;
+print(zero ?? 100);
+
+// With false (should NOT coalesce - false is not null)
+let falsy = false;
+print(falsy ?? true);
+
+// With empty string (should NOT coalesce)
+let empty = "";
+print(empty ?? "default");
+print(empty == "" ?? "was null");
+
+// In function return
+fn maybeNull(flag) {
+    if (flag) {
+        return "value";
+    }
+    return null;
+}
+
+print(maybeNull(true) ?? "was null");
+print(maybeNull(false) ?? "was null");
+
+// Combined with optional chaining
+let obj = { name: "Alice" };
+let nullObj = null;
+print(obj?.name ?? "unknown");
+print(nullObj?.name ?? "unknown");
+
+print("done");

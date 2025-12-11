@@ -1,0 +1,90 @@
+// Test map, filter, and reduce array methods
+
+// Basic map
+let nums = [1, 2, 3, 4, 5];
+let doubled = nums.map(fn(x) { return x * 2; });
+print(doubled[0]);
+print(doubled[1]);
+print(doubled[2]);
+print(doubled[3]);
+print(doubled[4]);
+
+// Map with multiplication
+let indexed = nums.map(fn(x) { return x * 10; });
+print(indexed.join(","));
+
+// Basic filter
+let filtered = nums.filter(fn(x) { return x > 2; });
+print(filtered.length);
+print(filtered[0]);
+print(filtered[1]);
+print(filtered[2]);
+
+// Filter even numbers
+let evens = nums.filter(fn(x) { return x % 2 == 0; });
+print(evens.join(","));
+
+// Filter odd numbers
+let odds = nums.filter(fn(x) { return x % 2 != 0; });
+print(odds.join(","));
+
+// Basic reduce (sum)
+let sum = nums.reduce(fn(acc, x) { return acc + x; }, 0);
+print(sum);
+
+// Reduce (product)
+let product = nums.reduce(fn(acc, x) { return acc * x; }, 1);
+print(product);
+
+// Reduce to find max
+let max = nums.reduce(fn(acc, x) { return acc > x ? acc : x; }, nums[0]);
+print(max);
+
+// Reduce to find min
+let min = nums.reduce(fn(acc, x) { return acc < x ? acc : x; }, nums[0]);
+print(min);
+
+// Chained operations: filter then map
+let processed = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    .filter(fn(x) { return x % 2 == 0; })
+    .map(fn(x) { return x * x; });
+print(processed.join(","));
+
+// Map then reduce
+let sumOfSquares = [1, 2, 3, 4]
+    .map(fn(x) { return x * x; })
+    .reduce(fn(acc, x) { return acc + x; }, 0);
+print(sumOfSquares);
+
+// Filter with objects
+let people = [
+    { name: "Alice", age: 30 },
+    { name: "Bob", age: 25 },
+    { name: "Charlie", age: 35 }
+];
+
+let adults = people.filter(fn(p) { return p.age >= 30; });
+print(adults.length);
+print(adults[0].name);
+print(adults[1].name);
+
+// Map to extract property
+let names = people.map(fn(p) { return p.name; });
+print(names.join(", "));
+
+// Reduce to sum ages
+let totalAge = people.reduce(fn(acc, p) { return acc + p.age; }, 0);
+print(totalAge);
+
+// Empty array handling
+let empty = [];
+let emptyMapped = empty.map(fn(x) { return x * 2; });
+print(emptyMapped.length);
+
+let emptyFiltered = empty.filter(fn(x) { return true; });
+print(emptyFiltered.length);
+
+let emptyReduced = empty.reduce(fn(acc, x) { return acc + x; }, 42);
+print(emptyReduced);
+
+print("done");

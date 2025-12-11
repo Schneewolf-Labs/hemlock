@@ -20,6 +20,7 @@ typedef struct ModuleCache ModuleCache;
 struct DeferEntry {
     Expr *expr;           // The expression to defer
     DeferEntry *next;     // Next entry (forms a stack)
+    int scope_depth;      // Scope depth when this defer was added
 };
 
 // Closure information for anonymous functions
@@ -112,6 +113,7 @@ typedef struct {
 
     // Defer support
     DeferEntry *defer_stack;  // Stack of deferred expressions (LIFO)
+    int defer_scope_depth;    // Current scope depth for defer tracking
 
     // Current closure being generated (for mutable captured variable support)
     ClosureInfo *current_closure;  // NULL if not in a closure body

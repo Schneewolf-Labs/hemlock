@@ -1,0 +1,56 @@
+// Test type coercion and promotion rules
+
+// Integer promotion
+let i8val: i8 = 10;
+let i16val: i16 = 1000;
+let i32val: i32 = 100000;
+let i64val: i64 = 10000000000;
+
+// i8 + i16 -> i16
+print(typeof(i8val + i16val));
+
+// i16 + i32 -> i32
+print(typeof(i16val + i32val));
+
+// i32 + i64 -> i64
+print(typeof(i32val + i64val));
+
+// Integer + float -> float
+let f32val: f32 = 3.14;
+let f64val: f64 = 2.71828;
+
+// i32 + f32 -> f32
+print(typeof(i32val + f32val));
+
+// i32 + f64 -> f64
+print(typeof(i32val + f64val));
+
+// f32 + f64 -> f64
+print(typeof(f32val + f64val));
+
+// Explicit conversions
+let big: i64 = 9999999999;
+print(big);
+
+// String concatenation with number
+let num = 42;
+let str = "The answer is: ";
+print(str + num);
+
+// Comparison type handling
+print(10 == 10.0);
+print(10 < 10.5);
+
+// Unsigned types
+let u8val: u8 = 255;
+let u16val: u16 = 65535;
+let u32val: u32 = 4294967295;
+
+print(u8val);
+print(u16val);
+print(u32val);
+
+// Mixed signed/unsigned
+print(typeof(i32val + u32val));
+
+print("done");

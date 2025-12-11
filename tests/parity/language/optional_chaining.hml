@@ -1,0 +1,44 @@
+// Test optional chaining operator (?.)
+
+// Basic property access
+let obj = { name: "Alice", age: 30 };
+print(obj?.name);
+print(obj?.age);
+
+// Null/undefined object
+let empty = null;
+print(empty?.name);
+
+// Nested optional chaining
+let nested = { inner: { value: 42 } };
+print(nested?.inner?.value);
+
+// Optional indexing
+let arr = [1, 2, 3];
+print(arr?.[0]);
+print(arr?.[1]);
+
+// Null array
+let nullArr = null;
+print(nullArr?.[0]);
+
+// String indexing with optional
+let str = "hello";
+print(str?.[0]);
+
+// Object with method-like property (function stored as property)
+let calculator = {
+    value: 10,
+    double: fn() { return 20; }
+};
+print(calculator?.value);
+
+// Chained property access
+let deep = { a: { b: { c: 100 } } };
+print(deep?.a?.b?.c);
+
+// Mixed null in chain
+let partial = { a: null };
+print(partial?.a?.b);
+
+print("done");

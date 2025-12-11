@@ -1,0 +1,51 @@
+// Test string builtin functions
+
+// Length - basic ASCII (emoji length differs between interpreter and compiler)
+print("hello".length);
+print("".length);
+
+// Character access
+print("hello".char_at(0));
+print("hello".char_at(4));
+
+// Byte access
+print("hello".byte_at(0));
+print("hello".byte_at(4));
+
+// Chars iteration
+let chars = "abc".chars();
+print(chars[0]);
+print(chars[1]);
+print(chars[2]);
+print(chars.length);
+
+// Bytes
+let bytes = "Hi".bytes();
+print(bytes[0]);
+print(bytes[1]);
+print(bytes.length);
+
+// to_bytes
+let b = "AB".to_bytes();
+print(b[0]);
+print(b[1]);
+
+// String concatenation
+let a = "Hello";
+let b2 = " World";
+print(a + b2);
+
+// String with numbers
+let num = 42;
+print("Value: " + num);
+
+// Template string
+let name = "Alice";
+print(`Hello ${name}!`);
+
+// Nested template
+let x = 5;
+let y = 3;
+print(`${x} + ${y} = ${x + y}`);
+
+print("done");

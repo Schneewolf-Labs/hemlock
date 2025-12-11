@@ -31,6 +31,7 @@ CodegenContext* codegen_new(FILE *output) {
     ctx->func_params = NULL;
     ctx->num_func_params = 0;
     ctx->defer_stack = NULL;
+    ctx->defer_scope_depth = 0;
     ctx->current_closure = NULL;
     ctx->shared_env_name = NULL;
     ctx->shared_env_vars = NULL;
@@ -628,6 +629,7 @@ void codegen_defer_push(CodegenContext *ctx, Expr *expr) {
     DeferEntry *entry = malloc(sizeof(DeferEntry));
     entry->expr = expr;
     entry->next = ctx->defer_stack;
+    entry->scope_depth = 0;  // Not currently used
     ctx->defer_stack = entry;
 }
 

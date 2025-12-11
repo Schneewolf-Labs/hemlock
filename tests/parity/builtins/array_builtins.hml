@@ -1,0 +1,80 @@
+// Test array builtin functions
+
+// Length
+print([1, 2, 3].length);
+print([].length);
+
+// Array creation and access
+let arr = [10, 20, 30, 40, 50];
+print(arr[0]);
+print(arr[4]);
+print(arr.length);
+
+// Array modification
+arr[2] = 300;
+print(arr[2]);
+
+// Push and pop
+arr.push(60);
+print(arr.length);
+print(arr.pop());
+print(arr.length);
+
+// Shift and unshift
+arr.unshift(0);
+print(arr[0]);
+print(arr.shift());
+print(arr[0]);
+
+// Slice
+let sliced = arr.slice(1, 3);
+print(sliced.length);
+print(sliced[0]);
+print(sliced[1]);
+
+// Join
+let strs = ["a", "b", "c"];
+print(strs.join("-"));
+print(strs.join(""));
+
+// Concat
+let a1 = [1, 2];
+let a2 = [3, 4];
+let combined = a1.concat(a2);
+print(combined.length);
+print(combined[2]);
+
+// Reverse
+let rev = [1, 2, 3];
+rev.reverse();
+print(rev[0]);
+print(rev[2]);
+
+// First and last
+let fl = [10, 20, 30];
+print(fl.first());
+print(fl.last());
+
+// Contains
+print([1, 2, 3].contains(2));
+print([1, 2, 3].contains(5));
+
+// Find index
+print([10, 20, 30].find(20));
+print([10, 20, 30].find(99));
+
+// Insert and remove
+let mod = [1, 2, 3];
+mod.insert(1, 99);
+print(mod[1]);
+print(mod.length);
+mod.remove(1);
+print(mod[1]);
+print(mod.length);
+
+// Clear
+let toclear = [1, 2, 3];
+toclear.clear();
+print(toclear.length);
+
+print("done");

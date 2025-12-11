@@ -1,0 +1,54 @@
+// Test ternary conditional operator
+
+// Basic ternary
+print(true ? "yes" : "no");
+print(false ? "yes" : "no");
+
+// With variables
+let a = 10;
+let b = 5;
+print(a > b ? "a is bigger" : "b is bigger");
+print(a < b ? "a is smaller" : "b is smaller or equal");
+
+// Nested ternary
+let x = 5;
+print(x > 10 ? "big" : x > 5 ? "medium" : "small");
+
+let y = 15;
+print(y > 10 ? "big" : y > 5 ? "medium" : "small");
+
+// Ternary with expressions
+let c = 3;
+let d = 4;
+print(c + d > 5 ? c * d : c + d);
+
+// Ternary returning different types
+let flag = true;
+print(flag ? 42 : "not a number");
+
+let flag2 = false;
+print(flag2 ? 42 : "not a number");
+
+// Ternary in assignment
+let result = a > b ? a : b;
+print(result);
+
+// Ternary with function calls
+fn double(n) { return n * 2; }
+fn triple(n) { return n * 3; }
+
+let val = 5;
+print((val > 3 ? double : triple)(val));
+
+// Ternary with null
+let obj = null;
+print(obj == null ? "is null" : "not null");
+
+let obj2 = { name: "test" };
+print(obj2 == null ? "is null" : "not null");
+
+// Chained comparisons in ternary
+let score = 85;
+print(score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : "F");
+
+print("done");
