@@ -1,8 +1,6 @@
 // Test WebSocket server functionality
 // Requires: libwebsockets-dev installed, make stdlib
 // Run with: ./hemlock tests/stdlib_websocket/test_websocket_server.hml
-//
-// NOTE: This test may be skipped in CI environments due to network restrictions
 
 import { WebSocket, WebSocketServer } from "@stdlib/websocket";
 import { sleep } from "@stdlib/time";
@@ -11,28 +9,13 @@ print("Testing WebSocket server...");
 print("Requires: libwebsockets-dev");
 print("");
 
-// Check for CI environment - skip server tests if running in CI
-// Server tests require localhost networking which may not work in all CI environments
-let ci_env = getenv("CI");
-let github_actions = getenv("GITHUB_ACTIONS");
-if (ci_env == "true" || github_actions == "true") {
-    print("Detected CI environment - skipping WebSocket server tests");
-    print("(Server tests require localhost networking which may not work in CI)");
-    print("");
-    print("========================================");
-    print("WebSocket Server Tests: SKIPPED (CI)");
-    print("========================================");
-    // Exit successfully - this is an expected skip, not a failure
-    __exit(0);
-}
-
 let tests_passed = 0;
 let tests_failed = 0;
 
-// Async function to accept server connection
+// Async function to accept server connection (shorter timeout for faster failure)
 async fn accept_connection(srv) {
     print("  Server: Waiting for client...");
-    let conn = srv.accept(5000);
+    let conn = srv.accept(3000);  // 3 second timeout
     print("  Server: Client connected");
     return conn;
 }
@@ -57,8 +40,8 @@ try {
 
     let accept_task = spawn(accept_connection, server);
 
-    // Small delay to ensure server is ready
-    sleep(0.1);
+    // Give server time to start accepting connections
+    sleep(0.5);
 
     // Client connects
     print("  Client: Connecting...");
@@ -84,7 +67,7 @@ try {
     client.send_text(msg_from_client);
     print("  Client sent: " + msg_from_client);
 
-    let received = server_conn.recv(5000);
+    let received = server_conn.recv(2000);
     assert(received != null, "Server should receive message");
     assert(received.type == "text", "Message should be text");
     assert(received.data == msg_from_client, "Message should match");
@@ -101,7 +84,7 @@ try {
     server_conn.send_text(msg_from_server);
     print("  Server sent: " + msg_from_server);
 
-    let received2 = client.recv(5000);
+    let received2 = client.recv(2000);
     assert(received2 != null, "Client should receive message");
     assert(received2.type == "text", "Message should be text");
     assert(received2.data == msg_from_server, "Message should match");
@@ -120,12 +103,12 @@ try {
 
         // Client sends
         client.send_text(test_msg);
-        let srv_recv = server_conn.recv(5000);
+        let srv_recv = server_conn.recv(2000);
         assert(srv_recv.data == test_msg, "Server should receive correctly");
 
         // Server echoes back
         server_conn.send_text("Echo: " + srv_recv.data);
-        let cli_recv = client.recv(5000);
+        let cli_recv = client.recv(2000);
 
         print("  " + test_msg + " → " + cli_recv.data);
 
