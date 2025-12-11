@@ -1,0 +1,43 @@
+0
+1
+2
+3
+4
+after while break
+1
+2
+4
+5
+after while continue
+0
+1
+2
+3
+after for break
+0
+1
+3
+4
+after for continue
+10
+20
+after for-in break
+10
+20
+40
+50
+after for-in continue
+0
+10
+20
+after nested break
+two
+after switch
+case 0
+0
+case 1
+1
+default
+2
+after loop with switch
+done

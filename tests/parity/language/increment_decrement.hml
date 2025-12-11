@@ -1,0 +1,67 @@
+// Test increment and decrement operators
+
+// Basic prefix increment
+let a = 5;
+print(++a);
+print(a);
+
+// Basic prefix decrement
+let b = 10;
+print(--b);
+print(b);
+
+// Basic postfix increment
+let c = 5;
+print(c++);
+print(c);
+
+// Basic postfix decrement
+let d = 10;
+print(d--);
+print(d);
+
+// Increment in expressions
+let e = 1;
+let f = ++e + 10;
+print(f);
+print(e);
+
+// Postfix in expressions
+let g = 1;
+let h = g++ + 10;
+print(h);
+print(g);
+
+// Array index increment
+let arr = [10, 20, 30];
+print(++arr[0]);
+print(arr[0]);
+
+// Array index postfix
+print(arr[1]++);
+print(arr[1]);
+
+// Object property increment
+let obj = { x: 100 };
+print(++obj.x);
+print(obj.x);
+
+// Object property postfix
+print(obj.x--);
+print(obj.x);
+
+// Multiple increments
+let i = 0;
+i++;
+i++;
+i++;
+print(i);
+
+// Decrement in loop
+let j = 5;
+while (j > 0) {
+    print(j);
+    j--;
+}
+
+print("done");

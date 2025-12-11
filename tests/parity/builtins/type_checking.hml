@@ -1,0 +1,64 @@
+// Test type checking builtins
+
+// Basic types
+print(typeof(42));
+print(typeof(3.14));
+print(typeof("hello"));
+print(typeof(true));
+print(typeof(false));
+print(typeof(null));
+
+// Complex types
+print(typeof([1, 2, 3]));
+print(typeof({ x: 1 }));
+
+// Function type
+let f = fn(x) { return x; };
+print(typeof(f));
+
+// Specific numeric types
+let i8v: i8 = 1;
+let i16v: i16 = 1;
+let i32v: i32 = 1;
+let i64v: i64 = 1;
+let u8v: u8 = 1;
+let u16v: u16 = 1;
+let u32v: u32 = 1;
+let u64v: u64 = 1;
+let f32v: f32 = 1.0;
+let f64v: f64 = 1.0;
+
+print(typeof(i8v));
+print(typeof(i16v));
+print(typeof(i32v));
+print(typeof(i64v));
+print(typeof(u8v));
+print(typeof(u16v));
+print(typeof(u32v));
+print(typeof(u64v));
+print(typeof(f32v));
+print(typeof(f64v));
+
+// Rune type
+let ch = 'A';
+print(typeof(ch));
+
+// After operations
+let sum = i32v + i64v;
+print(typeof(sum));
+
+// Typed array
+let arr: array<i32> = [1, 2, 3];
+print(typeof(arr));
+
+// Buffer type
+let buf = buffer(10);
+print(typeof(buf));
+free(buf);
+
+// Pointer type
+let p = alloc(10);
+print(typeof(p));
+free(p);
+
+print("done");

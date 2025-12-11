@@ -1,0 +1,43 @@
+// Test optional chaining with method calls (?.)
+// Note: obj?.method() syntax may not be fully supported
+
+// Object with methods
+let obj = {
+    getValue: fn() { return 42; },
+    add: fn(a, b) { return a + b; },
+    name: "test"
+};
+
+// Regular method call (should work)
+print(obj.getValue());
+print(obj.add(1, 2));
+
+// Optional property access (should work)
+print(obj?.name);
+
+// Test with null object - property access
+let empty = null;
+let result1 = empty?.name;
+print(result1);
+
+// Non-null object with optional property access
+let result2 = obj?.name;
+print(result2);
+
+// Nested objects with optional chaining
+let wrapper = { inner: { value: 100 } };
+print(wrapper?.inner?.value);
+
+// Null in chain
+let nullWrapper = { inner: null };
+let result3 = nullWrapper?.inner?.value;
+print(result3);
+
+// Optional chaining on array
+let arr = [1, 2, 3];
+print(arr?.[0]);
+
+let nullArr = null;
+print(nullArr?.[0]);
+
+print("done");

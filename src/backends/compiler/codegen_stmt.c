@@ -195,6 +195,10 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             codegen_writeln(ctx, "{");
             codegen_indent_inc(ctx);
 
+            // Create continue label for this for-in loop (continue jumps here, before increment)
+            char *continue_label = codegen_label(ctx);
+            codegen_push_for_continue(ctx, continue_label);
+
             // Evaluate the iterable
             char *iter_val = codegen_expr(ctx, stmt->as.for_in.iterable);
             codegen_writeln(ctx, "hml_retain(&%s);", iter_val);
@@ -276,6 +280,9 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             // Generate body
             codegen_stmt(ctx, stmt->as.for_in.body);
 
+            // Continue label - continue jumps here to release variables and increment
+            codegen_writeln(ctx, "%s:;", continue_label);
+
             // Release loop variables
             if (stmt->as.for_in.key_var) {
                 codegen_writeln(ctx, "hml_release(&%s);", stmt->as.for_in.key_var);
@@ -293,6 +300,8 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
 
             codegen_indent_dec(ctx);
             codegen_writeln(ctx, "}");
+            codegen_pop_for_continue(ctx);
+            free(continue_label);
             ctx->loop_depth--;
 
             free(iter_val);

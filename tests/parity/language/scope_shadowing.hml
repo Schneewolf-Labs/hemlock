@@ -1,0 +1,86 @@
+// Test variable scoping and shadowing
+
+// Basic shadowing in block
+let x = 10;
+print(x);
+{
+    let y = 20;
+    print(y);
+}
+print(x);
+
+// Shadowing in nested blocks
+let a = 1;
+{
+    let b = 2;
+    {
+        let c = 3;
+        print(c);
+    }
+    print(b);
+}
+print(a);
+
+// Shadowing in loops
+let outer_i = 100;
+for (let i = 0; i < 3; i = i + 1) {
+    print(i);
+}
+print(outer_i);
+
+// Shadowing in functions
+let outer = "outer";
+fn test() {
+    let inner = "inner";
+    print(inner);
+}
+test();
+print(outer);
+
+// Function parameters (with different name to avoid shadowing issue)
+fn doubler(val) {
+    print(val);
+    let result = val * 2;
+    print(result);
+}
+doubler(5);
+
+// Shadowing in if blocks
+let cond = true;
+let val2 = "original";
+if (cond) {
+    let inner_val = "shadowed";
+    print(inner_val);
+}
+print(val2);
+
+// Shadowing in catch block
+let err = "outer error";
+try {
+    throw "inner error";
+} catch (e) {
+    print(e);
+}
+print(err);
+
+// Closure captures outer scope
+let captured = "before";
+let capturer = fn() { return captured; };
+{
+    let different = "after";
+    print(capturer());
+}
+
+// Multiple levels with closures
+let level = 0;
+fn makeGetter() {
+    let inner_level = 1;
+    return fn() {
+        let deepest = 2;
+        return deepest;
+    };
+}
+print(makeGetter()());
+print(level);
+
+print("done");

@@ -1,0 +1,73 @@
+// Test channel operations
+
+// Basic channel creation
+// Note: typeof(channel) differs between interpreter ("unknown") and compiler ("channel")
+let ch = channel(5);
+
+// Send and receive
+ch.send(42);
+ch.send("hello");
+ch.send(true);
+
+print(ch.recv());
+print(ch.recv());
+print(ch.recv());
+
+// Channel with capacity
+let bounded = channel(2);
+bounded.send(1);
+bounded.send(2);
+print(bounded.recv());
+bounded.send(3);
+print(bounded.recv());
+print(bounded.recv());
+
+// Channel close
+let closeable = channel(3);
+closeable.send(10);
+closeable.send(20);
+closeable.close();
+print(closeable.recv());
+print(closeable.recv());
+
+// Try recv on closed empty channel
+let result = closeable.recv();
+print(result == null ? "null received" : result);
+
+// Channel with async
+async fn producer(ch, count) {
+    for (let i = 0; i < count; i = i + 1) {
+        ch.send(i);
+    }
+    ch.close();
+}
+
+async fn consumer(ch) {
+    let sum = 0;
+    let val = ch.recv();
+    while (val != null) {
+        sum = sum + val;
+        val = ch.recv();
+    }
+    return sum;
+}
+
+let commCh = channel(10);
+let prod = spawn(producer, commCh, 5);
+let cons = spawn(consumer, commCh);
+
+await prod;
+let total = await cons;
+print(total);
+
+// Multiple values
+let multi = channel(10);
+for (let i = 1; i <= 5; i = i + 1) {
+    multi.send(i * 10);
+}
+
+for (let i = 0; i < 5; i = i + 1) {
+    print(multi.recv());
+}
+
+print("done");

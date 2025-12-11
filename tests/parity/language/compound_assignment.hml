@@ -1,0 +1,70 @@
+// Test compound assignment operators
+
+// Basic compound assignment
+let a = 10;
+a = a + 5;
+print(a);
+
+a = a - 3;
+print(a);
+
+a = a * 2;
+print(a);
+
+a = a / 4;
+print(a);
+
+a = a % 5;
+print(a);
+
+// With different types
+let b = 3.14;
+b = b + 1.0;
+print(b);
+
+// String concatenation
+let s = "Hello";
+s = s + " World";
+print(s);
+
+// Array modification through index
+let arr = [1, 2, 3];
+arr[0] = arr[0] + 10;
+print(arr[0]);
+
+arr[1] = arr[1] * 5;
+print(arr[1]);
+
+// Object property modification
+let obj = { x: 100, y: 200 };
+obj.x = obj.x + 50;
+print(obj.x);
+
+obj.y = obj.y / 2;
+print(obj.y);
+
+// Bitwise compound
+let c = 0b1010;
+c = c | 0b0101;
+print(c);
+
+c = c & 0b1100;
+print(c);
+
+c = c ^ 0b1111;
+print(c);
+
+// Shift compound
+let d = 1;
+d = d << 4;
+print(d);
+
+d = d >> 2;
+print(d);
+
+// Nested object modification
+let nested = { inner: { value: 10 } };
+nested.inner.value = nested.inner.value * 3;
+print(nested.inner.value);
+
+print("done");

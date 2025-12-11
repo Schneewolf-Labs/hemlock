@@ -1,0 +1,82 @@
+// Test nested closures and complex capture scenarios
+
+// Double nested closure
+fn outer(a) {
+    return fn(b) {
+        return fn(c) {
+            return a + b + c;
+        };
+    };
+}
+
+let f1 = outer(1);
+let f2 = f1(2);
+print(f2(3));
+
+// Closure capturing loop variable
+fn makeCounters() {
+    let counters = [];
+    for (let i = 0; i < 3; i = i + 1) {
+        let val = i;
+        counters.push(fn() { return val; });
+    }
+    return counters;
+}
+
+let ctrs = makeCounters();
+print(ctrs[0]());
+print(ctrs[1]());
+print(ctrs[2]());
+
+// Closure with mutation
+fn makeCounter() {
+    let count = 0;
+    return {
+        inc: fn() { count = count + 1; return count; },
+        dec: fn() { count = count - 1; return count; },
+        get: fn() { return count; }
+    };
+}
+
+let counter = makeCounter();
+print(counter.get());
+print(counter.inc());
+print(counter.inc());
+print(counter.dec());
+print(counter.get());
+
+// Multiple closures sharing state
+fn makeShared() {
+    let shared = 0;
+    let adder = fn(n) { shared = shared + n; };
+    let getter = fn() { return shared; };
+    return { add: adder, get: getter };
+}
+
+let s = makeShared();
+s.add(10);
+s.add(5);
+print(s.get());
+
+// Closure capturing closure
+fn compose(f, g) {
+    return fn(x) {
+        return f(g(x));
+    };
+}
+
+let double = fn(x) { return x * 2; };
+let addOne = fn(x) { return x + 1; };
+let composed = compose(double, addOne);
+print(composed(5));
+
+// Recursive closure (via object)
+let fib = {
+    calc: fn(n) {
+        if (n <= 1) { return n; }
+        return fib.calc(n - 1) + fib.calc(n - 2);
+    }
+};
+print(fib.calc(10));
+
+print("done");
