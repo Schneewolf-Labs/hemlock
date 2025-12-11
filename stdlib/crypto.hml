@@ -121,7 +121,7 @@ fn buffer_to_ptr(buf) {
     return p;
 }
 
-// Helper: Convert string to raw byte pointer (caller must free)
+/// Helper: Convert string to raw byte pointer (caller must free)
 fn string_to_bytes_ptr(s) {
     let bytes = s.bytes();
     let len = bytes.length;
@@ -444,9 +444,9 @@ extern fn EVP_PKEY_keygen(ctx: ptr, ppkey: ptr): i32;
 
 // EVP_PKEY *EVP_PKEY_Q_keygen(OSSL_LIB_CTX *libctx, const char *propq, const char *type, ...)
 // OpenSSL 3.x simplified API - returns pointer directly, no need for pointer-to-pointer
-// Note: This is variadic. For RSA pass bits (u64), for EC pass curve name (ptr).
-// The FFI layer handles ptr-to-u64 coercion for variadic functions.
-extern fn EVP_PKEY_Q_keygen(libctx: ptr, propq: ptr, type_name: ptr, bits: u64): ptr;
+// Note: This is variadic. For RSA pass bits, for EC pass curve name.
+// We use ptr type for the variadic arg which can handle both cases.
+extern fn EVP_PKEY_Q_keygen(libctx: ptr, propq: ptr, type_name: ptr, arg: ptr): ptr;
 
 // EVP_PKEY_CTX *EVP_PKEY_CTX_new_from_name(OSSL_LIB_CTX *libctx, const char *name, const char *propquery)
 extern fn EVP_PKEY_CTX_new_from_name(libctx: ptr, name: ptr, propquery: ptr): ptr;
@@ -680,8 +680,11 @@ define ECDSAKeyPair {
 // Generate ECDSA P-256 key pair
 // Returns ECDSAKeyPair object with private and public keys
 // NOTE: Keys must be freed with ecdsa_free_keys()
+// NOTE: ECDSA key generation requires EVP_PKEY_Q_keygen which has variadic FFI issues.
+// The current implementation may not work correctly on all systems.
 export fn ecdsa_generate_key() {
     // Use EVP_PKEY_Q_keygen with "EC" type and curve name (OpenSSL 3.0+ compatible)
+    // Note: This is a variadic function - FFI may not handle it correctly
 
     // Create null-terminated C string "EC\0"
     let type_str = buffer(3);
@@ -713,7 +716,7 @@ export fn ecdsa_generate_key() {
     free(curve_ptr);
 
     if (pkey == null) {
-        throw "ECDSA key generation failed";
+        throw "ECDSA key generation failed (variadic FFI may not be supported)";
     }
 
     // For simplicity, we use the same key object for both private and public
@@ -893,26 +896,30 @@ export fn hex_to_buffer(hex) {
         let high_char = hex[i * 2];
         let low_char = hex[i * 2 + 1];
 
-        // Convert hex characters to values (simplified, assumes valid hex)
+        // Convert runes to integers for arithmetic
+        let high_code: i32 = high_char;
+        let low_code: i32 = low_char;
+
+        // Convert hex characters to values
         let high = 0;
         let low = 0;
 
-        // High nibble
-        if (high_char >= '0' && high_char <= '9') {
-            high = high_char - '0';
-        } else if (high_char >= 'a' && high_char <= 'f') {
-            high = high_char - 'a' + 10;
-        } else if (high_char >= 'A' && high_char <= 'F') {
-            high = high_char - 'A' + 10;
+        // High nibble (using ASCII code comparisons)
+        if (high_code >= 48 && high_code <= 57) {  // '0'-'9'
+            high = high_code - 48;
+        } else if (high_code >= 97 && high_code <= 102) {  // 'a'-'f'
+            high = high_code - 97 + 10;
+        } else if (high_code >= 65 && high_code <= 70) {  // 'A'-'F'
+            high = high_code - 65 + 10;
         }
 
         // Low nibble
-        if (low_char >= '0' && low_char <= '9') {
-            low = low_char - '0';
-        } else if (low_char >= 'a' && low_char <= 'f') {
-            low = low_char - 'a' + 10;
-        } else if (low_char >= 'A' && low_char <= 'F') {
-            low = low_char - 'A' + 10;
+        if (low_code >= 48 && low_code <= 57) {  // '0'-'9'
+            low = low_code - 48;
+        } else if (low_code >= 97 && low_code <= 102) {  // 'a'-'f'
+            low = low_code - 97 + 10;
+        } else if (low_code >= 65 && low_code <= 70) {  // 'A'-'F'
+            low = low_code - 65 + 10;
         }
 
         let byte_val: u8 = (high << 4) | low;
