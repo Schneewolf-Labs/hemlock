@@ -209,13 +209,13 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_min, 2, 2, 0);", result);
             } else if (strcmp(expr->as.ident, "__max") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_max, 2, 2, 0);", result);
-            } else if (strcmp(expr->as.ident, "__clamp") == 0 || strcmp(expr->as.ident, "clamp") == 0) {
+            } else if (strcmp(expr->as.ident, "__clamp") == 0 || (!codegen_is_local(ctx, expr->as.ident) && !codegen_is_main_var(ctx, expr->as.ident) && strcmp(expr->as.ident, "clamp") == 0)) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_clamp, 3, 3, 0);", result);
-            } else if (strcmp(expr->as.ident, "__rand") == 0 || strcmp(expr->as.ident, "rand") == 0) {
+            } else if (strcmp(expr->as.ident, "__rand") == 0 || (!codegen_is_local(ctx, expr->as.ident) && !codegen_is_main_var(ctx, expr->as.ident) && strcmp(expr->as.ident, "rand") == 0)) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_rand, 0, 0, 0);", result);
-            } else if (strcmp(expr->as.ident, "__rand_range") == 0 || strcmp(expr->as.ident, "rand_range") == 0) {
+            } else if (strcmp(expr->as.ident, "__rand_range") == 0 || (!codegen_is_local(ctx, expr->as.ident) && !codegen_is_main_var(ctx, expr->as.ident) && strcmp(expr->as.ident, "rand_range") == 0)) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_rand_range, 2, 2, 0);", result);
-            } else if (strcmp(expr->as.ident, "__seed") == 0 || strcmp(expr->as.ident, "seed") == 0) {
+            } else if (strcmp(expr->as.ident, "__seed") == 0 || (!codegen_is_local(ctx, expr->as.ident) && !codegen_is_main_var(ctx, expr->as.ident) && strcmp(expr->as.ident, "seed") == 0)) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_seed, 1, 1, 0);", result);
             // Handle time functions (builtins)
             } else if (strcmp(expr->as.ident, "__now") == 0) {
@@ -544,8 +544,11 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                         } else {
                             codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
                         }
+                    } else if (ctx->in_function) {
+                        // Inside a function - locals (params, loop vars) shadow main vars
+                        codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
                     } else if (codegen_is_main_var(ctx, expr->as.ident)) {
-                        // Main file top-level variable - use _main_ prefix
+                        // In main scope, and this is a main var - use _main_ prefix
                         codegen_writeln(ctx, "HmlValue %s = _main_%s;", result, expr->as.ident);
                     } else {
                         // True local variable (not a main var) - use bare name
@@ -563,7 +566,8 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
                 }
             }
-            codegen_writeln(ctx, "hml_retain(&%s);", result);
+            // OPTIMIZATION: Use conditional retain to skip for primitives (i32, i64, f64, bool)
+            codegen_writeln(ctx, "hml_retain_if_needed(&%s);", result);
             break;
 
         case EXPR_BINARY: {
@@ -2368,12 +2372,66 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     import_binding = codegen_find_main_import(ctx, fn_name);
                 }
 
-                if (codegen_is_main_var(ctx, fn_name) && !import_binding) {
-                    // Main file variable (function def or closure) - use generic call path
-                    // This ensures optional parameters get default values via runtime handling
+                if (codegen_is_main_func(ctx, fn_name) && !import_binding && !ctx->current_module) {
+                    // OPTIMIZATION: Main file function definition - call directly
+                    // This is safe because we know the function signature at compile time
+                    int expected_params = codegen_get_main_func_params(ctx, fn_name);
+                    char **arg_temps = malloc(expr->as.call.num_args * sizeof(char*));
+                    for (int i = 0; i < expr->as.call.num_args; i++) {
+                        arg_temps[i] = codegen_expr(ctx, expr->as.call.args[i]);
+                    }
+
+                    codegen_write(ctx, "");
+                    codegen_indent(ctx);
+                    fprintf(ctx->output, "HmlValue %s = hml_fn_%s(NULL", result, fn_name);
+                    for (int i = 0; i < expr->as.call.num_args; i++) {
+                        fprintf(ctx->output, ", %s", arg_temps[i]);
+                    }
+                    // Fill in hml_val_null() for missing optional parameters
+                    for (int i = expr->as.call.num_args; i < expected_params; i++) {
+                        fprintf(ctx->output, ", hml_val_null()");
+                    }
+                    fprintf(ctx->output, ");\n");
+
+                    for (int i = 0; i < expr->as.call.num_args; i++) {
+                        codegen_writeln(ctx, "hml_release(&%s);", arg_temps[i]);
+                        free(arg_temps[i]);
+                    }
+                    free(arg_temps);
+                    break;
+                } else if (codegen_is_main_var(ctx, fn_name) && !import_binding) {
+                    // Main file variable that's NOT a function definition (e.g., assigned closure)
+                    // Use generic call path to properly handle closures
                     // Fall through to generic handling
                 } else if (codegen_is_local(ctx, fn_name) && !import_binding) {
-                    // It's a true local function variable (not an import) - call through hml_call_function
+                    // Check if this local is actually a captured main file function - use direct call
+                    if (codegen_is_main_func(ctx, fn_name) && !ctx->current_module) {
+                        int expected_params = codegen_get_main_func_params(ctx, fn_name);
+                        char **arg_temps = malloc(expr->as.call.num_args * sizeof(char*));
+                        for (int i = 0; i < expr->as.call.num_args; i++) {
+                            arg_temps[i] = codegen_expr(ctx, expr->as.call.args[i]);
+                        }
+
+                        codegen_write(ctx, "");
+                        codegen_indent(ctx);
+                        fprintf(ctx->output, "HmlValue %s = hml_fn_%s(NULL", result, fn_name);
+                        for (int i = 0; i < expr->as.call.num_args; i++) {
+                            fprintf(ctx->output, ", %s", arg_temps[i]);
+                        }
+                        // Fill in hml_val_null() for missing optional parameters
+                        for (int i = expr->as.call.num_args; i < expected_params; i++) {
+                            fprintf(ctx->output, ", hml_val_null()");
+                        }
+                        fprintf(ctx->output, ");\n");
+
+                        for (int i = 0; i < expr->as.call.num_args; i++) {
+                            codegen_writeln(ctx, "hml_release(&%s);", arg_temps[i]);
+                            free(arg_temps[i]);
+                        }
+                        free(arg_temps);
+                        break;
+                    }
+                    // It's a true local function variable (not a main func) - call through hml_call_function
                     // Fall through to generic handling
                 } else if (import_binding && !import_binding->is_function) {
                     // Imported variable that holds a function value (e.g., export let sleep = __sleep)
@@ -2811,6 +2869,9 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                             snprintf(prefixed_var, sizeof(prefixed_var), "%s%s",
                                     ctx->current_module->module_prefix, var_name);
                             var_name = prefixed_var;
+                        } else if (codegen_is_local(ctx, var_name) && (ctx->current_module || ctx->in_function)) {
+                            // Local variable in module or function shadows main var - use bare name
+                            // var_name stays as-is
                         } else if (codegen_is_main_var(ctx, expr->as.assign.name)) {
                             snprintf(prefixed_var, sizeof(prefixed_var), "_main_%s", expr->as.assign.name);
                             var_name = prefixed_var;
@@ -2841,10 +2902,11 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
             } else if (codegen_is_shadow(ctx, var_name)) {
                 // Shadow variable (like catch param) - use bare name
                 // var_name stays as-is
-            } else if (codegen_is_local(ctx, var_name) && (ctx->current_module || !codegen_is_main_var(ctx, var_name))) {
+            } else if (codegen_is_local(ctx, var_name) && (ctx->current_module || ctx->in_function || !codegen_is_main_var(ctx, var_name))) {
                 // Local variable - use bare name
                 // In module context, locals always shadow main vars
-                // Outside module, only if not a tracked main var
+                // In function context, locals shadow main vars
+                // Outside module/function, only if not a tracked main var
                 // var_name stays as-is
             } else if (codegen_is_main_var(ctx, expr->as.assign.name)) {
                 // Main file top-level variable - use _main_ prefix
