@@ -209,13 +209,13 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_min, 2, 2, 0);", result);
             } else if (strcmp(expr->as.ident, "__max") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_max, 2, 2, 0);", result);
-            } else if (strcmp(expr->as.ident, "__clamp") == 0 || strcmp(expr->as.ident, "clamp") == 0) {
+            } else if (strcmp(expr->as.ident, "__clamp") == 0 || (!codegen_is_local(ctx, expr->as.ident) && !codegen_is_main_var(ctx, expr->as.ident) && strcmp(expr->as.ident, "clamp") == 0)) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_clamp, 3, 3, 0);", result);
-            } else if (strcmp(expr->as.ident, "__rand") == 0 || strcmp(expr->as.ident, "rand") == 0) {
+            } else if (strcmp(expr->as.ident, "__rand") == 0 || (!codegen_is_local(ctx, expr->as.ident) && !codegen_is_main_var(ctx, expr->as.ident) && strcmp(expr->as.ident, "rand") == 0)) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_rand, 0, 0, 0);", result);
-            } else if (strcmp(expr->as.ident, "__rand_range") == 0 || strcmp(expr->as.ident, "rand_range") == 0) {
+            } else if (strcmp(expr->as.ident, "__rand_range") == 0 || (!codegen_is_local(ctx, expr->as.ident) && !codegen_is_main_var(ctx, expr->as.ident) && strcmp(expr->as.ident, "rand_range") == 0)) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_rand_range, 2, 2, 0);", result);
-            } else if (strcmp(expr->as.ident, "__seed") == 0 || strcmp(expr->as.ident, "seed") == 0) {
+            } else if (strcmp(expr->as.ident, "__seed") == 0 || (!codegen_is_local(ctx, expr->as.ident) && !codegen_is_main_var(ctx, expr->as.ident) && strcmp(expr->as.ident, "seed") == 0)) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_seed, 1, 1, 0);", result);
             // Handle time functions (builtins)
             } else if (strcmp(expr->as.ident, "__now") == 0) {
@@ -544,8 +544,11 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                         } else {
                             codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
                         }
+                    } else if (ctx->in_function) {
+                        // Inside a function - locals (params, loop vars) shadow main vars
+                        codegen_writeln(ctx, "HmlValue %s = %s;", result, expr->as.ident);
                     } else if (codegen_is_main_var(ctx, expr->as.ident)) {
-                        // Main file top-level variable - use _main_ prefix
+                        // In main scope, and this is a main var - use _main_ prefix
                         codegen_writeln(ctx, "HmlValue %s = _main_%s;", result, expr->as.ident);
                     } else {
                         // True local variable (not a main var) - use bare name
@@ -2866,6 +2869,9 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                             snprintf(prefixed_var, sizeof(prefixed_var), "%s%s",
                                     ctx->current_module->module_prefix, var_name);
                             var_name = prefixed_var;
+                        } else if (codegen_is_local(ctx, var_name) && (ctx->current_module || ctx->in_function)) {
+                            // Local variable in module or function shadows main var - use bare name
+                            // var_name stays as-is
                         } else if (codegen_is_main_var(ctx, expr->as.assign.name)) {
                             snprintf(prefixed_var, sizeof(prefixed_var), "_main_%s", expr->as.assign.name);
                             var_name = prefixed_var;
@@ -2896,10 +2902,11 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
             } else if (codegen_is_shadow(ctx, var_name)) {
                 // Shadow variable (like catch param) - use bare name
                 // var_name stays as-is
-            } else if (codegen_is_local(ctx, var_name) && (ctx->current_module || !codegen_is_main_var(ctx, var_name))) {
+            } else if (codegen_is_local(ctx, var_name) && (ctx->current_module || ctx->in_function || !codegen_is_main_var(ctx, var_name))) {
                 // Local variable - use bare name
                 // In module context, locals always shadow main vars
-                // Outside module, only if not a tracked main var
+                // In function context, locals shadow main vars
+                // Outside module/function, only if not a tracked main var
                 // var_name stays as-is
             } else if (codegen_is_main_var(ctx, expr->as.assign.name)) {
                 // Main file top-level variable - use _main_ prefix
