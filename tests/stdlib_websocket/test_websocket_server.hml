@@ -3,6 +3,7 @@
 // Run with: ./hemlock tests/stdlib_websocket/test_websocket_server.hml
 
 import { WebSocket, WebSocketServer } from "@stdlib/websocket";
+import { sleep } from "@stdlib/time";
 
 print("Testing WebSocket server...");
 print("Requires: libwebsockets-dev");
@@ -40,7 +41,6 @@ try {
     let accept_task = spawn(accept_connection, server);
 
     // Small delay to ensure server is ready
-    import { sleep } from "@stdlib/time";
     sleep(0.1);
 
     // Client connects
