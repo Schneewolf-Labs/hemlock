@@ -346,14 +346,21 @@ static void check_array_element_type(Array *arr, Value val) {
 }
 
 void array_push(Array *arr, Value val) {
-    // Check type constraint
+    // Fast path: untyped array with capacity available
+    if (!arr->element_type && arr->length < arr->capacity) {
+        VALUE_RETAIN(val);
+        arr->elements[arr->length++] = val;
+        return;
+    }
+
+    // Check type constraint for typed arrays
     check_array_element_type(arr, val);
 
     if (arr->length >= arr->capacity) {
         array_grow(arr);
     }
     // Retain value being stored in array (reference counting)
-    value_retain(val);
+    VALUE_RETAIN(val);
     arr->elements[arr->length++] = val;
 }
 
@@ -376,7 +383,15 @@ void array_set(Array *arr, int index, Value val, ExecutionContext *ctx) {
         runtime_error(ctx, "Negative array index not supported");
     }
 
-    // Check type constraint
+    // Fast path: in-bounds assignment to untyped array
+    if (index < arr->length && !arr->element_type) {
+        VALUE_RELEASE(arr->elements[index]);
+        VALUE_RETAIN(val);
+        arr->elements[index] = val;
+        return;
+    }
+
+    // Check type constraint for typed arrays
     check_array_element_type(arr, val);
 
     // Extend array if needed, filling with nulls
@@ -385,8 +400,8 @@ void array_set(Array *arr, int index, Value val, ExecutionContext *ctx) {
     }
 
     // Release old value, retain new value (reference counting)
-    value_release(arr->elements[index]);
-    value_retain(val);
+    VALUE_RELEASE(arr->elements[index]);
+    VALUE_RETAIN(val);
     arr->elements[index] = val;
 }
 

@@ -284,6 +284,11 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                     case OP_GREATER_EQUAL: return val_bool(l >= r);
                     case OP_EQUAL: return val_bool(l == r);
                     case OP_NOT_EQUAL: return val_bool(l != r);
+                    case OP_BIT_AND: return val_i64(l & r);
+                    case OP_BIT_OR: return val_i64(l | r);
+                    case OP_BIT_XOR: return val_i64(l ^ r);
+                    case OP_BIT_LSHIFT: return val_i64(l << r);
+                    case OP_BIT_RSHIFT: return val_i64(l >> r);
                     default: break;
                 }
             }
@@ -1523,6 +1528,22 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
             Value object = eval_expr(expr->as.index_assign.object, env, ctx);
             Value index_val = eval_expr(expr->as.index_assign.index, env, ctx);
             Value value = eval_expr(expr->as.index_assign.value, env, ctx);
+
+            // FAST PATH: array[i32] = value - most common assignment case
+            if (object.type == VAL_ARRAY && index_val.type == VAL_I32) {
+                Array *arr = object.as.as_array;
+                int32_t index = index_val.as.as_i32;
+                // Check bounds and untyped array (most common case)
+                if (index >= 0 && index < arr->length && !arr->element_type) {
+                    // Release old value, retain new value
+                    VALUE_RELEASE(arr->elements[index]);
+                    VALUE_RETAIN(value);
+                    arr->elements[index] = value;
+                    VALUE_RELEASE(object);
+                    return value;
+                }
+                // Fall through to normal path for bounds extension, typed arrays, or error
+            }
 
             // Object property assignment with string key
             if (object.type == VAL_OBJECT && index_val.type == VAL_STRING) {
