@@ -80,6 +80,12 @@ Value builtin_typeof(Value *args, int num_args, ExecutionContext *ctx) {
         case VAL_TYPE:
             type_name = "type";
             break;
+        case VAL_TASK:
+            type_name = "task";
+            break;
+        case VAL_CHANNEL:
+            type_name = "channel";
+            break;
         default:
             type_name = "unknown";
             break;

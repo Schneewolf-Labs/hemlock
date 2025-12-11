@@ -19,8 +19,10 @@ print(typeof(i32val + i64val));
 let f32val: f32 = 3.14;
 let f64val: f64 = 2.71828;
 
-// Note: i32 + f32 has semantic difference (interpreter=f32, compiler=f64)
-// Only testing i32 + f64 for parity
+// i32 + f32 -> f32
+print(typeof(i32val + f32val));
+
+// i32 + f64 -> f64
 print(typeof(i32val + f64val));
 
 // f32 + f64 -> f64

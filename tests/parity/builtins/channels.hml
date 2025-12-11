@@ -1,8 +1,8 @@
 // Test channel operations
 
 // Basic channel creation
-// Note: typeof(channel) differs between interpreter ("unknown") and compiler ("channel")
 let ch = channel(5);
+print(typeof(ch));
 
 // Send and receive
 ch.send(42);
