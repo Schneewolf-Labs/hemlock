@@ -614,7 +614,7 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
         Expr *func;
         if (is_function_def(stmt, &name, &func)) {
             codegen_add_main_var(ctx, name);
-            codegen_add_main_func(ctx, name);  // Also track as function definition
+            codegen_add_main_func(ctx, name, func->as.function.num_params);  // Also track as function definition with param count
         } else if (stmt->type == STMT_CONST) {
             codegen_add_main_var(ctx, stmt->as.const_stmt.name);
             codegen_add_const(ctx, stmt->as.const_stmt.name);
