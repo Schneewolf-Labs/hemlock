@@ -1351,6 +1351,30 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     break;
                 }
 
+                // div(a, b) - floor division returning float
+                if ((strcmp(fn_name, "div") == 0 || strcmp(fn_name, "__div") == 0) && expr->as.call.num_args == 2) {
+                    char *a = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *b = codegen_expr(ctx, expr->as.call.args[1]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_div(%s, %s);", result, a, b);
+                    codegen_writeln(ctx, "hml_release(&%s);", a);
+                    codegen_writeln(ctx, "hml_release(&%s);", b);
+                    free(a);
+                    free(b);
+                    break;
+                }
+
+                // divi(a, b) - floor division returning integer
+                if ((strcmp(fn_name, "divi") == 0 || strcmp(fn_name, "__divi") == 0) && expr->as.call.num_args == 2) {
+                    char *a = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *b = codegen_expr(ctx, expr->as.call.args[1]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_divi(%s, %s);", result, a, b);
+                    codegen_writeln(ctx, "hml_release(&%s);", a);
+                    codegen_writeln(ctx, "hml_release(&%s);", b);
+                    free(a);
+                    free(b);
+                    break;
+                }
+
                 // abs(x)
                 if ((strcmp(fn_name, "abs") == 0 || strcmp(fn_name, "__abs") == 0) && expr->as.call.num_args == 1) {
                     char *arg = codegen_expr(ctx, expr->as.call.args[0]);
