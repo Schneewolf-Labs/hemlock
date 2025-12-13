@@ -11,7 +11,7 @@ print(a);
 a = a * 2;
 print(a);
 
-a = a / 4;
+a = divi(a, 4);  // Use integer division to keep a as integer
 print(a);
 
 a = a % 5;
@@ -40,7 +40,7 @@ let obj = { x: 100, y: 200 };
 obj.x = obj.x + 50;
 print(obj.x);
 
-obj.y = obj.y / 2;
+obj.y = divi(obj.y, 2);  // Use integer division for integer result
 print(obj.y);
 
 // Bitwise compound

@@ -707,13 +707,20 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 int is_bool_result = 0;
                 int can_fold = 1;
 
+                // Division always returns float - handle separately before the switch
+                if (expr->as.binary.op == OP_DIV) {
+                    if (r != 0) {
+                        codegen_writeln(ctx, "HmlValue %s = hml_val_f64(%.17g);", result, (double)l / (double)r);
+                        break;  // Exit EXPR_BINARY case
+                    }
+                    // Division by zero - fall through to runtime handling
+                }
+
                 switch (expr->as.binary.op) {
                     case OP_ADD: const_result = l + r; break;
                     case OP_SUB: const_result = l - r; break;
                     case OP_MUL: const_result = l * r; break;
-                    case OP_DIV:
-                        if (r != 0) { const_result = l / r; } else { can_fold = 0; }
-                        break;
+                    case OP_DIV: can_fold = 0; break;  // Handled above or div-by-zero
                     case OP_MOD:
                         if (r != 0) { const_result = l % r; } else { can_fold = 0; }
                         break;
