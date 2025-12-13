@@ -211,6 +211,10 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_roundi, 1, 1, 0);", result);
             } else if (strcmp(expr->as.ident, "__trunci") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_trunci, 1, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "__div") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_div, 2, 2, 0);", result);
+            } else if (strcmp(expr->as.ident, "__divi") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_divi, 2, 2, 0);", result);
             } else if (strcmp(expr->as.ident, "__abs") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_abs, 1, 1, 0);", result);
             } else if (strcmp(expr->as.ident, "__min") == 0) {
@@ -536,6 +540,10 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_roundi, 1, 1, 0);", result);
             } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "trunci") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_trunci, 1, 1, 0);", result);
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "div") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_div, 2, 2, 0);", result);
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "divi") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_divi, 2, 2, 0);", result);
             // Unprefixed aliases for environment functions (for parity with interpreter)
             } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "getenv") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_getenv, 1, 1, 0);", result);
@@ -738,7 +746,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 case OP_ADD: i32_fast_fn = "hml_i32_add"; i64_fast_fn = "hml_i64_add"; break;
                 case OP_SUB: i32_fast_fn = "hml_i32_sub"; i64_fast_fn = "hml_i64_sub"; break;
                 case OP_MUL: i32_fast_fn = "hml_i32_mul"; i64_fast_fn = "hml_i64_mul"; break;
-                case OP_DIV: i32_fast_fn = "hml_i32_div"; i64_fast_fn = "hml_i64_div"; break;
+                case OP_DIV: break;  // Division always uses float - handled by generic path
                 case OP_MOD: i32_fast_fn = "hml_i32_mod"; i64_fast_fn = "hml_i64_mod"; break;
                 case OP_LESS: i32_fast_fn = "hml_i32_lt"; i64_fast_fn = "hml_i64_lt"; break;
                 case OP_LESS_EQUAL: i32_fast_fn = "hml_i32_le"; i64_fast_fn = "hml_i64_le"; break;

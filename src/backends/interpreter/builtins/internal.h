@@ -78,6 +78,8 @@ Value builtin_floori(Value *args, int num_args, ExecutionContext *ctx);
 Value builtin_ceili(Value *args, int num_args, ExecutionContext *ctx);
 Value builtin_roundi(Value *args, int num_args, ExecutionContext *ctx);
 Value builtin_trunci(Value *args, int num_args, ExecutionContext *ctx);
+Value builtin_div(Value *args, int num_args, ExecutionContext *ctx);
+Value builtin_divi(Value *args, int num_args, ExecutionContext *ctx);
 Value builtin_abs(Value *args, int num_args, ExecutionContext *ctx);
 Value builtin_min(Value *args, int num_args, ExecutionContext *ctx);
 Value builtin_max(Value *args, int num_args, ExecutionContext *ctx);

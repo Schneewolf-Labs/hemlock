@@ -273,6 +273,44 @@ Value builtin_trunci(Value *args, int num_args, ExecutionContext *ctx) {
     return val_i64((int64_t)trunc(value_to_float(args[0])));
 }
 
+Value builtin_div(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: div() expects 2 arguments\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0]) || !is_numeric(args[1])) {
+        fprintf(stderr, "Runtime error: div() arguments must be numeric\n");
+        exit(1);
+    }
+    double a = value_to_float(args[0]);
+    double b = value_to_float(args[1]);
+    if (b == 0.0) {
+        fprintf(stderr, "Runtime error: Division by zero\n");
+        exit(1);
+    }
+    return val_f64(floor(a / b));
+}
+
+Value builtin_divi(Value *args, int num_args, ExecutionContext *ctx) {
+    (void)ctx;
+    if (num_args != 2) {
+        fprintf(stderr, "Runtime error: divi() expects 2 arguments\n");
+        exit(1);
+    }
+    if (!is_numeric(args[0]) || !is_numeric(args[1])) {
+        fprintf(stderr, "Runtime error: divi() arguments must be numeric\n");
+        exit(1);
+    }
+    double a = value_to_float(args[0]);
+    double b = value_to_float(args[1]);
+    if (b == 0.0) {
+        fprintf(stderr, "Runtime error: Division by zero\n");
+        exit(1);
+    }
+    return val_i64((int64_t)floor(a / b));
+}
+
 Value builtin_abs(Value *args, int num_args, ExecutionContext *ctx) {
     (void)ctx;
     if (num_args != 1) {
