@@ -194,7 +194,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                     case OP_MUL: return val_i32(l * r);
                     case OP_DIV:
                         if (r == 0) { runtime_error(ctx, "Division by zero"); return val_null(); }
-                        return val_i32(l / r);
+                        return val_f64((double)l / (double)r);  // Always float division
                     case OP_MOD:
                         if (r == 0) { runtime_error(ctx, "Division by zero"); return val_null(); }
                         return val_i32(l % r);
@@ -223,7 +223,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                     case OP_MUL: return val_i64(l * r);
                     case OP_DIV:
                         if (r == 0) { runtime_error(ctx, "Division by zero"); return val_null(); }
-                        return val_i64(l / r);
+                        return val_f64((double)l / (double)r);  // Always float division
                     case OP_MOD:
                         if (r == 0) { runtime_error(ctx, "Division by zero"); return val_null(); }
                         return val_i64(l % r);
@@ -274,7 +274,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                     case OP_MUL: return val_i64(l * r);
                     case OP_DIV:
                         if (r == 0) { runtime_error(ctx, "Division by zero"); return val_null(); }
-                        return val_i64(l / r);
+                        return val_f64((double)l / (double)r);  // Always float division
                     case OP_MOD:
                         if (r == 0) { runtime_error(ctx, "Division by zero"); return val_null(); }
                         return val_i64(l % r);
@@ -600,12 +600,23 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                     default: break;
                 }
             } else {
+                // Division always uses float regardless of operand types
+                if (expr->as.binary.op == OP_DIV) {
+                    double l = value_to_float(left);
+                    double r = value_to_float(right);
+                    if (r == 0.0) {
+                        runtime_error(ctx, "Division by zero");
+                        goto binary_cleanup;
+                    }
+                    binary_result = val_f64(l / r);
+                    goto binary_cleanup;
+                }
+
                 // Integer operation - handle each result type properly to avoid truncation
                 switch (expr->as.binary.op) {
                     case OP_ADD:
                     case OP_SUB:
                     case OP_MUL:
-                    case OP_DIV:
                     case OP_MOD: {
                         // Extract values according to the promoted type
                         switch (result_type) {

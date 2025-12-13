@@ -55,6 +55,12 @@ static BuiltinInfo builtins[] = {
     {"__ceil", builtin_ceil},
     {"__round", builtin_round},
     {"__trunc", builtin_trunc},
+    {"__floori", builtin_floori},
+    {"__ceili", builtin_ceili},
+    {"__roundi", builtin_roundi},
+    {"__trunci", builtin_trunci},
+    {"__div", builtin_div},
+    {"__divi", builtin_divi},
     {"__abs", builtin_abs},
     {"__min", builtin_min},
     {"__max", builtin_max},
@@ -192,6 +198,12 @@ static BuiltinInfo builtins[] = {
     {"ceil", builtin_ceil},
     {"round", builtin_round},
     {"trunc", builtin_trunc},
+    {"floori", builtin_floori},
+    {"ceili", builtin_ceili},
+    {"roundi", builtin_roundi},
+    {"trunci", builtin_trunci},
+    {"div", builtin_div},
+    {"divi", builtin_divi},
     // Note: abs, min, max, clamp are NOT aliased without prefix
     // because they conflict with common variable names.
     // Use __abs, __min, __max, __clamp instead.

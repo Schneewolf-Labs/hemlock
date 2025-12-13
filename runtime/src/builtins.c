@@ -613,6 +613,36 @@ HmlValue hml_trunc(HmlValue x) {
     return hml_val_f64(trunc(hml_to_f64(x)));
 }
 
+HmlValue hml_floori(HmlValue x) {
+    return hml_val_i64((int64_t)floor(hml_to_f64(x)));
+}
+
+HmlValue hml_ceili(HmlValue x) {
+    return hml_val_i64((int64_t)ceil(hml_to_f64(x)));
+}
+
+HmlValue hml_roundi(HmlValue x) {
+    return hml_val_i64((int64_t)round(hml_to_f64(x)));
+}
+
+HmlValue hml_trunci(HmlValue x) {
+    return hml_val_i64((int64_t)trunc(hml_to_f64(x)));
+}
+
+HmlValue hml_div(HmlValue a, HmlValue b) {
+    double ad = hml_to_f64(a);
+    double bd = hml_to_f64(b);
+    if (bd == 0.0) hml_runtime_error("Division by zero");
+    return hml_val_f64(floor(ad / bd));
+}
+
+HmlValue hml_divi(HmlValue a, HmlValue b) {
+    double ad = hml_to_f64(a);
+    double bd = hml_to_f64(b);
+    if (bd == 0.0) hml_runtime_error("Division by zero");
+    return hml_val_i64((int64_t)floor(ad / bd));
+}
+
 HmlValue hml_abs(HmlValue x) {
     double val = hml_to_f64(x);
     return hml_val_f64(val < 0 ? -val : val);
@@ -781,6 +811,36 @@ HmlValue hml_builtin_round(HmlClosureEnv *env, HmlValue x) {
 HmlValue hml_builtin_trunc(HmlClosureEnv *env, HmlValue x) {
     (void)env;
     return hml_trunc(x);
+}
+
+HmlValue hml_builtin_floori(HmlClosureEnv *env, HmlValue x) {
+    (void)env;
+    return hml_floori(x);
+}
+
+HmlValue hml_builtin_ceili(HmlClosureEnv *env, HmlValue x) {
+    (void)env;
+    return hml_ceili(x);
+}
+
+HmlValue hml_builtin_roundi(HmlClosureEnv *env, HmlValue x) {
+    (void)env;
+    return hml_roundi(x);
+}
+
+HmlValue hml_builtin_trunci(HmlClosureEnv *env, HmlValue x) {
+    (void)env;
+    return hml_trunci(x);
+}
+
+HmlValue hml_builtin_div(HmlClosureEnv *env, HmlValue a, HmlValue b) {
+    (void)env;
+    return hml_div(a, b);
+}
+
+HmlValue hml_builtin_divi(HmlClosureEnv *env, HmlValue a, HmlValue b) {
+    (void)env;
+    return hml_divi(a, b);
 }
 
 HmlValue hml_builtin_abs(HmlClosureEnv *env, HmlValue x) {
@@ -1289,6 +1349,14 @@ static HmlValue make_int_result(HmlValueType result_type, int64_t value) {
 }
 
 HmlValue hml_binary_op(HmlBinaryOp op, HmlValue left, HmlValue right) {
+    // Division always uses float regardless of operand types
+    if (op == HML_OP_DIV) {
+        double l = hml_to_f64(left);
+        double r = hml_to_f64(right);
+        if (r == 0.0) hml_runtime_error("Division by zero");
+        return hml_val_f64(l / r);
+    }
+
     // FAST PATH: i32 operations (most common case)
     if (left.type == HML_VAL_I32 && right.type == HML_VAL_I32) {
         int32_t l = left.as.as_i32;
@@ -1297,9 +1365,6 @@ HmlValue hml_binary_op(HmlBinaryOp op, HmlValue left, HmlValue right) {
             case HML_OP_ADD: return hml_val_i32(l + r);
             case HML_OP_SUB: return hml_val_i32(l - r);
             case HML_OP_MUL: return hml_val_i32(l * r);
-            case HML_OP_DIV:
-                if (r == 0) hml_runtime_error("Division by zero");
-                return hml_val_i32(l / r);
             case HML_OP_MOD:
                 if (r == 0) hml_runtime_error("Division by zero");
                 return hml_val_i32(l % r);

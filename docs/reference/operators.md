@@ -397,23 +397,46 @@ let c = (a + b) * (a - b);
 
 ## Type-Specific Operator Behavior
 
-### Integer Division
+### Division (Always Float)
 
-Integer division truncates toward zero:
+The `/` operator **always returns a float** (f64), regardless of operand types:
 
 ```hemlock
-print(10 / 3);             // 3 (i32)
-print(-10 / 3);            // -3 (i32)
-print(10 / -3);            // -3 (i32)
+print(10 / 3);             // 3.333... (f64)
+print(5 / 2);              // 2.5 (f64)
+print(10.0 / 4.0);         // 2.5 (f64)
+print(-7 / 3);             // -2.333... (f64)
 ```
 
-### Float Division
+This prevents the common bug of unexpected integer truncation.
 
-Float division preserves precision:
+### Floor Division (div / divi)
+
+For floor division (like integer division in other languages), use the `div()` and `divi()` functions:
 
 ```hemlock
-print(10.0 / 3.0);         // 3.333... (f64)
-print(10.0 / 4.0);         // 2.5 (f64)
+// div(a, b) - floor division returning float
+print(div(5, 2));          // 2 (f64)
+print(div(-7, 3));         // -3 (f64)  -- floors toward -infinity
+
+// divi(a, b) - floor division returning integer
+print(divi(5, 2));         // 2 (i64)
+print(divi(-7, 3));        // -3 (i64)
+print(typeof(divi(5, 2))); // i64
+```
+
+**Integer-returning math functions:**
+For other rounding operations that return integers:
+
+```hemlock
+print(floori(3.7));        // 3 (i64)
+print(ceili(3.2));         // 4 (i64)
+print(roundi(3.5));        // 4 (i64)
+print(trunci(3.9));        // 3 (i64)
+
+// These can be used directly as array indices
+let arr = [10, 20, 30, 40];
+print(arr[floori(1.9)]);   // 20 (index 1)
 ```
 
 ### String Comparison

@@ -203,6 +203,18 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_round, 1, 1, 0);", result);
             } else if (strcmp(expr->as.ident, "__trunc") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_trunc, 1, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "__floori") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_floori, 1, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "__ceili") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_ceili, 1, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "__roundi") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_roundi, 1, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "__trunci") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_trunci, 1, 1, 0);", result);
+            } else if (strcmp(expr->as.ident, "__div") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_div, 2, 2, 0);", result);
+            } else if (strcmp(expr->as.ident, "__divi") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_divi, 2, 2, 0);", result);
             } else if (strcmp(expr->as.ident, "__abs") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_abs, 1, 1, 0);", result);
             } else if (strcmp(expr->as.ident, "__min") == 0) {
@@ -520,6 +532,18 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_round, 1, 1, 0);", result);
             } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "trunc") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_trunc, 1, 1, 0);", result);
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "floori") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_floori, 1, 1, 0);", result);
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "ceili") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_ceili, 1, 1, 0);", result);
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "roundi") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_roundi, 1, 1, 0);", result);
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "trunci") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_trunci, 1, 1, 0);", result);
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "div") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_div, 2, 2, 0);", result);
+            } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "divi") == 0) {
+                codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_divi, 2, 2, 0);", result);
             // Unprefixed aliases for environment functions (for parity with interpreter)
             } else if (!codegen_is_local(ctx, expr->as.ident) && strcmp(expr->as.ident, "getenv") == 0) {
                 codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_getenv, 1, 1, 0);", result);
@@ -683,13 +707,20 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 int is_bool_result = 0;
                 int can_fold = 1;
 
+                // Division always returns float - handle separately before the switch
+                if (expr->as.binary.op == OP_DIV) {
+                    if (r != 0) {
+                        codegen_writeln(ctx, "HmlValue %s = hml_val_f64(%.17g);", result, (double)l / (double)r);
+                        break;  // Exit EXPR_BINARY case
+                    }
+                    // Division by zero - fall through to runtime handling
+                }
+
                 switch (expr->as.binary.op) {
                     case OP_ADD: const_result = l + r; break;
                     case OP_SUB: const_result = l - r; break;
                     case OP_MUL: const_result = l * r; break;
-                    case OP_DIV:
-                        if (r != 0) { const_result = l / r; } else { can_fold = 0; }
-                        break;
+                    case OP_DIV: can_fold = 0; break;  // Handled above or div-by-zero
                     case OP_MOD:
                         if (r != 0) { const_result = l % r; } else { can_fold = 0; }
                         break;
@@ -732,7 +763,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 case OP_ADD: i32_fast_fn = "hml_i32_add"; i64_fast_fn = "hml_i64_add"; break;
                 case OP_SUB: i32_fast_fn = "hml_i32_sub"; i64_fast_fn = "hml_i64_sub"; break;
                 case OP_MUL: i32_fast_fn = "hml_i32_mul"; i64_fast_fn = "hml_i64_mul"; break;
-                case OP_DIV: i32_fast_fn = "hml_i32_div"; i64_fast_fn = "hml_i64_div"; break;
+                case OP_DIV: break;  // Division always uses float - handled by generic path
                 case OP_MOD: i32_fast_fn = "hml_i32_mod"; i64_fast_fn = "hml_i64_mod"; break;
                 case OP_LESS: i32_fast_fn = "hml_i32_lt"; i64_fast_fn = "hml_i64_lt"; break;
                 case OP_LESS_EQUAL: i32_fast_fn = "hml_i32_le"; i64_fast_fn = "hml_i64_le"; break;
@@ -1298,6 +1329,66 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     codegen_writeln(ctx, "HmlValue %s = hml_trunc(%s);", result, arg);
                     codegen_writeln(ctx, "hml_release(&%s);", arg);
                     free(arg);
+                    break;
+                }
+
+                // floori(x) - floor returning integer
+                if ((strcmp(fn_name, "floori") == 0 || strcmp(fn_name, "__floori") == 0) && expr->as.call.num_args == 1) {
+                    char *arg = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_floori(%s);", result, arg);
+                    codegen_writeln(ctx, "hml_release(&%s);", arg);
+                    free(arg);
+                    break;
+                }
+
+                // ceili(x) - ceil returning integer
+                if ((strcmp(fn_name, "ceili") == 0 || strcmp(fn_name, "__ceili") == 0) && expr->as.call.num_args == 1) {
+                    char *arg = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_ceili(%s);", result, arg);
+                    codegen_writeln(ctx, "hml_release(&%s);", arg);
+                    free(arg);
+                    break;
+                }
+
+                // roundi(x) - round returning integer
+                if ((strcmp(fn_name, "roundi") == 0 || strcmp(fn_name, "__roundi") == 0) && expr->as.call.num_args == 1) {
+                    char *arg = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_roundi(%s);", result, arg);
+                    codegen_writeln(ctx, "hml_release(&%s);", arg);
+                    free(arg);
+                    break;
+                }
+
+                // trunci(x) - trunc returning integer
+                if ((strcmp(fn_name, "trunci") == 0 || strcmp(fn_name, "__trunci") == 0) && expr->as.call.num_args == 1) {
+                    char *arg = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_trunci(%s);", result, arg);
+                    codegen_writeln(ctx, "hml_release(&%s);", arg);
+                    free(arg);
+                    break;
+                }
+
+                // div(a, b) - floor division returning float
+                if ((strcmp(fn_name, "div") == 0 || strcmp(fn_name, "__div") == 0) && expr->as.call.num_args == 2) {
+                    char *a = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *b = codegen_expr(ctx, expr->as.call.args[1]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_div(%s, %s);", result, a, b);
+                    codegen_writeln(ctx, "hml_release(&%s);", a);
+                    codegen_writeln(ctx, "hml_release(&%s);", b);
+                    free(a);
+                    free(b);
+                    break;
+                }
+
+                // divi(a, b) - floor division returning integer
+                if ((strcmp(fn_name, "divi") == 0 || strcmp(fn_name, "__divi") == 0) && expr->as.call.num_args == 2) {
+                    char *a = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *b = codegen_expr(ctx, expr->as.call.args[1]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_divi(%s, %s);", result, a, b);
+                    codegen_writeln(ctx, "hml_release(&%s);", a);
+                    codegen_writeln(ctx, "hml_release(&%s);", b);
+                    free(a);
+                    free(b);
                     break;
                 }
 

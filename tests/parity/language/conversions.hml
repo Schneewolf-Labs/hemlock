@@ -31,9 +31,9 @@ print(text.length);
 print("value: " + true);
 print("value: " + false);
 
-// Integer division vs float division
-let x = 7 / 2;     // integer division
+// Division always returns float
+let x = 7 / 2;     // division always returns float (f64)
 print(x);
 
-let y = 7.0 / 2.0; // float division
+let y = 7.0 / 2.0; // explicit float division (same result)
 print(y);

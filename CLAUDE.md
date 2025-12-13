@@ -43,7 +43,8 @@ Hemlock is a **systems scripting language** with manual memory management and ex
 
 ### 5. C-like Syntax
 - `{}` blocks always required
-- Operators match C: `+`, `-`, `*`, `/`, `%`, `&&`, `||`, `!`, `&`, `|`, `^`, `<<`, `>>`
+- Operators match C: `+`, `-`, `*`, `%`, `&&`, `||`, `!`, `&`, `|`, `^`, `<<`, `>>`
+- `/` always returns float (use `div()` or `divi()` for floor division)
 - Type syntax: `let x: type = value;`
 
 ---
@@ -256,6 +257,12 @@ make test              # Run interpreter tests
 make test-compiler     # Run compiler tests
 make parity            # Run parity tests (both must match)
 make test-all          # Run all test suites
+```
+
+**Important:** Tests may hang due to async/concurrency issues. Always use a timeout when running tests:
+```bash
+timeout 60 make test   # 60 second timeout
+timeout 120 make parity
 ```
 
 Test categories: primitives, memory, strings, arrays, functions, objects, async, ffi, defer, signals, switch, bitwise, typed_arrays, modules, stdlib_*
