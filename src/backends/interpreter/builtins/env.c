@@ -124,6 +124,9 @@ Value builtin_get_pid(Value *args, int num_args, ExecutionContext *ctx) {
     return val_i32((int32_t)getpid());
 }
 
+// SECURITY WARNING: exec() uses popen() which passes commands through a shell.
+// This is vulnerable to command injection if the command string contains untrusted input.
+// For safe command execution, use exec_argv() instead which bypasses the shell.
 Value builtin_exec(Value *args, int num_args, ExecutionContext *ctx) {
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: exec() expects 1 argument (command string)\n");
@@ -136,6 +139,20 @@ Value builtin_exec(Value *args, int num_args, ExecutionContext *ctx) {
     }
 
     String *command = args[0].as.as_string;
+
+    // SECURITY: Warn about potentially dangerous shell metacharacters
+    const char *dangerous_chars = ";|&$`\\\"'<>(){}[]!#";
+    for (int i = 0; i < command->length; i++) {
+        for (const char *dc = dangerous_chars; *dc; dc++) {
+            if (command->data[i] == *dc) {
+                fprintf(stderr, "Warning: exec() command contains shell metacharacter '%c'. "
+                        "Consider using exec_argv() for safer command execution.\n", *dc);
+                goto done_warning;
+            }
+        }
+    }
+done_warning:
+
     char *ccmd = malloc(command->length + 1);
     if (!ccmd) {
         fprintf(stderr, "Runtime error: exec() memory allocation failed\n");
@@ -144,7 +161,7 @@ Value builtin_exec(Value *args, int num_args, ExecutionContext *ctx) {
     memcpy(ccmd, command->data, command->length);
     ccmd[command->length] = '\0';
 
-    // Open pipe to read command output
+    // Open pipe to read command output (uses shell - vulnerable to injection)
     FILE *pipe = popen(ccmd, "r");
     if (!pipe) {
         char error_msg[512];
