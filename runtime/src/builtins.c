@@ -487,12 +487,29 @@ void hml_panic(HmlValue message) {
 
 // ========== COMMAND EXECUTION ==========
 
+// SECURITY WARNING: exec() uses popen() which passes commands through a shell.
+// This is vulnerable to command injection if the command string contains untrusted input.
+// For safe command execution, use exec_argv() instead which bypasses the shell.
 HmlValue hml_exec(HmlValue command) {
     if (command.type != HML_VAL_STRING || !command.as.as_string) {
         hml_runtime_error("exec() argument must be a string");
     }
 
     HmlString *cmd_str = command.as.as_string;
+
+    // SECURITY: Warn about potentially dangerous shell metacharacters
+    const char *dangerous_chars = ";|&$`\\\"'<>(){}[]!#";
+    for (int64_t i = 0; i < cmd_str->length; i++) {
+        for (const char *dc = dangerous_chars; *dc; dc++) {
+            if (cmd_str->data[i] == *dc) {
+                fprintf(stderr, "Warning: exec() command contains shell metacharacter '%c'. "
+                        "Consider using exec_argv() for safer command execution.\n", *dc);
+                goto done_warning;
+            }
+        }
+    }
+done_warning:
+
     char *ccmd = malloc(cmd_str->length + 1);
     if (!ccmd) {
         hml_runtime_error("exec() memory allocation failed");
@@ -500,7 +517,7 @@ HmlValue hml_exec(HmlValue command) {
     memcpy(ccmd, cmd_str->data, cmd_str->length);
     ccmd[cmd_str->length] = '\0';
 
-    // Open pipe to read command output
+    // Open pipe to read command output (uses shell - vulnerable to injection)
     FILE *pipe = popen(ccmd, "r");
     if (!pipe) {
         fprintf(stderr, "Runtime error: Failed to execute command '%s': %s\n", ccmd, strerror(errno));
@@ -525,6 +542,14 @@ HmlValue hml_exec(HmlValue command) {
     while ((bytes_read = fread(chunk, 1, sizeof(chunk), pipe)) > 0) {
         // Grow buffer if needed
         while (output_size + bytes_read > output_capacity) {
+            // SECURITY: Check for overflow before doubling capacity
+            if (output_capacity > SIZE_MAX / 2) {
+                fprintf(stderr, "Runtime error: exec() output too large\n");
+                free(output_buffer);
+                pclose(pipe);
+                free(ccmd);
+                exit(1);
+            }
             output_capacity *= 2;
             char *new_buffer = realloc(output_buffer, output_capacity);
             if (!new_buffer) {
