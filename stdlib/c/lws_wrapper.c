@@ -77,10 +77,13 @@ static int http_callback(struct lws *wsi, enum lws_callback_reasons reason,
 }
 
 // Parse URL into components
+// Buffers: host must be 256 bytes, path must be 512 bytes
 static int parse_url(const char *url, char *host, int *port, char *path, int *ssl) {
     *ssl = 0;
     *port = 80;
-    strcpy(path, "/");
+    // SECURITY: Use safe string initialization instead of strcpy
+    path[0] = '/';
+    path[1] = '\0';
 
     if (strncmp(url, "https://", 8) == 0) {
         *ssl = 1;
@@ -580,7 +583,9 @@ ws_connection_t* lws_ws_connect(const char *url) {
     // Parse WebSocket URL
     ssl = 0;
     port = 80;
-    strcpy(path, "/");
+    // SECURITY: Use safe string initialization instead of strcpy
+    path[0] = '/';
+    path[1] = '\0';
 
     if (strncmp(url, "wss://", 6) == 0) {
         ssl = 1;

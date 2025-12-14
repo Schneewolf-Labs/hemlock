@@ -8417,7 +8417,9 @@ static int hml_http_callback(struct lws *wsi, enum lws_callback_reasons reason,
 static int hml_parse_url(const char *url, char *host, int *port, char *path, int *ssl) {
     *ssl = 0;
     *port = 80;
-    strcpy(path, "/");
+    // SECURITY: Use safe string initialization instead of strcpy
+    path[0] = '/';
+    path[1] = '\0';
 
     if (strncmp(url, "https://", 8) == 0) {
         *ssl = 1;
@@ -8989,7 +8991,9 @@ static int hml_ws_server_callback(struct lws *wsi, enum lws_callback_reasons rea
 static int hml_parse_ws_url(const char *url, char *host, int *port, char *path, int *ssl) {
     *ssl = 0;
     *port = 80;
-    strcpy(path, "/");
+    // SECURITY: Use safe string initialization instead of strcpy
+    path[0] = '/';
+    path[1] = '\0';
 
     if (strncmp(url, "wss://", 6) == 0) {
         *ssl = 1;

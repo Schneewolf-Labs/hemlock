@@ -181,7 +181,9 @@ static int http_callback(struct lws *wsi, enum lws_callback_reasons reason,
 static int parse_url(const char *url, char *host, int *port, char *path, int *ssl) {
     *ssl = 0;
     *port = 80;
-    strcpy(path, "/");
+    // SECURITY: Use safe string initialization instead of strcpy
+    path[0] = '/';
+    path[1] = '\0';
 
     if (strncmp(url, "https://", 8) == 0) {
         *ssl = 1;
@@ -1089,7 +1091,9 @@ Value builtin_lws_ws_connect(Value *args, int num_args, ExecutionContext *ctx) {
     char host[256], path[512];
     int port, ssl = 0;
 
-    strcpy(path, "/");
+    // SECURITY: Use safe string initialization instead of strcpy
+    path[0] = '/';
+    path[1] = '\0';
 
     if (strncmp(url, "wss://", 6) == 0) {
         ssl = 1;
