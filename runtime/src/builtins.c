@@ -6717,7 +6717,40 @@ HmlValue hml_socket_get_closed(HmlValue socket_val) {
 
 // ========== FFI (Foreign Function Interface) ==========
 
+// SECURITY: Validate FFI library path for obvious security issues
+static const char* validate_ffi_path(const char *path) {
+    if (!path || path[0] == '\0') {
+        return "Empty library path";
+    }
+
+    // Check for directory traversal
+    if (strstr(path, "..")) {
+        return "Library path contains directory traversal (..)";
+    }
+
+    // Warn about world-writable locations
+    if (strncmp(path, "/tmp/", 5) == 0 ||
+        strncmp(path, "/var/tmp/", 9) == 0 ||
+        strncmp(path, "/dev/shm/", 9) == 0) {
+        fprintf(stderr, "Warning: Loading FFI library from world-writable location: %s\n", path);
+        fprintf(stderr, "         This is a security risk - libraries in /tmp could be malicious\n");
+    }
+
+    // Check for suspicious patterns
+    if (strstr(path, "/../") || strstr(path, "/./")) {
+        return "Library path contains suspicious directory references";
+    }
+
+    return NULL;  // Path is acceptable
+}
+
 HmlValue hml_ffi_load(const char *path) {
+    // SECURITY: Validate library path before loading
+    const char *validation_error = validate_ffi_path(path);
+    if (validation_error) {
+        hml_runtime_error("FFI security error: %s (path: %s)", validation_error, path);
+    }
+
     void *handle = dlopen(path, RTLD_LAZY);
     if (!handle) {
         hml_runtime_error("Failed to load library '%s': %s", path, dlerror());
