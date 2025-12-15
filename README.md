@@ -81,7 +81,7 @@ let pid = getpid();
 | **FFI** | Call C functions from shared libraries |
 | **Error Handling** | try/catch/finally/throw, panic() |
 | **I/O** | File API, signal handling, command execution |
-| **Stdlib** | 21 modules (math, net, crypto, http, json, and more) |
+| **Stdlib** | 23 modules (math, net, crypto, http, json, and more) |
 
 ## Building
 
@@ -150,7 +150,7 @@ See [Bundling & Packaging](docs/advanced/bundling-packaging.md) for details.
 
 ## Project Status
 
-Hemlock v1.1.1 is released with:
+Hemlock v1.1.3 is released with:
 
 - Full type system with 64-bit integers and Unicode support
 - Manual memory management with safe and unsafe options
@@ -160,7 +160,7 @@ Hemlock v1.1.1 is released with:
 - Compiler backend (C code generation)
 - LSP server with go-to-definition and find-references
 - HTTP PUT/DELETE/PATCH and WebSocket binary support
-- 552 tests with 67 parity tests (100% pass rate)
+- 625+ tests with 67 parity tests (100% pass rate)
 
 ## Philosophy
 

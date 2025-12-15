@@ -224,18 +224,21 @@ Types: `FFI_INT`, `FFI_DOUBLE`, `FFI_POINTER`, `FFI_STRING`, `FFI_VOID`, etc.
 
 ```
 hemlock/
-├── src/                  # Implementation
-│   ├── lexer.c, parser/, interpreter/
-│   ├── compiler/         # C code generation
-│   └── lsp/              # Language Server Protocol
-├── runtime/              # Compiled program runtime
+├── src/
+│   ├── frontend/         # Shared: lexer, parser, AST, modules
+│   ├── backends/
+│   │   ├── interpreter/  # hemlock: tree-walking interpreter
+│   │   └── compiler/     # hemlockc: C code generator
+│   ├── lsp/              # Language Server Protocol
+│   └── bundler/          # Bundle/package tools
+├── runtime/              # Compiled program runtime (libhemlock_runtime.a)
 ├── stdlib/               # Standard library (23 modules)
 │   └── docs/             # Module documentation
 ├── docs/                 # Full documentation
 │   ├── language-guide/   # Types, strings, arrays, etc.
 │   ├── reference/        # API references
 │   └── advanced/         # Async, FFI, signals, etc.
-├── tests/                # 491 tests
+├── tests/                # 625+ tests
 └── examples/             # Example programs
 ```
 
@@ -396,7 +399,7 @@ make parity
 
 ## Version
 
-**v1.1.1** - Current release with:
+**v1.1.3** - Current release with:
 - Full type system (i8-i64, u8-u64, f32/f64, bool, string, rune, ptr, buffer, array, object, enum, file, task, channel)
 - UTF-8 strings with 19 methods
 - Arrays with 18 methods including map/filter/reduce
@@ -410,7 +413,7 @@ make parity
 - LSP server with go-to-definition and find-references
 - HTTP PUT/DELETE/PATCH methods
 - WebSocket binary message support
-- 552 tests with 67 parity tests (100% pass rate)
+- 625+ tests with 67 parity tests (100% pass rate)
 
 ---
 
