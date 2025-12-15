@@ -362,8 +362,10 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
                 }
                 // Execute all defers in LIFO order
                 codegen_defer_execute_all(ctx);
-                // Execute any runtime defers (from loops)
-                codegen_writeln(ctx, "hml_defer_execute_all();");
+                // Execute any runtime defers (from loops) - only if this function has defers
+                if (ctx->has_defers) {
+                    codegen_writeln(ctx, "hml_defer_execute_all();");
+                }
                 codegen_writeln(ctx, "HML_CALL_EXIT();");
                 codegen_writeln(ctx, "return %s;", ret_val);
                 free(ret_val);
@@ -372,14 +374,18 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
                 // Evaluate expression first, then decrement call depth
                 if (stmt->as.return_stmt.value) {
                     char *value = codegen_expr(ctx, stmt->as.return_stmt.value);
-                    // Execute any runtime defers (from loops)
-                    codegen_writeln(ctx, "hml_defer_execute_all();");
+                    // Execute any runtime defers (from loops) - only if this function has defers
+                    if (ctx->has_defers) {
+                        codegen_writeln(ctx, "hml_defer_execute_all();");
+                    }
                     codegen_writeln(ctx, "HML_CALL_EXIT();");
                     codegen_writeln(ctx, "return %s;", value);
                     free(value);
                 } else {
-                    // Execute any runtime defers (from loops)
-                    codegen_writeln(ctx, "hml_defer_execute_all();");
+                    // Execute any runtime defers (from loops) - only if this function has defers
+                    if (ctx->has_defers) {
+                        codegen_writeln(ctx, "hml_defer_execute_all();");
+                    }
                     codegen_writeln(ctx, "HML_CALL_EXIT();");
                     codegen_writeln(ctx, "return hml_val_null();");
                 }
@@ -509,8 +515,10 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
                 if (needs_return_tracking) {
                     codegen_writeln(ctx, "if (%s) {", has_return_var);
                     codegen_indent_inc(ctx);
-                    // Execute any runtime defers (from loops)
-                    codegen_writeln(ctx, "hml_defer_execute_all();");
+                    // Execute any runtime defers (from loops) - only if this function has defers
+                    if (ctx->has_defers) {
+                        codegen_writeln(ctx, "hml_defer_execute_all();");
+                    }
                     codegen_writeln(ctx, "HML_CALL_EXIT();");
                     codegen_writeln(ctx, "return %s;", return_value_var);
                     codegen_indent_dec(ctx);
@@ -630,6 +638,7 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
         }
 
         case STMT_DEFER: {
+            ctx->has_defers = 1;  // Mark that this function has defers
             if (ctx->loop_depth > 0) {
                 // Inside a loop - use runtime defer stack
                 // For `defer foo()`, we need to push the function `foo` to be called later

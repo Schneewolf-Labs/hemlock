@@ -754,6 +754,13 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
             char *left = codegen_expr(ctx, expr->as.binary.left);
             char *right = codegen_expr(ctx, expr->as.binary.right);
 
+            // OPTIMIZATION: Use type inference to generate direct operations
+            // When types are known at compile time, skip runtime type checks entirely
+            InferredType left_type = infer_expr(ctx->type_ctx, expr->as.binary.left);
+            InferredType right_type = infer_expr(ctx->type_ctx, expr->as.binary.right);
+            int both_i32 = ctx->optimize && infer_is_i32(left_type) && infer_is_i32(right_type);
+            int both_i64 = ctx->optimize && infer_is_i64(left_type) && infer_is_i64(right_type);
+
             // OPTIMIZATION: i32 and i64 fast paths for binary operations
             // This matches the interpreter's fast paths for common integer operations
             // Check at runtime: i32 first (most common), then i64, then generic
@@ -779,8 +786,15 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 default: break;
             }
 
-            if (i32_fast_fn && i64_fast_fn) {
-                // Generate cascading fast paths: i32 -> i64 -> generic
+            // If types are known at compile time, emit direct operations (no runtime check)
+            if (both_i32 && i32_fast_fn) {
+                // Both operands are known i32 - use direct i32 operation
+                codegen_writeln(ctx, "HmlValue %s = %s(%s, %s);", result, i32_fast_fn, left, right);
+            } else if (both_i64 && i64_fast_fn) {
+                // Both operands are known i64 - use direct i64 operation
+                codegen_writeln(ctx, "HmlValue %s = %s(%s, %s);", result, i64_fast_fn, left, right);
+            } else if (i32_fast_fn && i64_fast_fn) {
+                // Types not known - generate cascading fast paths: i32 -> i64 -> generic
                 codegen_writeln(ctx, "HmlValue %s = hml_both_i32(%s, %s) ? %s(%s, %s) : (hml_both_i64(%s, %s) ? %s(%s, %s) : hml_binary_op(%s, %s, %s));",
                               result, left, right, i32_fast_fn, left, right,
                               left, right, i64_fast_fn, left, right,
