@@ -227,6 +227,7 @@ COMPILER_SRCS = $(SRC_DIR)/backends/compiler/main.c \
 COMPILER_OBJS = $(BUILD_DIR)/backends/compiler/main.o \
                 $(BUILD_DIR)/backends/compiler/codegen.o \
                 $(BUILD_DIR)/backends/compiler/codegen_expr.o \
+                $(BUILD_DIR)/backends/compiler/codegen_expr_ident.o \
                 $(BUILD_DIR)/backends/compiler/codegen_stmt.o \
                 $(BUILD_DIR)/backends/compiler/codegen_closure.o \
                 $(BUILD_DIR)/backends/compiler/codegen_program.o \
