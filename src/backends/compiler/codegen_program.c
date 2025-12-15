@@ -53,9 +53,46 @@ void codegen_function_decl(CodegenContext *ctx, Expr *func, const char *name) {
     ctx->defer_stack = NULL;  // Start fresh for this function
     int saved_in_function = ctx->in_function;
     ctx->in_function = 1;  // We're now inside a function
+    int saved_has_defers = ctx->has_defers;
+    ctx->has_defers = 0;  // Track defers for this function
 
     // Reset closure env tracking to prevent cross-function pollution
     ctx->last_closure_env_id = -1;
+
+    // OPTIMIZATION: Push type inference scope and bind parameter types
+    if (ctx->type_ctx) {
+        // Register function return type (before processing body for recursive calls)
+        InferredType ret_type = infer_unknown();
+        if (func->as.function.return_type) {
+            switch (func->as.function.return_type->kind) {
+                case TYPE_I32: ret_type = infer_i32(); break;
+                case TYPE_I64: ret_type = infer_i64(); break;
+                case TYPE_F32:
+                case TYPE_F64: ret_type = infer_f64(); break;
+                case TYPE_BOOL: ret_type = infer_bool(); break;
+                case TYPE_STRING: ret_type = infer_string(); break;
+                default: break;
+            }
+        }
+        type_register_func_return(ctx->type_ctx, name, ret_type);
+
+        type_env_push(ctx->type_ctx);
+        for (int i = 0; i < func->as.function.num_params; i++) {
+            InferredType param_type = infer_unknown();
+            if (func->as.function.param_types && func->as.function.param_types[i]) {
+                switch (func->as.function.param_types[i]->kind) {
+                    case TYPE_I32: param_type = infer_i32(); break;
+                    case TYPE_I64: param_type = infer_i64(); break;
+                    case TYPE_F32:
+                    case TYPE_F64: param_type = infer_f64(); break;
+                    case TYPE_BOOL: param_type = infer_bool(); break;
+                    case TYPE_STRING: param_type = infer_string(); break;
+                    default: break;
+                }
+            }
+            type_env_bind(ctx->type_ctx, func->as.function.param_names[i], param_type);
+        }
+    }
 
     // Add parameters as locals
     for (int i = 0; i < func->as.function.num_params; i++) {
@@ -120,8 +157,10 @@ void codegen_function_decl(CodegenContext *ctx, Expr *func, const char *name) {
     // Execute any remaining defers before implicit return
     codegen_defer_execute_all(ctx);
 
-    // Execute any runtime defers (from loops)
-    codegen_writeln(ctx, "hml_defer_execute_all();");
+    // Execute any runtime defers (from loops) - only if this function has defers
+    if (ctx->has_defers) {
+        codegen_writeln(ctx, "hml_defer_execute_all();");
+    }
 
     // Decrement call depth before implicit return
     codegen_writeln(ctx, "HML_CALL_EXIT();");
@@ -132,11 +171,17 @@ void codegen_function_decl(CodegenContext *ctx, Expr *func, const char *name) {
     codegen_indent_dec(ctx);
     codegen_write(ctx, "}\n\n");
 
+    // Pop type inference scope
+    if (ctx->type_ctx) {
+        type_env_pop(ctx->type_ctx);
+    }
+
     // Restore locals, defer state, in_function flag, and clear shared environment
     codegen_defer_clear(ctx);
     ctx->defer_stack = saved_defer_stack;
     ctx->num_locals = saved_num_locals;
     ctx->in_function = saved_in_function;
+    ctx->has_defers = saved_has_defers;
     shared_env_clear(ctx);
 }
 
@@ -164,6 +209,8 @@ void codegen_closure_impl(CodegenContext *ctx, ClosureInfo *closure) {
     ctx->current_closure = closure;  // Track current closure for mutable captured variables
     int saved_in_function = ctx->in_function;
     ctx->in_function = 1;  // We're now inside a function
+    int saved_has_defers = ctx->has_defers;
+    ctx->has_defers = 0;  // Track defers for this closure
 
     // Reset closure env tracking to prevent cross-function pollution
     ctx->last_closure_env_id = -1;
@@ -271,8 +318,10 @@ void codegen_closure_impl(CodegenContext *ctx, ClosureInfo *closure) {
     // Execute any remaining defers before implicit return
     codegen_defer_execute_all(ctx);
 
-    // Execute any runtime defers (from loops)
-    codegen_writeln(ctx, "hml_defer_execute_all();");
+    // Execute any runtime defers (from loops) - only if this closure has defers
+    if (ctx->has_defers) {
+        codegen_writeln(ctx, "hml_defer_execute_all();");
+    }
 
     // Release captured variables before default return
     for (int i = 0; i < closure->num_captured; i++) {
@@ -295,6 +344,7 @@ void codegen_closure_impl(CodegenContext *ctx, ClosureInfo *closure) {
     ctx->current_module = saved_module;
     ctx->current_closure = saved_closure;
     ctx->in_function = saved_in_function;
+    ctx->has_defers = saved_has_defers;
     shared_env_clear(ctx);  // Clear shared environment after generating this closure
 }
 

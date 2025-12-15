@@ -78,6 +78,9 @@ CodegenContext* codegen_new(FILE *output) {
     ctx->for_continue_labels = NULL;
     ctx->for_continue_depth = 0;
     ctx->for_continue_capacity = 0;
+    ctx->type_ctx = type_infer_new();
+    ctx->optimize = 1;  // Enable optimization by default
+    ctx->has_defers = 0;  // Track if any defers exist in current function
     return ctx;
 }
 
@@ -175,6 +178,11 @@ void codegen_free(CodegenContext *ctx) {
                 free(ctx->for_continue_labels[i]);
             }
             free(ctx->for_continue_labels);
+        }
+
+        // Free type inference context
+        if (ctx->type_ctx) {
+            type_infer_free(ctx->type_ctx);
         }
 
         free(ctx);

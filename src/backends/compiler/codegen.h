@@ -8,6 +8,7 @@
 #define HEMLOCK_CODEGEN_H
 
 #include "../../include/ast.h"
+#include "type_infer.h"
 #include <stdio.h>
 
 // Forward declaration for closure info
@@ -178,6 +179,13 @@ typedef struct {
     char **for_continue_labels;   // Stack of for-loop continue labels
     int for_continue_depth;       // Current for-loop nesting depth
     int for_continue_capacity;    // Capacity of for_continue_labels stack
+
+    // Type inference (for optimized code generation)
+    TypeInferContext *type_ctx;   // Type inference context
+    int optimize;                 // Optimization level (0 = none, 1+ = optimize)
+
+    // Defer optimization tracking
+    int has_defers;               // Whether any defer statements exist in current function
 } CodegenContext;
 
 // Initialize code generation context
@@ -195,6 +203,10 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt);
 // Generate C code for an expression
 // Returns the name of the temporary variable holding the result
 char* codegen_expr(CodegenContext *ctx, Expr *expr);
+
+// Generate C code for an expression with type info
+// Returns temp var name and sets *out_type to inferred type
+char* codegen_expr_typed(CodegenContext *ctx, Expr *expr, InferredType *out_type);
 
 // Helper: Generate a new temporary variable name
 char* codegen_temp(CodegenContext *ctx);
