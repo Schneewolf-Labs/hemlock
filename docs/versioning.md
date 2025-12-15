@@ -30,9 +30,9 @@ The version is defined in `include/version.h`:
 ```c
 #define HEMLOCK_VERSION_MAJOR 1
 #define HEMLOCK_VERSION_MINOR 1
-#define HEMLOCK_VERSION_PATCH 1
+#define HEMLOCK_VERSION_PATCH 3
 
-#define HEMLOCK_VERSION "1.1.1"
+#define HEMLOCK_VERSION "1.1.3"
 ```
 
 ### Checking Versions
@@ -93,6 +93,7 @@ import { sin, cos } from "@stdlib/math";
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **1.1.3** | 2025 | Documentation updates, consistency fixes |
 | **1.1.1** | 2025 | Bug fixes and improvements |
 | **1.1.0** | 2024 | Unified versioning across all components |
 | **1.0.x** | 2024 | Initial release series |
