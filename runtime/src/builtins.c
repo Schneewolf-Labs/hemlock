@@ -2519,6 +2519,48 @@ HmlValue hml_string_index(HmlValue str, HmlValue index) {
     return hml_string_char_at(str, index);
 }
 
+// Helper: get byte length needed to encode a Unicode codepoint as UTF-8
+static int utf8_encode_len(uint32_t codepoint) {
+    if (codepoint < 0x80) return 1;
+    if (codepoint < 0x800) return 2;
+    if (codepoint < 0x10000) return 3;
+    return 4;
+}
+
+// Helper: encode a Unicode codepoint as UTF-8, returns bytes written
+static int utf8_encode(char *buf, uint32_t codepoint) {
+    if (codepoint < 0x80) {
+        buf[0] = (char)codepoint;
+        return 1;
+    } else if (codepoint < 0x800) {
+        buf[0] = (char)(0xC0 | (codepoint >> 6));
+        buf[1] = (char)(0x80 | (codepoint & 0x3F));
+        return 2;
+    } else if (codepoint < 0x10000) {
+        buf[0] = (char)(0xE0 | (codepoint >> 12));
+        buf[1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+        buf[2] = (char)(0x80 | (codepoint & 0x3F));
+        return 3;
+    } else {
+        buf[0] = (char)(0xF0 | (codepoint >> 18));
+        buf[1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
+        buf[2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+        buf[3] = (char)(0x80 | (codepoint & 0x3F));
+        return 4;
+    }
+}
+
+// Helper: get byte length of UTF-8 character at position
+static int utf8_char_len_at(const char *s, int pos, int len) {
+    if (pos >= len) return 0;
+    unsigned char c = (unsigned char)s[pos];
+    if ((c & 0x80) == 0) return 1;        // ASCII
+    if ((c & 0xE0) == 0xC0) return 2;     // 2-byte
+    if ((c & 0xF0) == 0xE0) return 3;     // 3-byte
+    if ((c & 0xF8) == 0xF0) return 4;     // 4-byte
+    return 1;  // Invalid, treat as single byte
+}
+
 void hml_string_index_assign(HmlValue str, HmlValue index, HmlValue val) {
     if (str.type != HML_VAL_STRING || !str.as.as_string) {
         hml_runtime_error("String index assignment requires string");
@@ -2545,12 +2587,46 @@ void hml_string_index_assign(HmlValue str, HmlValue index, HmlValue val) {
         hml_runtime_error("String index %d out of bounds", idx);
     }
 
-    // For simplicity, only support single-byte characters in assignment
-    // Full UTF-8 would require resizing the string
-    if (rune_val < 128) {
-        s->data[idx] = (char)rune_val;
+    // Calculate bytes needed for new rune and current character at position
+    int new_len = utf8_encode_len(rune_val);
+    int old_len = utf8_char_len_at(s->data, idx, s->length);
+
+    // Ensure we don't read past end of string
+    if (idx + old_len > s->length) {
+        old_len = s->length - idx;
+    }
+
+    if (new_len == old_len) {
+        // Same size - just overwrite in place
+        utf8_encode(s->data + idx, rune_val);
     } else {
-        hml_runtime_error("String assignment of multi-byte runes not yet supported");
+        // Different size - need to resize string
+        int new_total = s->length - old_len + new_len;
+        char *new_data = malloc(new_total + 1);
+        if (!new_data) {
+            hml_runtime_error("Failed to allocate memory for string resize");
+        }
+
+        // Copy prefix (before idx)
+        memcpy(new_data, s->data, idx);
+
+        // Encode new rune
+        utf8_encode(new_data + idx, rune_val);
+
+        // Copy suffix (after old character)
+        int suffix_start = idx + old_len;
+        int suffix_len = s->length - suffix_start;
+        if (suffix_len > 0) {
+            memcpy(new_data + idx + new_len, s->data + suffix_start, suffix_len);
+        }
+
+        new_data[new_total] = '\0';
+
+        // Replace string data
+        free(s->data);
+        s->data = new_data;
+        s->length = new_total;
+        s->char_length = -1;  // Invalidate cached character count
     }
 }
 
@@ -8332,6 +8408,7 @@ typedef struct {
     int complete;
     int failed;
     char *redirect_url;
+    char *headers;
 } hml_http_response_t;
 
 // HTTP callback
@@ -8374,6 +8451,46 @@ static int hml_http_callback(struct lws *wsi, enum lws_callback_reasons reason,
         case LWS_CALLBACK_ESTABLISHED_CLIENT_HTTP:
             if (resp) {
                 resp->status_code = lws_http_client_http_response(wsi);
+
+                // Capture response headers
+                {
+                    char headers_buf[8192];
+                    size_t headers_len = 0;
+                    char value[1024];
+                    int vlen;
+
+                    struct { enum lws_token_indexes token; const char *name; } header_list[] = {
+                        { WSI_TOKEN_HTTP_CONTENT_TYPE, "Content-Type" },
+                        { WSI_TOKEN_HTTP_CONTENT_LENGTH, "Content-Length" },
+                        { WSI_TOKEN_HTTP_CACHE_CONTROL, "Cache-Control" },
+                        { WSI_TOKEN_HTTP_DATE, "Date" },
+                        { WSI_TOKEN_HTTP_ETAG, "ETag" },
+                        { WSI_TOKEN_HTTP_LAST_MODIFIED, "Last-Modified" },
+                        { WSI_TOKEN_HTTP_LOCATION, "Location" },
+                        { WSI_TOKEN_HTTP_SERVER, "Server" },
+                        { WSI_TOKEN_HTTP_SET_COOKIE, "Set-Cookie" },
+                        { WSI_TOKEN_HTTP_TRANSFER_ENCODING, "Transfer-Encoding" },
+                        { WSI_TOKEN_HTTP_WWW_AUTHENTICATE, "WWW-Authenticate" },
+                        { WSI_TOKEN_HTTP_ACCESS_CONTROL_ALLOW_ORIGIN, "Access-Control-Allow-Origin" },
+                    };
+
+                    for (size_t i = 0; i < sizeof(header_list)/sizeof(header_list[0]); i++) {
+                        vlen = lws_hdr_copy(wsi, value, sizeof(value), header_list[i].token);
+                        if (vlen > 0) {
+                            value[vlen] = '\0';
+                            int written = snprintf(headers_buf + headers_len,
+                                                   sizeof(headers_buf) - headers_len,
+                                                   "%s: %s\r\n", header_list[i].name, value);
+                            if (written > 0 && (size_t)written < sizeof(headers_buf) - headers_len) {
+                                headers_len += written;
+                            }
+                        }
+                    }
+
+                    if (headers_len > 0) {
+                        resp->headers = strndup(headers_buf, headers_len);
+                    }
+                }
 
                 // Capture Location header for redirects (3xx responses)
                 if (resp->status_code >= 300 && resp->status_code < 400) {
@@ -8718,10 +8835,16 @@ HmlValue hml_lws_response_body(HmlValue resp_val) {
     return hml_val_string(resp->body);
 }
 
-// Get response headers (not implemented yet)
+// Get response headers
 HmlValue hml_lws_response_headers(HmlValue resp_val) {
-    (void)resp_val;
-    return hml_val_string("");
+    if (resp_val.type != HML_VAL_PTR) {
+        return hml_val_string("");
+    }
+    hml_http_response_t *resp = (hml_http_response_t *)resp_val.as.as_ptr;
+    if (!resp || !resp->headers) {
+        return hml_val_string("");
+    }
+    return hml_val_string(resp->headers);
 }
 
 // Free response
@@ -8731,6 +8854,7 @@ HmlValue hml_lws_response_free(HmlValue resp_val) {
         if (resp) {
             if (resp->body) free(resp->body);
             if (resp->redirect_url) free(resp->redirect_url);
+            if (resp->headers) free(resp->headers);
             free(resp);
         }
     }
