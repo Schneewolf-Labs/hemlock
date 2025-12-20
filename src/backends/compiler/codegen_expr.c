@@ -3043,7 +3043,8 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "hml_release(&%s);", obj);
                 free(obj); free(old_val); free(new_val);
             } else {
-                codegen_writeln(ctx, "HmlValue %s = hml_val_null(); // Complex prefix inc not supported", result);
+                codegen_writeln(ctx, "hml_runtime_error(\"Invalid operand for ++\");");
+                codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
             }
             break;
         }
@@ -3102,6 +3103,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "hml_release(&%s);", obj);
                 free(obj); free(old_val); free(new_val);
             } else {
+                codegen_writeln(ctx, "hml_runtime_error(\"Invalid operand for --\");");
                 codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
             }
             break;
@@ -3162,6 +3164,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "hml_release(&%s);", obj);
                 free(obj); free(old_val); free(new_val);
             } else {
+                codegen_writeln(ctx, "hml_runtime_error(\"Invalid operand for ++\");");
                 codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
             }
             break;
@@ -3221,6 +3224,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_writeln(ctx, "hml_release(&%s);", obj);
                 free(obj); free(old_val); free(new_val);
             } else {
+                codegen_writeln(ctx, "hml_runtime_error(\"Invalid operand for --\");");
                 codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
             }
             break;
