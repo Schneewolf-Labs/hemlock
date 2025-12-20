@@ -2519,6 +2519,48 @@ HmlValue hml_string_index(HmlValue str, HmlValue index) {
     return hml_string_char_at(str, index);
 }
 
+// Helper: get byte length needed to encode a Unicode codepoint as UTF-8
+static int utf8_encode_len(uint32_t codepoint) {
+    if (codepoint < 0x80) return 1;
+    if (codepoint < 0x800) return 2;
+    if (codepoint < 0x10000) return 3;
+    return 4;
+}
+
+// Helper: encode a Unicode codepoint as UTF-8, returns bytes written
+static int utf8_encode(char *buf, uint32_t codepoint) {
+    if (codepoint < 0x80) {
+        buf[0] = (char)codepoint;
+        return 1;
+    } else if (codepoint < 0x800) {
+        buf[0] = (char)(0xC0 | (codepoint >> 6));
+        buf[1] = (char)(0x80 | (codepoint & 0x3F));
+        return 2;
+    } else if (codepoint < 0x10000) {
+        buf[0] = (char)(0xE0 | (codepoint >> 12));
+        buf[1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+        buf[2] = (char)(0x80 | (codepoint & 0x3F));
+        return 3;
+    } else {
+        buf[0] = (char)(0xF0 | (codepoint >> 18));
+        buf[1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
+        buf[2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+        buf[3] = (char)(0x80 | (codepoint & 0x3F));
+        return 4;
+    }
+}
+
+// Helper: get byte length of UTF-8 character at position
+static int utf8_char_len_at(const char *s, int pos, int len) {
+    if (pos >= len) return 0;
+    unsigned char c = (unsigned char)s[pos];
+    if ((c & 0x80) == 0) return 1;        // ASCII
+    if ((c & 0xE0) == 0xC0) return 2;     // 2-byte
+    if ((c & 0xF0) == 0xE0) return 3;     // 3-byte
+    if ((c & 0xF8) == 0xF0) return 4;     // 4-byte
+    return 1;  // Invalid, treat as single byte
+}
+
 void hml_string_index_assign(HmlValue str, HmlValue index, HmlValue val) {
     if (str.type != HML_VAL_STRING || !str.as.as_string) {
         hml_runtime_error("String index assignment requires string");
@@ -2545,12 +2587,46 @@ void hml_string_index_assign(HmlValue str, HmlValue index, HmlValue val) {
         hml_runtime_error("String index %d out of bounds", idx);
     }
 
-    // For simplicity, only support single-byte characters in assignment
-    // Full UTF-8 would require resizing the string
-    if (rune_val < 128) {
-        s->data[idx] = (char)rune_val;
+    // Calculate bytes needed for new rune and current character at position
+    int new_len = utf8_encode_len(rune_val);
+    int old_len = utf8_char_len_at(s->data, idx, s->length);
+
+    // Ensure we don't read past end of string
+    if (idx + old_len > s->length) {
+        old_len = s->length - idx;
+    }
+
+    if (new_len == old_len) {
+        // Same size - just overwrite in place
+        utf8_encode(s->data + idx, rune_val);
     } else {
-        hml_runtime_error("String assignment of multi-byte runes not yet supported");
+        // Different size - need to resize string
+        int new_total = s->length - old_len + new_len;
+        char *new_data = malloc(new_total + 1);
+        if (!new_data) {
+            hml_runtime_error("Failed to allocate memory for string resize");
+        }
+
+        // Copy prefix (before idx)
+        memcpy(new_data, s->data, idx);
+
+        // Encode new rune
+        utf8_encode(new_data + idx, rune_val);
+
+        // Copy suffix (after old character)
+        int suffix_start = idx + old_len;
+        int suffix_len = s->length - suffix_start;
+        if (suffix_len > 0) {
+            memcpy(new_data + idx + new_len, s->data + suffix_start, suffix_len);
+        }
+
+        new_data[new_total] = '\0';
+
+        // Replace string data
+        free(s->data);
+        s->data = new_data;
+        s->length = new_total;
+        s->char_length = -1;  // Invalidate cached character count
     }
 }
 

@@ -1618,8 +1618,60 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                     runtime_error(ctx, "String index %d out of bounds (length %d)", index, str->length);
                 }
 
-                // Strings are mutable - set the byte
-                str->data[index] = (char)value_to_int(value);
+                // Get the rune value (either from rune type or integer)
+                uint32_t rune_val;
+                if (value.type == VAL_RUNE) {
+                    rune_val = value.as.as_rune;
+                } else {
+                    rune_val = (uint32_t)value_to_int(value);
+                }
+
+                // Calculate bytes needed for new rune
+                int new_len;
+                if (rune_val < 0x80) new_len = 1;
+                else if (rune_val < 0x800) new_len = 2;
+                else if (rune_val < 0x10000) new_len = 3;
+                else new_len = 4;
+
+                // Get byte length of existing character at this position
+                int old_len = utf8_char_byte_length((unsigned char)str->data[index]);
+                if (index + old_len > str->length) {
+                    old_len = str->length - index;
+                }
+
+                if (new_len == old_len) {
+                    // Same size - just overwrite in place
+                    utf8_encode(rune_val, str->data + index);
+                } else {
+                    // Different size - need to resize string
+                    int new_total = str->length - old_len + new_len;
+                    char *new_data = malloc(new_total + 1);
+                    if (!new_data) {
+                        runtime_error(ctx, "Failed to allocate memory for string resize");
+                    }
+
+                    // Copy prefix (before index)
+                    memcpy(new_data, str->data, index);
+
+                    // Encode new rune
+                    utf8_encode(rune_val, new_data + index);
+
+                    // Copy suffix (after old character)
+                    int suffix_start = index + old_len;
+                    int suffix_len = str->length - suffix_start;
+                    if (suffix_len > 0) {
+                        memcpy(new_data + index + new_len, str->data + suffix_start, suffix_len);
+                    }
+
+                    new_data[new_total] = '\0';
+
+                    // Replace string data
+                    free(str->data);
+                    str->data = new_data;
+                    str->length = new_total;
+                    str->char_length = -1;  // Invalidate cached character count
+                }
+
                 VALUE_RELEASE(object);
                 VALUE_RELEASE(index_val);
                 // Don't release value - it's returned
