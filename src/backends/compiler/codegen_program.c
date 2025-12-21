@@ -42,6 +42,12 @@ void codegen_function_decl(CodegenContext *ctx, Expr *func, const char *name) {
         codegen_write(ctx, ", HmlValue %s", safe_param);
         free(safe_param);
     }
+    // Add rest param to function signature
+    if (func->as.function.rest_param) {
+        char *safe_rest = codegen_sanitize_ident(func->as.function.rest_param);
+        codegen_write(ctx, ", HmlValue %s", safe_rest);
+        free(safe_rest);
+    }
     codegen_write(ctx, ") {\n");
     codegen_indent_inc(ctx);
     // Suppress unused parameter warning
@@ -97,6 +103,10 @@ void codegen_function_decl(CodegenContext *ctx, Expr *func, const char *name) {
     // Add parameters as locals
     for (int i = 0; i < func->as.function.num_params; i++) {
         codegen_add_local(ctx, func->as.function.param_names[i]);
+    }
+    // Add rest param as local if present
+    if (func->as.function.rest_param) {
+        codegen_add_local(ctx, func->as.function.rest_param);
     }
 
     // Apply default values for optional parameters
@@ -233,6 +243,25 @@ void codegen_closure_impl(CodegenContext *ctx, ClosureInfo *closure) {
     // Extract captured variables from environment
     for (int i = 0; i < closure->num_captured; i++) {
         const char *var_name = closure->captured_vars[i];
+
+        // Skip if this captured variable name conflicts with a function parameter
+        int is_param = 0;
+        for (int j = 0; j < func->as.function.num_params; j++) {
+            if (strcmp(var_name, func->as.function.param_names[j]) == 0) {
+                is_param = 1;
+                break;
+            }
+        }
+        // Also skip if it conflicts with the rest param
+        if (!is_param && func->as.function.rest_param &&
+            strcmp(var_name, func->as.function.rest_param) == 0) {
+            is_param = 1;
+        }
+        if (is_param) {
+            // Variable is already available as a parameter, don't redeclare
+            continue;
+        }
+
         char *safe_var = codegen_sanitize_ident(var_name);
 
         // Check if this is a module-level export (self-reference like Set calling Set)
@@ -739,7 +768,7 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
         Expr *func;
         if (is_function_def(stmt, &name, &func)) {
             codegen_add_main_var(ctx, name);
-            codegen_add_main_func(ctx, name, func->as.function.num_params);  // Also track as function definition with param count
+            codegen_add_main_func(ctx, name, func->as.function.num_params, func->as.function.rest_param != NULL);  // Also track as function definition with param count and rest param
         } else if (stmt->type == STMT_CONST) {
             codegen_add_main_var(ctx, stmt->as.const_stmt.name);
             codegen_add_const(ctx, stmt->as.const_stmt.name);
@@ -1238,6 +1267,12 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
                 codegen_write(ctx, ", HmlValue %s", safe_param);
                 free(safe_param);
             }
+            // Add rest param to forward declaration
+            if (func->as.function.rest_param) {
+                char *safe_rest = codegen_sanitize_ident(func->as.function.rest_param);
+                codegen_write(ctx, ", HmlValue %s", safe_rest);
+                free(safe_rest);
+            }
             codegen_write(ctx, ");\n");
             c = c->next;
         }
@@ -1314,6 +1349,12 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
                 char *safe_param = codegen_sanitize_ident(func->as.function.param_names[j]);
                 codegen_write(ctx, ", HmlValue %s", safe_param);
                 free(safe_param);
+            }
+            // Add rest param to forward declaration
+            if (func->as.function.rest_param) {
+                char *safe_rest = codegen_sanitize_ident(func->as.function.rest_param);
+                codegen_write(ctx, ", HmlValue %s", safe_rest);
+                free(safe_rest);
             }
             codegen_write(ctx, ");\n");
         }

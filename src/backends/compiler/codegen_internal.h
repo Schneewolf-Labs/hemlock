@@ -57,9 +57,10 @@ void codegen_add_main_var(CodegenContext *ctx, const char *name);
 int codegen_is_main_var(CodegenContext *ctx, const char *name);
 
 // Main file function definitions
-void codegen_add_main_func(CodegenContext *ctx, const char *name, int num_params);
+void codegen_add_main_func(CodegenContext *ctx, const char *name, int num_params, int has_rest);
 int codegen_is_main_func(CodegenContext *ctx, const char *name);
 int codegen_get_main_func_params(CodegenContext *ctx, const char *name);
+int codegen_get_main_func_has_rest(CodegenContext *ctx, const char *name);
 
 // Main file import tracking
 void codegen_add_main_import(CodegenContext *ctx, const char *local_name,

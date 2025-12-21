@@ -2055,26 +2055,52 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     // OPTIMIZATION: Main file function definition - call directly
                     // This is safe because we know the function signature at compile time
                     int expected_params = codegen_get_main_func_params(ctx, fn_name);
+                    int has_rest = codegen_get_main_func_has_rest(ctx, fn_name);
                     char **arg_temps = malloc(expr->as.call.num_args * sizeof(char*));
                     for (int i = 0; i < expr->as.call.num_args; i++) {
                         arg_temps[i] = codegen_expr(ctx, expr->as.call.args[i]);
                     }
 
+                    // For rest params, we need to collect extra args into an array
+                    char *rest_array_temp = NULL;
+                    if (has_rest && expr->as.call.num_args > expected_params) {
+                        // Create array for rest args
+                        rest_array_temp = codegen_temp(ctx);
+                        codegen_writeln(ctx, "HmlValue %s = hml_val_array();", rest_array_temp);
+                        for (int i = expected_params; i < expr->as.call.num_args; i++) {
+                            codegen_writeln(ctx, "hml_array_push(%s, %s);", rest_array_temp, arg_temps[i]);
+                        }
+                    }
+
                     codegen_write(ctx, "");
                     codegen_indent(ctx);
                     fprintf(ctx->output, "HmlValue %s = hml_fn_%s(NULL", result, fn_name);
-                    for (int i = 0; i < expr->as.call.num_args; i++) {
+                    // Pass regular args (up to expected_params)
+                    int regular_args = has_rest ? (expr->as.call.num_args < expected_params ? expr->as.call.num_args : expected_params) : expr->as.call.num_args;
+                    for (int i = 0; i < regular_args; i++) {
                         fprintf(ctx->output, ", %s", arg_temps[i]);
                     }
                     // Fill in hml_val_null() for missing optional parameters
-                    for (int i = expr->as.call.num_args; i < expected_params; i++) {
+                    for (int i = regular_args; i < expected_params; i++) {
                         fprintf(ctx->output, ", hml_val_null()");
+                    }
+                    // Pass rest array (or empty array if no extra args)
+                    if (has_rest) {
+                        if (rest_array_temp) {
+                            fprintf(ctx->output, ", %s", rest_array_temp);
+                        } else {
+                            fprintf(ctx->output, ", hml_val_array()");
+                        }
                     }
                     fprintf(ctx->output, ");\n");
 
                     for (int i = 0; i < expr->as.call.num_args; i++) {
                         codegen_writeln(ctx, "hml_release(&%s);", arg_temps[i]);
                         free(arg_temps[i]);
+                    }
+                    if (rest_array_temp) {
+                        codegen_writeln(ctx, "hml_release(&%s);", rest_array_temp);
+                        free(rest_array_temp);
                     }
                     free(arg_temps);
                     break;
@@ -2086,26 +2112,52 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     // Check if this local is actually a captured main file function - use direct call
                     if (codegen_is_main_func(ctx, fn_name) && !ctx->current_module) {
                         int expected_params = codegen_get_main_func_params(ctx, fn_name);
+                        int has_rest = codegen_get_main_func_has_rest(ctx, fn_name);
                         char **arg_temps = malloc(expr->as.call.num_args * sizeof(char*));
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             arg_temps[i] = codegen_expr(ctx, expr->as.call.args[i]);
                         }
 
+                        // For rest params, we need to collect extra args into an array
+                        char *rest_array_temp = NULL;
+                        if (has_rest && expr->as.call.num_args > expected_params) {
+                            // Create array for rest args
+                            rest_array_temp = codegen_temp(ctx);
+                            codegen_writeln(ctx, "HmlValue %s = hml_val_array();", rest_array_temp);
+                            for (int i = expected_params; i < expr->as.call.num_args; i++) {
+                                codegen_writeln(ctx, "hml_array_push(%s, %s);", rest_array_temp, arg_temps[i]);
+                            }
+                        }
+
                         codegen_write(ctx, "");
                         codegen_indent(ctx);
                         fprintf(ctx->output, "HmlValue %s = hml_fn_%s(NULL", result, fn_name);
-                        for (int i = 0; i < expr->as.call.num_args; i++) {
+                        // Pass regular args (up to expected_params)
+                        int regular_args = has_rest ? (expr->as.call.num_args < expected_params ? expr->as.call.num_args : expected_params) : expr->as.call.num_args;
+                        for (int i = 0; i < regular_args; i++) {
                             fprintf(ctx->output, ", %s", arg_temps[i]);
                         }
                         // Fill in hml_val_null() for missing optional parameters
-                        for (int i = expr->as.call.num_args; i < expected_params; i++) {
+                        for (int i = regular_args; i < expected_params; i++) {
                             fprintf(ctx->output, ", hml_val_null()");
+                        }
+                        // Pass rest array (or empty array if no extra args)
+                        if (has_rest) {
+                            if (rest_array_temp) {
+                                fprintf(ctx->output, ", %s", rest_array_temp);
+                            } else {
+                                fprintf(ctx->output, ", hml_val_array()");
+                            }
                         }
                         fprintf(ctx->output, ");\n");
 
                         for (int i = 0; i < expr->as.call.num_args; i++) {
                             codegen_writeln(ctx, "hml_release(&%s);", arg_temps[i]);
                             free(arg_temps[i]);
+                        }
+                        if (rest_array_temp) {
+                            codegen_writeln(ctx, "hml_release(&%s);", rest_array_temp);
+                            free(rest_array_temp);
                         }
                         free(arg_temps);
                         break;
