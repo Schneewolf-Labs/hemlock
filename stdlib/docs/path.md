@@ -263,6 +263,41 @@ let path2 = format({
 print(path2);  // /file.txt
 ```
 
+### expand_user(path): string
+
+Expand `~` and `~username` to home directory paths.
+
+**Parameters:**
+- `path: string` - Path with optional ~ prefix
+
+**Returns:** `string` - Path with ~ expanded
+
+**Notes:**
+- `~` expands to the current user's home directory (from $HOME)
+- `~username` expands to `/home/username` (Linux convention)
+- Non-tilde paths are returned unchanged
+
+```hemlock
+import { expand_user } from "@stdlib/path";
+
+print(expand_user("~"));              // /home/alice (or value of $HOME)
+print(expand_user("~/docs"));         // /home/alice/docs
+print(expand_user("~/foo/bar"));      // /home/alice/foo/bar
+print(expand_user("~bob"));           // /home/bob
+print(expand_user("~bob/docs"));      // /home/bob/docs
+print(expand_user("/absolute/path")); // /absolute/path (unchanged)
+print(expand_user("relative"));       // relative (unchanged)
+```
+
+**Use case - config file paths:**
+
+```hemlock
+import { expand_user, join } from "@stdlib/path";
+
+let config_dir = expand_user("~/.config/myapp");
+let config_file = join(config_dir, "settings.json");
+```
+
 ### has_trailing_sep(path): bool
 
 Check if path has a trailing separator.
