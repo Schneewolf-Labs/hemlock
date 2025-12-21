@@ -1,0 +1,91 @@
+// Test @stdlib/glob module
+import { match, match_path, glob, escape, has_magic, filter, translate } from "@stdlib/glob";
+
+print("=== Glob Module Tests ===");
+
+// Test match() - basic wildcards
+print("\n--- match() ---");
+print("*.txt matches file.txt: " + match("*.txt", "file.txt"));
+print("*.txt matches file.md: " + match("*.txt", "file.md"));
+print("file.* matches file.txt: " + match("file.*", "file.txt"));
+print("file.* matches file.tar.gz: " + match("file.*", "file.tar.gz"));
+print("f*.txt matches foo.txt: " + match("f*.txt", "foo.txt"));
+print("f*.txt matches f.txt: " + match("f*.txt", "f.txt"));
+
+// Test ? wildcard
+print("\n--- ? wildcard ---");
+print("file?.txt matches file1.txt: " + match("file?.txt", "file1.txt"));
+print("file?.txt matches file.txt: " + match("file?.txt", "file.txt"));
+print("f??e.txt matches file.txt: " + match("f??e.txt", "file.txt"));
+print("f??e.txt matches fxxe.txt: " + match("f??e.txt", "fxxe.txt"));
+
+// Test character classes
+print("\n--- character classes ---");
+print("[abc].txt matches a.txt: " + match("[abc].txt", "a.txt"));
+print("[abc].txt matches d.txt: " + match("[abc].txt", "d.txt"));
+print("[a-z].txt matches m.txt: " + match("[a-z].txt", "m.txt"));
+print("[a-z].txt matches 5.txt: " + match("[a-z].txt", "5.txt"));
+print("[!abc].txt matches d.txt: " + match("[!abc].txt", "d.txt"));
+print("[!abc].txt matches a.txt: " + match("[!abc].txt", "a.txt"));
+
+// Test exact matches
+print("\n--- exact matches ---");
+print("file.txt matches file.txt: " + match("file.txt", "file.txt"));
+print("file.txt matches other.txt: " + match("file.txt", "other.txt"));
+
+// Test match_path() with **
+print("\n--- match_path() with ** ---");
+print("**/*.txt matches src/file.txt: " + match_path("**/*.txt", "src/file.txt"));
+print("**/*.txt matches a/b/c/file.txt: " + match_path("**/*.txt", "a/b/c/file.txt"));
+print("**/*.txt matches file.txt: " + match_path("**/*.txt", "file.txt"));
+print("src/** matches src/foo: " + match_path("src/**", "src/foo"));
+print("src/** matches src/a/b/c: " + match_path("src/**", "src/a/b/c"));
+print("**/test/** matches a/test/b: " + match_path("**/test/**", "a/test/b"));
+
+// Test path matching without **
+print("\n--- match_path() without ** ---");
+print("src/*.txt matches src/file.txt: " + match_path("src/*.txt", "src/file.txt"));
+print("src/*.txt matches file.txt: " + match_path("src/*.txt", "file.txt"));
+print("*.txt matches file.txt: " + match_path("*.txt", "file.txt"));
+
+// Test escape()
+print("\n--- escape() ---");
+let escaped = escape("file[1].txt");
+print("Escaped: " + escaped);
+print("Pattern matches after escape: " + match(escaped, "file[1].txt"));
+
+// Test has_magic()
+print("\n--- has_magic() ---");
+print("*.txt has magic: " + has_magic("*.txt"));
+print("file.txt has magic: " + has_magic("file.txt"));
+print("file?.txt has magic: " + has_magic("file?.txt"));
+print("[abc] has magic: " + has_magic("[abc]"));
+
+// Test filter()
+print("\n--- filter() ---");
+let paths = ["src/main.hml", "src/util.hml", "tests/test.hml", "README.md"];
+let filtered = filter(paths, "src/*.hml");
+print("Filtered count: " + filtered.length);
+let i = 0;
+while (i < filtered.length) {
+    print("  " + filtered[i]);
+    i = i + 1;
+}
+
+let filtered2 = filter(paths, "**/*.hml");
+print("** filtered count: " + filtered2.length);
+
+// Test translate()
+print("\n--- translate() ---");
+print("*.txt -> " + translate("*.txt"));
+print("file?.txt -> " + translate("file?.txt"));
+print("[abc].txt -> " + translate("[abc].txt"));
+print("**/*.txt -> " + translate("**/*.txt"));
+
+// Test glob() on actual filesystem (relative to test dir)
+print("\n--- glob() on filesystem ---");
+// This will find files in the current directory
+let all_files = glob("*.hml", "tests/stdlib_glob");
+print("Found .hml files in tests/stdlib_glob: " + all_files.length);
+
+print("\n=== All Glob tests completed ===");

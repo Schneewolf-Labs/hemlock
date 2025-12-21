@@ -1,0 +1,80 @@
+// Test @stdlib/args module
+import { parse, has_flag, get_option, get_positionals, get_script, shift, join_args, ArgParser } from "@stdlib/args";
+
+print("=== Args Module Tests ===");
+
+// Test with simulated arguments
+let test_args = ["script.hml", "--verbose", "--output=file.txt", "-abc", "input.txt", "extra.txt"];
+
+print("\n--- parse() ---");
+let parsed = parse(test_args);
+print("script: " + parsed.script);
+print("flags count: " + parsed.flags.length);
+print("positional 0: " + parsed.positionals[0]);
+print("positional 1: " + parsed.positionals[1]);
+
+print("\n--- has_flag() ---");
+print("has verbose: " + has_flag(parsed, "verbose"));
+print("has debug: " + has_flag(parsed, "debug"));
+print("has a: " + has_flag(parsed, "a"));
+print("has b: " + has_flag(parsed, "b"));
+print("has c: " + has_flag(parsed, "c"));
+
+print("\n--- get_option() ---");
+print("output: " + get_option(parsed, "output"));
+print("missing with default: " + get_option(parsed, "missing", "default_value"));
+
+print("\n--- get_positionals() ---");
+let pos = get_positionals(parsed);
+print("count: " + pos.length);
+print("first: " + pos[0]);
+
+print("\n--- get_script() ---");
+print("script: " + get_script(parsed));
+
+print("\n--- shift() ---");
+let shifted = shift(test_args, 2);
+print("shifted length: " + shifted.length);
+print("shifted first: " + shifted[0]);
+
+print("\n--- join_args() ---");
+print("joined: " + join_args(["a", "b", "c"]));
+print("joined with comma: " + join_args(["x", "y", "z"], ", "));
+
+// Test with string options
+print("\n--- parse() with strings config ---");
+let test_args2 = ["script.hml", "-o", "output.txt", "--port", "8080", "file.txt"];
+let parsed2 = parse(test_args2, { strings: ["o", "port"] });
+print("o option: " + get_option(parsed2, "o"));
+print("port option: " + get_option(parsed2, "port"));
+print("positional: " + parsed2.positionals[0]);
+
+// Test end of options marker
+print("\n--- End of options (--) ---");
+let test_args3 = ["script.hml", "--flag", "--", "--not-a-flag", "file.txt"];
+let parsed3 = parse(test_args3);
+print("flag set: " + has_flag(parsed3, "flag"));
+print("not-a-flag is positional: " + parsed3.positionals[0]);
+print("file is positional: " + parsed3.positionals[1]);
+
+// Test ArgParser
+print("\n--- ArgParser ---");
+let parser = ArgParser("testapp", "A test application")
+    .version("1.0.0")
+    .flag("v", "verbose", "Enable verbose output")
+    .option("o", "output", "Output file", "out.txt")
+    .positional("input", "Input file", true);
+
+let help_text = parser.help();
+print("Help contains 'testapp': " + help_text.contains("testapp"));
+print("Help contains 'verbose': " + help_text.contains("verbose"));
+print("Help contains 'output': " + help_text.contains("output"));
+
+// Test parsing with ArgParser
+let test_args4 = ["testapp", "--verbose", "--output=custom.txt", "input.txt"];
+let result = parser.parse_args(test_args4);
+print("valid: " + result.valid);
+print("verbose: " + has_flag(result, "verbose"));
+print("output: " + get_option(result, "output"));
+
+print("\n=== All args tests completed ===");
