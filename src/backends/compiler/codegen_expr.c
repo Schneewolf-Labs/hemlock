@@ -2759,7 +2759,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"length\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"length\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             // Socket properties: fd, address, port, closed
@@ -2771,7 +2771,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"fd\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"fd\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             } else if (strcmp(expr->as.get_property.property, "address") == 0) {
@@ -2782,7 +2782,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"address\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"address\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             } else if (strcmp(expr->as.get_property.property, "port") == 0) {
@@ -2793,7 +2793,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"port\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"port\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             } else if (strcmp(expr->as.get_property.property, "closed") == 0) {
@@ -2804,7 +2804,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"closed\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"closed\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             // String byte_length property
@@ -2816,7 +2816,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"byte_length\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"byte_length\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             // Buffer capacity property
@@ -2828,7 +2828,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"capacity\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"capacity\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             } else {
