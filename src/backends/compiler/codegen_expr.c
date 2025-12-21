@@ -2832,7 +2832,8 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             } else {
-                codegen_writeln(ctx, "HmlValue %s = hml_object_get_field(%s, \"%s\");",
+                // Regular property access - throws error if field not found (parity with interpreter)
+                codegen_writeln(ctx, "HmlValue %s = hml_object_get_field_required(%s, \"%s\");",
                               result, obj, expr->as.get_property.property);
             }
             codegen_writeln(ctx, "hml_release(&%s);", obj);

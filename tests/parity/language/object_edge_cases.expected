@@ -1,0 +1,23 @@
+=== Object creation ===
+empty object type: object
+empty object keys: 0
+obj keys count: 3
+obj.a: 1
+obj.b: two
+obj.c: true
+=== Nested objects ===
+nested value: 42
+=== Dynamic property access ===
+obj[key]: 1
+obj.d: 4
+=== Object with null ===
+withNull.x is null: true
+optional withNull.y: null
+withNull has y: false
+=== Object has() method ===
+obj has a: true
+obj has z: false
+=== Object serialization ===
+serialize type: string
+serialize contains name: true
+=== Done ===

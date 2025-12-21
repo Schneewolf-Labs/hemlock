@@ -3595,6 +3595,26 @@ HmlValue hml_object_get_field(HmlValue obj, const char *field) {
     return hml_val_null();  // Field not found
 }
 
+// Get field from object - throws error if field not found (for strict property access)
+HmlValue hml_object_get_field_required(HmlValue obj, const char *field) {
+    if (obj.type != HML_VAL_OBJECT || !obj.as.as_object) {
+        hml_runtime_error("Property access requires object (trying to get '%s' from type %s)",
+                field, hml_typeof_str(obj));
+    }
+
+    HmlObject *o = obj.as.as_object;
+    for (int i = 0; i < o->num_fields; i++) {
+        if (strcmp(o->field_names[i], field) == 0) {
+            HmlValue result = o->field_values[i];
+            hml_retain(&result);
+            return result;
+        }
+    }
+
+    hml_runtime_error("Object has no field '%s'", field);
+    return hml_val_null();  // Unreachable but needed for compiler
+}
+
 void hml_object_set_field(HmlValue obj, const char *field, HmlValue val) {
     if (obj.type != HML_VAL_OBJECT || !obj.as.as_object) {
         hml_runtime_error("Property assignment requires object");
@@ -4781,6 +4801,12 @@ HmlValue hml_call_method(HmlValue obj, const char *method, HmlValue *args, int n
         // Fallback to built-in object methods if no custom method exists
         if (strcmp(method, "keys") == 0 && num_args == 0) {
             return hml_object_keys(obj);
+        }
+        if (strcmp(method, "has") == 0 && num_args == 1) {
+            if (args[0].type != HML_VAL_STRING) {
+                hml_runtime_error("Object.has() requires string argument");
+            }
+            return hml_val_bool(hml_object_has_field(obj, args[0].as.as_string->data));
         }
         hml_runtime_error("Object has no method '%s'", method);
     }

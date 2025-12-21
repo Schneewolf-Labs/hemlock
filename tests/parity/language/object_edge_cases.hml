@@ -1,0 +1,52 @@
+// Parity test for object edge cases
+
+print("=== Object creation ===");
+let empty = {};
+print("empty object type: " + typeof(empty));
+print("empty object keys: " + empty.keys().length);
+
+let obj = { a: 1, b: "two", c: true };
+print("obj keys count: " + obj.keys().length);
+print("obj.a: " + obj.a);
+print("obj.b: " + obj.b);
+print("obj.c: " + obj.c);
+
+print("=== Nested objects ===");
+let nested = {
+    outer: {
+        inner: {
+            value: 42
+        }
+    }
+};
+print("nested value: " + nested.outer.inner.value);
+
+print("=== Dynamic property access ===");
+let key = "a";
+print("obj[key]: " + obj[key]);
+
+// Setting dynamic property
+obj["d"] = 4;
+print("obj.d: " + obj.d);
+
+print("=== Object with null ===");
+let withNull = { x: null };
+print("withNull.x is null: " + (withNull.x == null));
+
+// Use optional chaining for missing property (returns null without error)
+print("optional withNull.y: " + withNull?.y);
+
+// Use has() to check before accessing
+print("withNull has y: " + withNull.has("y"));
+
+print("=== Object has() method ===");
+print("obj has a: " + obj.has("a"));
+print("obj has z: " + obj.has("z"));
+
+print("=== Object serialization ===");
+let simple = { name: "test", value: 123 };
+let json = simple.serialize();
+print("serialize type: " + typeof(json));
+print("serialize contains name: " + json.contains("name"));
+
+print("=== Done ===");

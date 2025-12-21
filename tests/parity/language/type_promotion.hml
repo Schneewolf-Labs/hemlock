@@ -1,0 +1,47 @@
+// Parity test for type promotion rules
+// Tests that both backends handle type promotion identically
+
+print("=== Integer promotion ===");
+// i8 -> i16 -> i32 -> i64
+let a: i8 = 127;
+let b: i16 = 32767;
+let c: i32 = 2147483647;
+
+// Promotion happens in binary ops
+let sum1 = a + b;  // i8 + i16 = i16
+print("i8 + i16 type: " + typeof(sum1));
+
+let sum2 = b + c;  // i16 + i32 = i32
+print("i16 + i32 type: " + typeof(sum2));
+
+// i32 * large = i64
+let big: i64 = 10000000000;
+let sum3 = c + big;
+print("i32 + i64 type: " + typeof(sum3));
+
+print("=== Float promotion ===");
+// Integer to float promotion
+let i = 42;
+let f: f64 = 3.14;
+let result = i + f;  // i32 + f64 = f64
+print("i32 + f64 type: " + typeof(result));
+print("i32 + f64 value: " + (result > 45.0 && result < 46.0));
+
+// f32 -> f64 promotion
+let f32val: f32 = 1.5;
+let f64val: f64 = 2.5;
+let fsum = f32val + f64val;
+print("f32 + f64 type: " + typeof(fsum));
+print("f32 + f64 value: " + (fsum == 4.0));
+
+print("=== Mixed operations ===");
+// Multiple promotions in one expression
+let mixed = a + b + c + f;
+print("mixed type: " + typeof(mixed));
+
+// Division always produces float
+let div_result = 10 / 3;
+print("10 / 3 type: " + typeof(div_result));
+print("10 / 3 value: " + (div_result > 3.3 && div_result < 3.4));
+
+print("=== Done ===");
