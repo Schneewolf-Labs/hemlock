@@ -279,7 +279,7 @@ Stmt* import_statement(Parser *p) {
 
     // Check for namespace import: import * as name from "module"
     if (match(p, TOK_STAR)) {
-        consume(p, TOK_AS, "Expect 'as' after '*' in namespace import");
+        consume_contextual(p, "as", "Expect 'as' after '*' in namespace import");
         consume(p, TOK_IDENT, "Expect identifier for namespace name");
         char *namespace_name = token_text(&p->previous);
 
@@ -307,7 +307,7 @@ Stmt* import_statement(Parser *p) {
         import_names[num_imports] = token_text(&p->previous);
 
         // Check for alias: name as alias
-        if (match(p, TOK_AS)) {
+        if (match_contextual(p, "as")) {
             consume(p, TOK_IDENT, "Expect alias name after 'as'");
             import_aliases[num_imports] = token_text(&p->previous);
         } else {
@@ -341,7 +341,7 @@ Stmt* export_statement(Parser *p) {
             export_names[num_exports] = token_text(&p->previous);
 
             // Check for alias: name as alias
-            if (match(p, TOK_AS)) {
+            if (match_contextual(p, "as")) {
                 consume(p, TOK_IDENT, "Expect alias name after 'as'");
                 export_aliases[num_exports] = token_text(&p->previous);
             } else {

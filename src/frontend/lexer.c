@@ -448,7 +448,7 @@ static TokenType identifier_type(Lexer *lex) {
     
     switch (lex->start[0]) {
         case 'a':
-            if (len == 2) return check_keyword(lex->start, 2, "as", TOK_AS);
+            // Note: 'as' is a contextual keyword, handled as identifier
             if (len == 5) {
                 if (strncmp(lex->start, "async", 5) == 0) return TOK_ASYNC;
                 if (strncmp(lex->start, "await", 5) == 0) return TOK_AWAIT;
