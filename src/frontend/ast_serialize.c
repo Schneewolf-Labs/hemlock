@@ -310,7 +310,8 @@ static void serialize_expr(SerializeContext *ctx, Expr *expr) {
             break;
 
         case EXPR_IDENT:
-            write_string_id(ctx, expr->as.ident);
+            write_string_id(ctx, expr->as.ident.name);
+            // Note: resolution info is not serialized - it's recomputed after deserialization
             break;
 
         case EXPR_NULL:
@@ -489,7 +490,10 @@ static Expr* deserialize_expr(DeserializeContext *ctx) {
             break;
 
         case EXPR_IDENT:
-            expr->as.ident = read_string_id(ctx);
+            expr->as.ident.name = read_string_id(ctx);
+            expr->as.ident.resolved.is_resolved = 0;  // Needs resolution after deserialization
+            expr->as.ident.resolved.depth = 0;
+            expr->as.ident.resolved.slot = 0;
             break;
 
         case EXPR_NULL:

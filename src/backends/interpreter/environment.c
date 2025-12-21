@@ -747,3 +747,83 @@ Value env_get(Environment *env, const char *name, ExecutionContext *ctx) {
     ctx->exception_state.is_throwing = 1;
     return val_null();  // Return dummy value when exception is thrown
 }
+
+/*
+ * Fast variable lookup using pre-resolved (depth, slot) indices.
+ * This is an O(1) operation for local variables (depth=0) and O(depth) for closures.
+ * Called when the resolver has computed resolution info for a variable reference.
+ *
+ * Parameters:
+ *   env   - Current environment
+ *   depth - Number of scope hops to reach the defining scope (0 = current)
+ *   slot  - Index within that environment's values array
+ *
+ * Returns the value with an incremented reference count (caller owns a reference).
+ */
+Value env_get_resolved(Environment *env, int depth, int slot) {
+    // Walk up the environment chain to the target depth
+    Environment *target = env;
+    for (int i = 0; i < depth; i++) {
+        target = target->parent;
+        // Should not happen if resolver is correct, but guard anyway
+        if (!target) {
+            return val_null();
+        }
+    }
+
+    // Direct indexed access - O(1) instead of hash lookup
+    if (slot >= 0 && slot < target->count) {
+        Value val = target->values[slot];
+        VALUE_RETAIN(val);
+        return val;
+    }
+
+    // Invalid slot (should not happen if resolver is correct)
+    return val_null();
+}
+
+/*
+ * Fast variable assignment using pre-resolved (depth, slot) indices.
+ * This is O(1) for local variables and O(depth) for closures.
+ *
+ * Parameters:
+ *   env   - Current environment
+ *   depth - Number of scope hops to reach the defining scope
+ *   slot  - Index within that environment's values array
+ *   value - New value to assign
+ *   ctx   - Execution context (for error handling)
+ *
+ * Returns 1 on success, 0 on failure (const violation).
+ */
+int env_set_resolved(Environment *env, int depth, int slot, Value value, ExecutionContext *ctx) {
+    // Walk up the environment chain to the target depth
+    Environment *target = env;
+    for (int i = 0; i < depth; i++) {
+        target = target->parent;
+        if (!target) {
+            runtime_error(ctx, "Invalid resolved variable depth");
+            return 0;
+        }
+    }
+
+    // Check bounds
+    if (slot < 0 || slot >= target->count) {
+        runtime_error(ctx, "Invalid resolved variable slot");
+        return 0;
+    }
+
+    // Check for const violation
+    if (target->is_const[slot]) {
+        char error_msg[256];
+        snprintf(error_msg, sizeof(error_msg), "Cannot assign to constant '%s'",
+                 target->names[slot]);
+        runtime_error(ctx, error_msg);
+        return 0;
+    }
+
+    // Release old value and assign new one
+    VALUE_RELEASE(target->values[slot]);
+    VALUE_RETAIN(value);
+    target->values[slot] = value;
+    return 1;
+}

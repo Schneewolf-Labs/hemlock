@@ -376,7 +376,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
         case EXPR_CALL: {
             // Check for builtin function calls
             if (expr->as.call.func->type == EXPR_IDENT) {
-                const char *fn_name = expr->as.call.func->as.ident;
+                const char *fn_name = expr->as.call.func->as.ident.name;
 
                 // Handle print builtin
                 if (strcmp(fn_name, "print") == 0 && expr->as.call.num_args == 1) {
@@ -1264,7 +1264,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     // Check if argument is a type name identifier
                     Expr *arg_expr = expr->as.call.args[0];
                     if (arg_expr->type == EXPR_IDENT) {
-                        const char *type_name = arg_expr->as.ident;
+                        const char *type_name = arg_expr->as.ident.name;
                         // List of valid type names
                         if (strcmp(type_name, "i8") == 0 || strcmp(type_name, "i16") == 0 ||
                             strcmp(type_name, "i32") == 0 || strcmp(type_name, "i64") == 0 ||
@@ -1298,7 +1298,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     char *type_arg = NULL;
                     int type_is_temp = 0;
                     if (type_expr->type == EXPR_IDENT) {
-                        const char *type_name = type_expr->as.ident;
+                        const char *type_name = type_expr->as.ident.name;
                         // List of valid type names
                         if (strcmp(type_name, "i8") == 0 || strcmp(type_name, "i16") == 0 ||
                             strcmp(type_name, "i32") == 0 || strcmp(type_name, "i64") == 0 ||
@@ -2646,7 +2646,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 Expr *right = val_expr->as.binary.right;
 
                 // Check if left operand is the same variable being assigned
-                if (left->type == EXPR_IDENT && strcmp(left->as.ident, expr->as.assign.name) == 0) {
+                if (left->type == EXPR_IDENT && strcmp(left->as.ident.name, expr->as.assign.name) == 0) {
                     // Check if right operand is definitely a string (literal only)
                     // We can't assume EXPR_IDENT is a string since it could be a number
                     // String indexing returns a rune but the variable type is unknown at compile time
@@ -3119,7 +3119,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
         case EXPR_PREFIX_INC: {
             // ++x is equivalent to x = x + 1, returns new value
             if (expr->as.prefix_inc.operand->type == EXPR_IDENT) {
-                const char *raw_var = expr->as.prefix_inc.operand->as.ident;
+                const char *raw_var = expr->as.prefix_inc.operand->as.ident.name;
                 const char *var = raw_var;
                 char prefixed_name[256];
                 char *safe_var = NULL;
@@ -3179,7 +3179,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
 
         case EXPR_PREFIX_DEC: {
             if (expr->as.prefix_dec.operand->type == EXPR_IDENT) {
-                const char *raw_var = expr->as.prefix_dec.operand->as.ident;
+                const char *raw_var = expr->as.prefix_dec.operand->as.ident.name;
                 const char *var = raw_var;
                 char prefixed_name[256];
                 char *safe_var = NULL;
@@ -3240,7 +3240,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
         case EXPR_POSTFIX_INC: {
             // x++ returns old value, then increments
             if (expr->as.postfix_inc.operand->type == EXPR_IDENT) {
-                const char *raw_var = expr->as.postfix_inc.operand->as.ident;
+                const char *raw_var = expr->as.postfix_inc.operand->as.ident.name;
                 const char *var = raw_var;
                 char prefixed_name[256];
                 char *safe_var = NULL;
@@ -3300,7 +3300,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
 
         case EXPR_POSTFIX_DEC: {
             if (expr->as.postfix_dec.operand->type == EXPR_IDENT) {
-                const char *raw_var = expr->as.postfix_dec.operand->as.ident;
+                const char *raw_var = expr->as.postfix_dec.operand->as.ident.name;
                 const char *var = raw_var;
                 char prefixed_name[256];
                 char *safe_var = NULL;

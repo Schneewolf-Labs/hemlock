@@ -361,7 +361,7 @@ void find_free_vars(Expr *expr, Scope *local_scope, FreeVarSet *free_vars) {
     switch (expr->type) {
         case EXPR_IDENT: {
             // If variable is not in local scope, it's free
-            const char *name = expr->as.ident;
+            const char *name = expr->as.ident.name;
             if (!scope_is_defined(local_scope, name)) {
                 free_var_set_add(free_vars, name);
             }

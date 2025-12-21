@@ -240,6 +240,10 @@ void env_define(Environment *env, const char *name, Value value, int is_const, E
 void env_set(Environment *env, const char *name, Value value, ExecutionContext *ctx);
 Value env_get(Environment *env, const char *name, ExecutionContext *ctx);
 
+// Fast resolved variable access (using pre-computed depth/slot indices)
+Value env_get_resolved(Environment *env, int depth, int slot);
+int env_set_resolved(Environment *env, int depth, int slot, Value value, ExecutionContext *ctx);
+
 // Execution context management (opaque pointer pattern)
 ExecutionContext* exec_context_new(void);
 void exec_context_free(ExecutionContext *ctx);

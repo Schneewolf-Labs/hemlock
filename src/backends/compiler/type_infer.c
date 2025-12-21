@@ -327,7 +327,7 @@ InferredType infer_expr(TypeInferContext *ctx, Expr *expr) {
             return infer_null();
 
         case EXPR_IDENT:
-            return type_env_lookup(ctx, expr->as.ident);
+            return type_env_lookup(ctx, expr->as.ident.name);
 
         case EXPR_BINARY: {
             InferredType left = infer_expr(ctx, expr->as.binary.left);
@@ -356,7 +356,7 @@ InferredType infer_expr(TypeInferContext *ctx, Expr *expr) {
         case EXPR_CALL:
             // Look up function return type if it's a direct call to a known function
             if (expr->as.call.func && expr->as.call.func->type == EXPR_IDENT) {
-                return type_lookup_func_return(ctx, expr->as.call.func->as.ident);
+                return type_lookup_func_return(ctx, expr->as.call.func->as.ident.name);
             }
             return infer_unknown();
 
