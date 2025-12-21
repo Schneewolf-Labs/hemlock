@@ -1181,6 +1181,58 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     break;
                 }
 
+                // ========== FILESYSTEM BUILTINS ==========
+
+                // cwd()
+                if ((strcmp(fn_name, "cwd") == 0 || strcmp(fn_name, "__cwd") == 0) && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_cwd();", result);
+                    break;
+                }
+
+                // chdir(path)
+                if ((strcmp(fn_name, "chdir") == 0 || strcmp(fn_name, "__chdir") == 0) && expr->as.call.num_args == 1) {
+                    char *path_arg = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_chdir(%s);", result, path_arg);
+                    codegen_writeln(ctx, "hml_release(&%s);", path_arg);
+                    free(path_arg);
+                    break;
+                }
+
+                // list_dir(path)
+                if ((strcmp(fn_name, "list_dir") == 0 || strcmp(fn_name, "__list_dir") == 0) && expr->as.call.num_args == 1) {
+                    char *path_arg = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_list_dir(%s);", result, path_arg);
+                    codegen_writeln(ctx, "hml_release(&%s);", path_arg);
+                    free(path_arg);
+                    break;
+                }
+
+                // make_dir(path, mode?)
+                if ((strcmp(fn_name, "make_dir") == 0 || strcmp(fn_name, "__make_dir") == 0) &&
+                    (expr->as.call.num_args == 1 || expr->as.call.num_args == 2)) {
+                    char *path_arg = codegen_expr(ctx, expr->as.call.args[0]);
+                    if (expr->as.call.num_args == 2) {
+                        char *mode_arg = codegen_expr(ctx, expr->as.call.args[1]);
+                        codegen_writeln(ctx, "HmlValue %s = hml_make_dir(%s, %s);", result, path_arg, mode_arg);
+                        codegen_writeln(ctx, "hml_release(&%s);", mode_arg);
+                        free(mode_arg);
+                    } else {
+                        codegen_writeln(ctx, "HmlValue %s = hml_make_dir(%s, hml_val_i32(0755));", result, path_arg);
+                    }
+                    codegen_writeln(ctx, "hml_release(&%s);", path_arg);
+                    free(path_arg);
+                    break;
+                }
+
+                // remove_dir(path)
+                if ((strcmp(fn_name, "remove_dir") == 0 || strcmp(fn_name, "__remove_dir") == 0) && expr->as.call.num_args == 1) {
+                    char *path_arg = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_remove_dir(%s);", result, path_arg);
+                    codegen_writeln(ctx, "hml_release(&%s);", path_arg);
+                    free(path_arg);
+                    break;
+                }
+
                 // ========== PROCESS MANAGEMENT BUILTINS ==========
 
                 // getppid()

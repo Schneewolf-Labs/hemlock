@@ -1,0 +1,39 @@
+=== Join tests ===
+join a+b: a/b
+join /home+user: /home/user
+join with trailing slash: /home/user
+join with leading slash: /home/user
+=== Join_all tests ===
+join_all 3 parts: /home/user/file.txt
+join_all empty: .
+join_all one: single
+=== Dirname tests ===
+dirname /home/user/file.txt: /home/user
+dirname /home/user/: /home
+dirname file.txt: .
+dirname /: /
+=== Basename tests ===
+basename /home/user/file.txt: file.txt
+basename with suffix: file
+basename /home/user/: user
+=== Extname tests ===
+extname file.txt: .txt
+extname file.tar.gz: .gz
+extname noext: 
+extname .hidden: 
+=== Normalize tests ===
+normalize a/b/../c: a/c
+normalize a/./b: a/b
+normalize /a//b/c: /a/b/c
+normalize ../a: ../a
+=== Is_absolute tests ===
+is_absolute /home: true
+is_absolute home: false
+is_absolute ./home: false
+=== Parse tests ===
+parse root: /
+parse dir: /home/user
+parse base: file.txt
+parse ext: .txt
+parse name: file
+=== Done ===
