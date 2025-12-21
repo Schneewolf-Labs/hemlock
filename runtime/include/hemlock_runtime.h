@@ -683,6 +683,9 @@ HmlValue hml_lws_http_get(HmlValue url);
 // HTTP POST request
 HmlValue hml_lws_http_post(HmlValue url, HmlValue body, HmlValue content_type);
 
+// Generic HTTP request (any method: PUT, DELETE, PATCH, etc.)
+HmlValue hml_lws_http_request(HmlValue method, HmlValue url, HmlValue body, HmlValue content_type);
+
 // Get HTTP response status code
 HmlValue hml_lws_response_status(HmlValue resp);
 
@@ -704,6 +707,7 @@ HmlValue hml_lws_response_body_binary(HmlValue resp);
 // Builtin wrappers for function-as-value
 HmlValue hml_builtin_lws_http_get(HmlClosureEnv *env, HmlValue url);
 HmlValue hml_builtin_lws_http_post(HmlClosureEnv *env, HmlValue url, HmlValue body, HmlValue content_type);
+HmlValue hml_builtin_lws_http_request(HmlClosureEnv *env, HmlValue method, HmlValue url, HmlValue body, HmlValue content_type);
 HmlValue hml_builtin_lws_response_status(HmlClosureEnv *env, HmlValue resp);
 HmlValue hml_builtin_lws_response_body(HmlClosureEnv *env, HmlValue resp);
 HmlValue hml_builtin_lws_response_headers(HmlClosureEnv *env, HmlValue resp);
@@ -714,6 +718,7 @@ HmlValue hml_builtin_lws_response_body_binary(HmlClosureEnv *env, HmlValue resp)
 // WebSocket client functions
 HmlValue hml_lws_ws_connect(HmlValue url);
 HmlValue hml_lws_ws_send_text(HmlValue conn, HmlValue text);
+HmlValue hml_lws_ws_send_binary(HmlValue conn, HmlValue buffer);
 HmlValue hml_lws_ws_recv(HmlValue conn, HmlValue timeout_ms);
 HmlValue hml_lws_ws_close(HmlValue conn);
 HmlValue hml_lws_ws_is_closed(HmlValue conn);
@@ -732,6 +737,7 @@ HmlValue hml_lws_ws_server_close(HmlValue server);
 // WebSocket builtin wrappers
 HmlValue hml_builtin_lws_ws_connect(HmlClosureEnv *env, HmlValue url);
 HmlValue hml_builtin_lws_ws_send_text(HmlClosureEnv *env, HmlValue conn, HmlValue text);
+HmlValue hml_builtin_lws_ws_send_binary(HmlClosureEnv *env, HmlValue conn, HmlValue buffer);
 HmlValue hml_builtin_lws_ws_recv(HmlClosureEnv *env, HmlValue conn, HmlValue timeout_ms);
 HmlValue hml_builtin_lws_ws_close(HmlClosureEnv *env, HmlValue conn);
 HmlValue hml_builtin_lws_ws_is_closed(HmlClosureEnv *env, HmlValue conn);

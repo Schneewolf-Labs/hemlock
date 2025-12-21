@@ -1653,6 +1653,24 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     break;
                 }
 
+                // __lws_http_request(method, url, body, content_type)
+                if (strcmp(fn_name, "__lws_http_request") == 0 && expr->as.call.num_args == 4) {
+                    char *method = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *url = codegen_expr(ctx, expr->as.call.args[1]);
+                    char *body = codegen_expr(ctx, expr->as.call.args[2]);
+                    char *content_type = codegen_expr(ctx, expr->as.call.args[3]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_lws_http_request(%s, %s, %s, %s);", result, method, url, body, content_type);
+                    codegen_writeln(ctx, "hml_release(&%s);", method);
+                    codegen_writeln(ctx, "hml_release(&%s);", url);
+                    codegen_writeln(ctx, "hml_release(&%s);", body);
+                    codegen_writeln(ctx, "hml_release(&%s);", content_type);
+                    free(method);
+                    free(url);
+                    free(body);
+                    free(content_type);
+                    break;
+                }
+
                 // __lws_response_status(resp)
                 if (strcmp(fn_name, "__lws_response_status") == 0 && expr->as.call.num_args == 1) {
                     char *resp = codegen_expr(ctx, expr->as.call.args[0]);
@@ -1808,6 +1826,18 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     codegen_writeln(ctx, "hml_release(&%s);", text);
                     free(conn);
                     free(text);
+                    break;
+                }
+
+                // __lws_ws_send_binary(conn, buffer)
+                if (strcmp(fn_name, "__lws_ws_send_binary") == 0 && expr->as.call.num_args == 2) {
+                    char *conn = codegen_expr(ctx, expr->as.call.args[0]);
+                    char *buffer = codegen_expr(ctx, expr->as.call.args[1]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_lws_ws_send_binary(%s, %s);", result, conn, buffer);
+                    codegen_writeln(ctx, "hml_release(&%s);", conn);
+                    codegen_writeln(ctx, "hml_release(&%s);", buffer);
+                    free(conn);
+                    free(buffer);
                     break;
                 }
 

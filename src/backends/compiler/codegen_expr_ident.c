@@ -329,6 +329,8 @@ char* codegen_expr_ident(CodegenContext *ctx, Expr *expr, char *result) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_lws_http_get, 1, 1, 0);", result);
     } else if (strcmp(expr->as.ident, "__lws_http_post") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_lws_http_post, 3, 3, 0);", result);
+    } else if (strcmp(expr->as.ident, "__lws_http_request") == 0) {
+        codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_lws_http_request, 4, 4, 0);", result);
     } else if (strcmp(expr->as.ident, "__lws_response_status") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_lws_response_status, 1, 1, 0);", result);
     } else if (strcmp(expr->as.ident, "__lws_response_body") == 0) {
@@ -362,6 +364,8 @@ char* codegen_expr_ident(CodegenContext *ctx, Expr *expr, char *result) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_lws_ws_connect, 1, 1, 0);", result);
     } else if (strcmp(expr->as.ident, "__lws_ws_send_text") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_lws_ws_send_text, 2, 2, 0);", result);
+    } else if (strcmp(expr->as.ident, "__lws_ws_send_binary") == 0) {
+        codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_lws_ws_send_binary, 2, 2, 0);", result);
     } else if (strcmp(expr->as.ident, "__lws_ws_recv") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_lws_ws_recv, 2, 2, 0);", result);
     } else if (strcmp(expr->as.ident, "__lws_ws_close") == 0) {

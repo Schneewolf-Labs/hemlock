@@ -9775,6 +9775,11 @@ HmlValue hml_lws_http_post(HmlValue url_val, HmlValue body_val, HmlValue content
     hml_runtime_error("HTTP support not available (libwebsockets not installed)");
 }
 
+HmlValue hml_lws_http_request(HmlValue method_val, HmlValue url_val, HmlValue body_val, HmlValue content_type_val) {
+    (void)method_val; (void)url_val; (void)body_val; (void)content_type_val;
+    hml_runtime_error("HTTP support not available (libwebsockets not installed)");
+}
+
 HmlValue hml_lws_response_status(HmlValue resp_val) {
     (void)resp_val;
     hml_runtime_error("HTTP support not available (libwebsockets not installed)");
@@ -9815,6 +9820,11 @@ HmlValue hml_builtin_lws_http_post(HmlClosureEnv *env, HmlValue url, HmlValue bo
     return hml_lws_http_post(url, body, content_type);
 }
 
+HmlValue hml_builtin_lws_http_request(HmlClosureEnv *env, HmlValue method, HmlValue url, HmlValue body, HmlValue content_type) {
+    (void)env;
+    return hml_lws_http_request(method, url, body, content_type);
+}
+
 HmlValue hml_builtin_lws_response_status(HmlClosureEnv *env, HmlValue resp) {
     (void)env;
     return hml_lws_response_status(resp);
@@ -9853,6 +9863,11 @@ HmlValue hml_lws_ws_connect(HmlValue url_val) {
 
 HmlValue hml_lws_ws_send_text(HmlValue conn_val, HmlValue text_val) {
     (void)conn_val; (void)text_val;
+    hml_runtime_error("WebSocket support not available (libwebsockets not installed)");
+}
+
+HmlValue hml_lws_ws_send_binary(HmlValue conn_val, HmlValue buffer_val) {
+    (void)conn_val; (void)buffer_val;
     hml_runtime_error("WebSocket support not available (libwebsockets not installed)");
 }
 
@@ -9915,6 +9930,11 @@ HmlValue hml_builtin_lws_ws_connect(HmlClosureEnv *env, HmlValue url) {
 HmlValue hml_builtin_lws_ws_send_text(HmlClosureEnv *env, HmlValue conn, HmlValue text) {
     (void)env;
     return hml_lws_ws_send_text(conn, text);
+}
+
+HmlValue hml_builtin_lws_ws_send_binary(HmlClosureEnv *env, HmlValue conn, HmlValue buffer) {
+    (void)env;
+    return hml_lws_ws_send_binary(conn, buffer);
 }
 
 HmlValue hml_builtin_lws_ws_recv(HmlClosureEnv *env, HmlValue conn, HmlValue timeout_ms) {
