@@ -140,11 +140,20 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
         }
 
         case EXPR_IDENT:
+            // Use fast resolved lookup if available, else fall back to hash lookup
+            if (expr->as.ident.resolved.is_resolved) {
+                return env_get_resolved(env, expr->as.ident.resolved.depth, expr->as.ident.resolved.slot);
+            }
             return env_get(env, expr->as.ident.name, ctx);
 
         case EXPR_ASSIGN: {
             Value value = eval_expr(expr->as.assign.value, env, ctx);
-            env_set(env, expr->as.assign.name, value, ctx);
+            // Use fast resolved assignment if available, else fall back to hash lookup
+            if (expr->as.assign.resolved.is_resolved) {
+                env_set_resolved(env, expr->as.assign.resolved.depth, expr->as.assign.resolved.slot, value, ctx);
+            } else {
+                env_set(env, expr->as.assign.name, value, ctx);
+            }
             return value;
         }
 

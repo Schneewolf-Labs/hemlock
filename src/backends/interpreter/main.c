@@ -9,6 +9,7 @@
 #include "ast.h"
 #include "interpreter.h"
 #include "module.h"
+#include "resolver.h"
 #include "interpreter/internal.h"
 #include "lsp/lsp.h"
 #include "ast_serialize.h"
@@ -76,6 +77,9 @@ static void run_source(const char *source, int argc, char **argv, int stack_dept
         fprintf(stderr, "Parse failed!\n");
         exit(1);
     }
+
+    // Resolve variables (compute depth/slot indices for O(1) lookup)
+    resolve_program(statements, stmt_count);
 
     // Interpret
     Environment *env = env_new(NULL);
