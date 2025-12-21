@@ -1,0 +1,119 @@
+// Test @stdlib/fmt module
+import { format, sprintf, pad_left, pad_right, center, truncate, wrap,
+         thousands, bytes_size, duration, ordinal, percent } from "@stdlib/fmt";
+
+print("=== Fmt Module Tests ===");
+
+// Test format() with strings
+print("\n--- format() strings ---");
+print(format("Hello, %s!", ["World"]));
+print(format("Name: %s, Age: %s", ["Alice", 30]));
+print(format("Null: %s", [null]));
+
+// Test format() with integers
+print("\n--- format() integers ---");
+print(format("Count: %d", [42]));
+print(format("Negative: %d", [-17]));
+print(format("Zero: %d", [0]));
+
+// Test format() with floats
+print("\n--- format() floats ---");
+print(format("Pi: %f", [3.14159]));
+print(format("Pi (2 decimals): %.2f", [3.14159]));
+print(format("Pi (0 decimals): %.0f", [3.14159]));
+
+// Test format() with hex, octal, binary
+print("\n--- format() bases ---");
+print(format("Hex: %x", [255]));
+print(format("Hex upper: %X", [255]));
+print(format("Octal: %o", [64]));
+print(format("Binary: %b", [10]));
+
+// Test format() with scientific notation
+print("\n--- format() scientific ---");
+print(format("Sci: %e", [1234.5]));
+print(format("Sci upper: %E", [0.00123]));
+
+// Test format() with width and padding
+print("\n--- format() padding ---");
+print(format("[%10s]", ["hello"]));
+print(format("[%-10s]", ["hello"]));
+print(format("[%05d]", [42]));
+print(format("[%+d]", [42]));
+print(format("[% d]", [42]));
+
+// Test format() with character and quoted
+print("\n--- format() char/quoted ---");
+print(format("Char: %c", [65]));
+print(format("Quoted: %q", ["hello\tworld"]));
+
+// Test escape %%
+print("\n--- format() escape ---");
+print(format("100%% complete", []));
+
+// Test sprintf alias
+print("\n--- sprintf() ---");
+print(sprintf("Same as format: %d", [123]));
+
+// Test pad_left()
+print("\n--- pad_left() ---");
+print("[" + pad_left("hello", 10) + "]");
+print("[" + pad_left("hello", 10, ".") + "]");
+print("[" + pad_left("hello", 3) + "]");
+
+// Test pad_right()
+print("\n--- pad_right() ---");
+print("[" + pad_right("hello", 10) + "]");
+print("[" + pad_right("hello", 10, "-") + "]");
+
+// Test center()
+print("\n--- center() ---");
+print("[" + center("hello", 11) + "]");
+print("[" + center("hi", 10, "=") + "]");
+
+// Test truncate()
+print("\n--- truncate() ---");
+print(truncate("Hello, World!", 10));
+print(truncate("Hello, World!", 10, ".."));
+print(truncate("Short", 10));
+
+// Test wrap()
+print("\n--- wrap() ---");
+let long_text = "This is a long text that should be wrapped at a specified width";
+print(wrap(long_text, 20));
+
+// Test thousands()
+print("\n--- thousands() ---");
+print(thousands(1234567));
+print(thousands(1000));
+print(thousands(-9999999));
+
+// Test bytes_size()
+print("\n--- bytes_size() ---");
+print(bytes_size(500));
+print(bytes_size(1536));
+print(bytes_size(1048576));
+print(bytes_size(1073741824));
+
+// Test duration()
+print("\n--- duration() ---");
+print(duration(0.5));
+print(duration(45));
+print(duration(125));
+print(duration(3725));
+print(duration(90061));
+
+// Test ordinal()
+print("\n--- ordinal() ---");
+print(ordinal(1) + ", " + ordinal(2) + ", " + ordinal(3));
+print(ordinal(11) + ", " + ordinal(12) + ", " + ordinal(13));
+print(ordinal(21) + ", " + ordinal(22) + ", " + ordinal(23));
+print(ordinal(100) + ", " + ordinal(101));
+
+// Test percent()
+print("\n--- percent() ---");
+print(percent(0.5));
+print(percent(0.12345, 2));
+print(percent(1.0));
+
+print("\n=== All Fmt tests completed ===");
