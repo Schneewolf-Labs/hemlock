@@ -5690,6 +5690,12 @@ HmlValue hml_spawn(HmlValue fn, HmlValue *args, int num_args) {
         hml_runtime_error("spawn() expects a function");
     }
 
+    // Verify function is async (for parity with interpreter)
+    HmlFunction *func = fn.as.as_function;
+    if (!func->is_async) {
+        hml_runtime_error("spawn() requires an async function");
+    }
+
     // Create task
     HmlTask *task = malloc(sizeof(HmlTask));
     task->id = atomic_fetch_add(&g_next_task_id, 1);
