@@ -652,7 +652,14 @@ Token lexer_next(Lexer *lex) {
         case ')': return make_token(lex, TOK_RPAREN);
         case '{': return make_token(lex, TOK_LBRACE);
         case '}': return make_token(lex, TOK_RBRACE);
-        case '.': return make_token(lex, TOK_DOT);
+        case '.':
+            // Check for ... (varargs/spread)
+            if (peek(lex) == '.' && peek_next(lex) == '.') {
+                advance(lex);  // consume second dot
+                advance(lex);  // consume third dot
+                return make_token(lex, TOK_DOT_DOT_DOT);
+            }
+            return make_token(lex, TOK_DOT);
         case '[': return make_token(lex, TOK_LBRACKET);
         case ']': return make_token(lex, TOK_RBRACKET);
 

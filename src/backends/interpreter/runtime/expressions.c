@@ -1229,8 +1229,13 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 }
 
                 // Check argument count (must be between required and total params)
-                if (expr->as.call.num_args < required_params || expr->as.call.num_args > fn->num_params) {
-                    if (required_params == fn->num_params) {
+                // If function has rest param, allow unlimited extra args
+                int max_args = fn->rest_param ? INT_MAX : fn->num_params;
+                if (expr->as.call.num_args < required_params || expr->as.call.num_args > max_args) {
+                    if (fn->rest_param) {
+                        runtime_error(ctx, "Function expects at least %d arguments, got %d",
+                                required_params, expr->as.call.num_args);
+                    } else if (required_params == fn->num_params) {
                         runtime_error(ctx, "Function expects %d arguments, got %d",
                                 fn->num_params, expr->as.call.num_args);
                     } else {
@@ -1308,6 +1313,23 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
 
                     // Use fast param binding with pre-computed hash (skips redundant checks)
                     env_define_param(call_env, fn->param_names[i], fn->param_hashes[i], arg_value);
+                }
+
+                // Bind rest parameter if present (collect extra args into array)
+                if (fn->rest_param) {
+                    Array *rest_arr = array_new();
+                    int extra_count = expr->as.call.num_args - fn->num_params;
+                    if (extra_count > 0) {
+                        for (int i = fn->num_params; i < expr->as.call.num_args; i++) {
+                            Value arg = args[i];
+                            // Type check if rest param has type annotation (array element type)
+                            if (fn->rest_param_type) {
+                                arg = convert_to_type(arg, fn->rest_param_type, call_env, ctx);
+                            }
+                            array_push(rest_arr, arg);
+                        }
+                    }
+                    env_define(call_env, fn->rest_param, val_array(rest_arr), 0, ctx);
                 }
 
                 // Save defer stack depth before executing function body
@@ -1465,6 +1487,8 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                             bound_fn->param_defaults = orig_fn->param_defaults;
                             bound_fn->param_hashes = orig_fn->param_hashes;  // Share pre-computed hashes
                             bound_fn->num_params = orig_fn->num_params;
+                            bound_fn->rest_param = orig_fn->rest_param;  // Share rest param name
+                            bound_fn->rest_param_type = orig_fn->rest_param_type;  // Share type
                             bound_fn->return_type = orig_fn->return_type;
                             bound_fn->body = orig_fn->body;
                             bound_fn->closure_env = bound_env;
@@ -1819,6 +1843,23 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
             }
 
             fn->num_params = expr->as.function.num_params;
+
+            // Copy rest parameter (varargs) if present
+            if (expr->as.function.rest_param) {
+                fn->rest_param = strdup(expr->as.function.rest_param);
+                if (expr->as.function.rest_param_type) {
+                    fn->rest_param_type = type_new(expr->as.function.rest_param_type->kind);
+                    fn->rest_param_type->nullable = expr->as.function.rest_param_type->nullable;
+                    if (expr->as.function.rest_param_type->type_name) {
+                        fn->rest_param_type->type_name = strdup(expr->as.function.rest_param_type->type_name);
+                    }
+                } else {
+                    fn->rest_param_type = NULL;
+                }
+            } else {
+                fn->rest_param = NULL;
+                fn->rest_param_type = NULL;
+            }
 
             // Copy return type (may be NULL)
             if (expr->as.function.return_type) {
