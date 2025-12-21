@@ -1,0 +1,128 @@
+// Test @stdlib/ipc module
+import { MessageQueue, Semaphore, Mutex, SharedData, PidFile, Event } from "@stdlib/ipc";
+import { exists, remove_file, remove_dir } from "@stdlib/fs";
+import { time_ms } from "@stdlib/time";
+
+print("=== IPC Module Tests ===");
+
+// Test MessageQueue
+print("\n--- MessageQueue ---");
+let mq_path = "/tmp/hemlock_test_mq_" + time_ms();
+let mq = MessageQueue(mq_path);
+
+print("Queue empty: " + mq.is_empty());
+print("Count: " + mq.count());
+
+mq.send("Hello");
+mq.send("World");
+
+print("After send - Count: " + mq.count());
+print("After send - Empty: " + mq.is_empty());
+
+let msg1 = mq.try_recv();
+print("Received: " + msg1);
+
+let msg2 = mq.try_recv();
+print("Received: " + msg2);
+
+print("After recv - Empty: " + mq.is_empty());
+
+// Test timeout (should return null quickly)
+let msg3 = mq.recv(100);  // 100ms timeout
+print("Timeout recv: " + (msg3 == null));
+
+mq.destroy();
+print("Queue destroyed");
+
+// Test Semaphore
+print("\n--- Semaphore ---");
+let sem_path = "/tmp/hemlock_test_sem_" + time_ms();
+let sem = Semaphore(sem_path, 2);
+
+print("Initial value: " + sem.value());
+
+print("Acquire 1: " + sem.try_acquire());
+print("After acquire 1: " + sem.value());
+
+print("Acquire 2: " + sem.try_acquire());
+print("After acquire 2: " + sem.value());
+
+print("Acquire 3 (should fail): " + sem.try_acquire());
+
+sem.release();
+print("After release: " + sem.value());
+
+// Cleanup
+remove_file(sem_path);
+
+// Test Mutex
+print("\n--- Mutex ---");
+let mutex_path = "/tmp/hemlock_test_mutex_" + time_ms();
+let mutex = Mutex(mutex_path);
+
+print("Is locked initially: " + mutex.is_locked());
+
+print("Lock: " + mutex.lock(100));
+print("Is locked after lock: " + mutex.is_locked());
+
+print("Try lock again (should fail): " + mutex.try_lock());
+
+mutex.unlock();
+print("Is locked after unlock: " + mutex.is_locked());
+
+// Cleanup
+remove_file(mutex_path);
+
+// Test SharedData
+print("\n--- SharedData ---");
+let data_path = "/tmp/hemlock_test_data_" + time_ms();
+let shared = SharedData(data_path);
+
+shared.set("name", "Alice");
+shared.set("age", 30);
+
+print("Get name: " + shared.get("name"));
+print("Get age: " + shared.get("age"));
+let missing = shared.get("missing");
+print("Get missing is null: " + (missing == null));
+
+shared.clear();
+let cleared_name = shared.get("name");
+print("After clear - name is null: " + (cleared_name == null));
+
+// Cleanup
+remove_file(data_path);
+remove_file(data_path + ".lock");
+
+// Test PidFile
+print("\n--- PidFile ---");
+let pid_path = "/tmp/hemlock_test_pid_" + time_ms();
+let pf = PidFile(pid_path);
+
+print("Create: " + pf.create());
+print("Read PID: " + pf.read());
+print("Is owner: " + pf.is_owner());
+print("Create again (should fail): " + pf.create());
+
+pf.remove();
+print("After remove exists: " + exists(pid_path));
+
+// Test Event
+print("\n--- Event ---");
+let event_path = "/tmp/hemlock_test_event_" + time_ms();
+let event = Event(event_path);
+
+print("Is set initially: " + event.is_set());
+
+event.set();
+print("After set: " + event.is_set());
+
+print("Wait (already set): " + event.wait(100));
+
+event.clear();
+print("After clear: " + event.is_set());
+
+// Test wait timeout
+print("Wait timeout (should be false): " + event.wait(100));
+
+print("\n=== All IPC tests completed ===");
