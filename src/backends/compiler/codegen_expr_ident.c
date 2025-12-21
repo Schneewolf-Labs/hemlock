@@ -62,6 +62,10 @@ char* codegen_expr_ident(CodegenContext *ctx, Expr *expr, char *result) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_i32(SIGSTOP);", result);
     } else if (strcmp(expr->as.ident, "SIGTSTP") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_i32(SIGTSTP);", result);
+    } else if (strcmp(expr->as.ident, "SIGTTIN") == 0) {
+        codegen_writeln(ctx, "HmlValue %s = hml_val_i32(SIGTTIN);", result);
+    } else if (strcmp(expr->as.ident, "SIGTTOU") == 0) {
+        codegen_writeln(ctx, "HmlValue %s = hml_val_i32(SIGTTOU);", result);
     // Handle socket constants
     } else if (strcmp(expr->as.ident, "AF_INET") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_i32(AF_INET);", result);
@@ -81,6 +85,10 @@ char* codegen_expr_ident(CodegenContext *ctx, Expr *expr, char *result) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_i32(SO_RCVTIMEO);", result);
     } else if (strcmp(expr->as.ident, "SO_SNDTIMEO") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_i32(SO_SNDTIMEO);", result);
+    } else if (strcmp(expr->as.ident, "IPPROTO_TCP") == 0) {
+        codegen_writeln(ctx, "HmlValue %s = hml_val_i32(IPPROTO_TCP);", result);
+    } else if (strcmp(expr->as.ident, "IPPROTO_UDP") == 0) {
+        codegen_writeln(ctx, "HmlValue %s = hml_val_i32(IPPROTO_UDP);", result);
     // Poll constants
     } else if (strcmp(expr->as.ident, "POLLIN") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_i32(POLLIN);", result);
@@ -90,6 +98,10 @@ char* codegen_expr_ident(CodegenContext *ctx, Expr *expr, char *result) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_i32(POLLERR);", result);
     } else if (strcmp(expr->as.ident, "POLLHUP") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_i32(POLLHUP);", result);
+    } else if (strcmp(expr->as.ident, "POLLNVAL") == 0) {
+        codegen_writeln(ctx, "HmlValue %s = hml_val_i32(POLLNVAL);", result);
+    } else if (strcmp(expr->as.ident, "POLLPRI") == 0) {
+        codegen_writeln(ctx, "HmlValue %s = hml_val_i32(POLLPRI);", result);
     // Handle math constants (builtins)
     } else if (strcmp(expr->as.ident, "__PI") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_f64(3.14159265358979323846);", result);
