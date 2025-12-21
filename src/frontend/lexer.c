@@ -496,7 +496,7 @@ static TokenType identifier_type(Lexer *lex) {
                 if (strncmp(lex->start, "f32", 3) == 0) return TOK_TYPE_F32;
                 if (strncmp(lex->start, "f64", 3) == 0) return TOK_TYPE_F64;
             }
-            if (len == 4) return check_keyword(lex->start, 4, "from", TOK_FROM);
+            // Note: 'from' is a contextual keyword, handled as identifier
             if (len == 5) return check_keyword(lex->start, 5, "false", TOK_FALSE);
             if (len == 7) return check_keyword(lex->start, 7, "finally", TOK_FINALLY);
             break;

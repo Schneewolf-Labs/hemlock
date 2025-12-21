@@ -283,7 +283,7 @@ Stmt* import_statement(Parser *p) {
         consume(p, TOK_IDENT, "Expect identifier for namespace name");
         char *namespace_name = token_text(&p->previous);
 
-        consume(p, TOK_FROM, "Expect 'from' in import statement");
+        consume_contextual(p, "from", "Expect 'from' in import statement");
         consume(p, TOK_STRING, "Expect module path string");
         char *module_path = p->previous.string_value;
 
@@ -318,7 +318,7 @@ Stmt* import_statement(Parser *p) {
     } while (match(p, TOK_COMMA));
 
     consume(p, TOK_RBRACE, "Expect '}' after import list");
-    consume(p, TOK_FROM, "Expect 'from' in import statement");
+    consume_contextual(p, "from", "Expect 'from' in import statement");
     consume(p, TOK_STRING, "Expect module path string");
     char *module_path = p->previous.string_value;
 
@@ -354,7 +354,7 @@ Stmt* export_statement(Parser *p) {
         consume(p, TOK_RBRACE, "Expect '}' after export list");
 
         // Check for re-export
-        if (match(p, TOK_FROM)) {
+        if (match_contextual(p, "from")) {
             consume(p, TOK_STRING, "Expect module path string");
             char *module_path = p->previous.string_value;
             consume(p, TOK_SEMICOLON, "Expect ';' after export statement");
