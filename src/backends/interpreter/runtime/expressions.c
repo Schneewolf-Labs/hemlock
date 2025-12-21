@@ -140,7 +140,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
         }
 
         case EXPR_IDENT:
-            return env_get(env, expr->as.ident, ctx);
+            return env_get(env, expr->as.ident.name, ctx);
 
         case EXPR_ASSIGN: {
             Value value = eval_expr(expr->as.assign.value, env, ctx);
@@ -1258,7 +1258,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 if (is_method_call && expr->as.call.func->type == EXPR_GET_PROPERTY) {
                     fn_name = expr->as.call.func->as.get_property.property;
                 } else if (expr->as.call.func->type == EXPR_IDENT) {
-                    fn_name = expr->as.call.func->as.ident;
+                    fn_name = expr->as.call.func->as.ident.name;
                 }
 
                 // Check for stack overflow (prevent infinite recursion)
@@ -1992,10 +1992,10 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
 
             if (operand->type == EXPR_IDENT) {
                 // Simple variable: ++x
-                Value old_val = env_get(env, operand->as.ident, ctx);  // Retains old value
+                Value old_val = env_get(env, operand->as.ident.name, ctx);  // Retains old value
                 Value new_val = value_add_one(old_val, ctx);
                 VALUE_RELEASE(old_val);  // Release old value after incrementing
-                env_set(env, operand->as.ident, new_val, ctx);
+                env_set(env, operand->as.ident.name, new_val, ctx);
                 return new_val;
             } else if (operand->type == EXPR_INDEX) {
                 // Array/buffer/string index: ++arr[i]
@@ -2052,10 +2052,10 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
             Expr *operand = expr->as.prefix_dec.operand;
 
             if (operand->type == EXPR_IDENT) {
-                Value old_val = env_get(env, operand->as.ident, ctx);  // Retains old value
+                Value old_val = env_get(env, operand->as.ident.name, ctx);  // Retains old value
                 Value new_val = value_sub_one(old_val, ctx);
                 VALUE_RELEASE(old_val);  // Release old value after decrementing
-                env_set(env, operand->as.ident, new_val, ctx);
+                env_set(env, operand->as.ident.name, new_val, ctx);
                 return new_val;
             } else if (operand->type == EXPR_INDEX) {
                 Value object = eval_expr(operand->as.index.object, env, ctx);
@@ -2110,9 +2110,9 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
             Expr *operand = expr->as.postfix_inc.operand;
 
             if (operand->type == EXPR_IDENT) {
-                Value old_val = env_get(env, operand->as.ident, ctx);  // Retains old value
+                Value old_val = env_get(env, operand->as.ident.name, ctx);  // Retains old value
                 Value new_val = value_add_one(old_val, ctx);
-                env_set(env, operand->as.ident, new_val, ctx);
+                env_set(env, operand->as.ident.name, new_val, ctx);
                 // Return old value (still retained from env_get, caller now owns it)
                 return old_val;
             } else if (operand->type == EXPR_INDEX) {
@@ -2169,9 +2169,9 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
             Expr *operand = expr->as.postfix_dec.operand;
 
             if (operand->type == EXPR_IDENT) {
-                Value old_val = env_get(env, operand->as.ident, ctx);  // Retains old value
+                Value old_val = env_get(env, operand->as.ident.name, ctx);  // Retains old value
                 Value new_val = value_sub_one(old_val, ctx);
-                env_set(env, operand->as.ident, new_val, ctx);
+                env_set(env, operand->as.ident.name, new_val, ctx);
                 // Return old value (still retained from env_get, caller now owns it)
                 return old_val;
             } else if (operand->type == EXPR_INDEX) {

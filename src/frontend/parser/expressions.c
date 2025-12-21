@@ -621,7 +621,7 @@ Expr* assignment(Parser *p) {
 
         if (expr->type == EXPR_IDENT) {
             // Variable compound assignment: x += 5
-            char *name = strdup(expr->as.ident);
+            char *name = strdup(expr->as.ident.name);
             Expr *lhs_copy = expr_ident(name);
             Expr *binary = expr_binary(lhs_copy, compound_op, rhs);
             expr_free(expr);
@@ -682,7 +682,7 @@ Expr* assignment(Parser *p) {
         // Check what kind of assignment target we have
         if (expr->type == EXPR_IDENT) {
             // Regular variable assignment
-            char *name = strdup(expr->as.ident);
+            char *name = strdup(expr->as.ident.name);
             Expr *value = assignment(p);
             expr_free(expr);
             return expr_assign(name, value);

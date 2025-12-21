@@ -54,7 +54,10 @@ Expr* expr_ident(const char *name) {
     Expr *expr = malloc(sizeof(Expr));
     expr->type = EXPR_IDENT;
     expr->line = 0;
-    expr->as.ident = strdup(name);
+    expr->as.ident.name = strdup(name);
+    expr->as.ident.resolved.is_resolved = 0;  // Not resolved yet
+    expr->as.ident.resolved.depth = 0;
+    expr->as.ident.resolved.slot = 0;
     return expr;
 }
 
@@ -110,6 +113,9 @@ Expr* expr_assign(const char *name, Expr *value) {
     expr->line = 0;
     expr->as.assign.name = strdup(name);
     expr->as.assign.value = value;
+    expr->as.assign.resolved.is_resolved = 0;  // Not resolved yet
+    expr->as.assign.resolved.depth = 0;
+    expr->as.assign.resolved.slot = 0;
     return expr;
 }
 
@@ -591,8 +597,11 @@ Expr* expr_clone(const Expr *expr) {
         case EXPR_RUNE:
             return expr_rune(expr->as.rune);
 
-        case EXPR_IDENT:
-            return expr_ident(expr->as.ident);
+        case EXPR_IDENT: {
+            Expr *cloned = expr_ident(expr->as.ident.name);
+            cloned->as.ident.resolved = expr->as.ident.resolved;  // Copy resolution info
+            return cloned;
+        }
 
         case EXPR_NULL:
             return expr_null();
@@ -629,11 +638,14 @@ Expr* expr_clone(const Expr *expr) {
             );
         }
 
-        case EXPR_ASSIGN:
-            return expr_assign(
+        case EXPR_ASSIGN: {
+            Expr *cloned = expr_assign(
                 expr->as.assign.name,
                 expr_clone(expr->as.assign.value)
             );
+            cloned->as.assign.resolved = expr->as.assign.resolved;  // Copy resolution info
+            return cloned;
+        }
 
         case EXPR_GET_PROPERTY:
             return expr_get_property(
@@ -766,7 +778,7 @@ void expr_free(Expr *expr) {
     
     switch (expr->type) {
         case EXPR_IDENT:
-            free(expr->as.ident);
+            free(expr->as.ident.name);
             break;
         case EXPR_STRING:
             free(expr->as.string);

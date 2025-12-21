@@ -66,6 +66,15 @@ typedef enum {
     UNARY_BIT_NOT,
 } UnaryOp;
 
+// Variable resolution info - computed during resolution pass to enable O(1) variable lookup
+// When is_resolved is true, the variable can be accessed directly via (depth, slot) indices
+// instead of hash table lookup at runtime
+typedef struct {
+    int is_resolved;  // 1 if resolved, 0 if needs runtime lookup (e.g., dynamic scope)
+    int depth;        // Number of environment hops to reach the defining scope (0 = current)
+    int slot;         // Index within that environment's values array
+} ResolvedVar;
+
 // Expression node
 struct Expr {
     ExprType type;
@@ -79,7 +88,10 @@ struct Expr {
         int boolean;
         char *string;
         uint32_t rune;     // Unicode codepoint
-        char *ident;
+        struct {
+            char *name;
+            ResolvedVar resolved;  // Optional resolution info for O(1) lookup
+        } ident;
         struct {
             Expr *left;
             Expr *right;
@@ -102,6 +114,7 @@ struct Expr {
         struct {
             char *name;
             Expr *value;
+            ResolvedVar resolved;  // Optional resolution info for O(1) lookup
         } assign;
         struct {
             Expr *object;
