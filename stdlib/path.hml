@@ -511,6 +511,59 @@ export fn format(pathObject): string {
 // Utility Functions
 // ============================================================================
 
+// Expand ~ and ~user to home directory
+// Parameters:
+//   path: string - Path with optional ~ prefix
+// Returns: string - Path with ~ expanded to home directory
+export fn expand_user(path): string {
+    if (typeof(path) != "string") {
+        throw "expand_user() requires string argument";
+    }
+
+    if (path.length == 0) {
+        return path;
+    }
+
+    // Check for ~ at start
+    if (!path.starts_with("~")) {
+        return path;
+    }
+
+    // Get home directory from environment
+    let home = __getenv("HOME");
+    if (home == null || home == "") {
+        // Fallback: try to construct from USER
+        let user = __getenv("USER");
+        if (user != null && user != "") {
+            home = "/home/" + user;
+        } else {
+            // Can't expand, return original
+            return path;
+        }
+    }
+
+    // Just ~ or ~/...
+    if (path.length == 1 || path.char_at(1) == '/') {
+        return home + path.slice(1, path.length);
+    }
+
+    // ~username/... format - extract username
+    let end_idx = 1;
+    while (end_idx < path.length && path.char_at(end_idx) != '/') {
+        end_idx = end_idx + 1;
+    }
+
+    let username = path.slice(1, end_idx);
+    let rest = "";
+    if (end_idx < path.length) {
+        rest = path.slice(end_idx, path.length);
+    }
+
+    // For ~username, we try /home/username (common Linux convention)
+    // This is a simplification - real systems would use getpwnam()
+    return "/home/" + username + rest;
+}
+
 // Check if path has a trailing separator
 // Parameters:
 //   path: string - Input path
