@@ -1,0 +1,36 @@
+// Parity test for @stdlib/fs module
+import { exists, read_file, write_file, is_file, is_dir, cwd } from "@stdlib/fs";
+
+// Test exists()
+print("=== File existence tests ===");
+print("exists on cwd: " + (typeof(exists(".")) == "bool"));
+print("exists on nonexistent: " + (exists("/nonexistent_path_xyz") == false));
+
+// Test cwd()
+let current_dir = cwd();
+print("cwd is string: " + (typeof(current_dir) == "string"));
+print("cwd not empty: " + (current_dir.length > 0));
+
+// Test is_file and is_dir
+print("=== File type tests ===");
+print("is_dir on cwd: " + is_dir("."));
+print("is_file on cwd: " + is_file("."));
+
+// Test write_file and read_file with a temp file
+let test_file = "/tmp/hemlock_parity_test_" + __time_ms() + ".txt";
+let test_content = "Hello, Hemlock parity test!";
+
+print("=== File I/O tests ===");
+write_file(test_file, test_content);
+print("write succeeded: true");
+
+let read_content = read_file(test_file);
+print("read matches write: " + (read_content == test_content));
+print("content type: " + typeof(read_content));
+
+// Cleanup
+import { remove_file } from "@stdlib/fs";
+remove_file(test_file);
+print("cleanup succeeded: " + (!exists(test_file)));
+
+print("=== Done ===");

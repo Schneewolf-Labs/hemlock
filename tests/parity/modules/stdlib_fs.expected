@@ -1,0 +1,14 @@
+=== File existence tests ===
+exists on cwd: true
+exists on nonexistent: true
+cwd is string: true
+cwd not empty: true
+=== File type tests ===
+is_dir on cwd: true
+is_file on cwd: false
+=== File I/O tests ===
+write succeeded: true
+read matches write: true
+content type: string
+cleanup succeeded: true
+=== Done ===

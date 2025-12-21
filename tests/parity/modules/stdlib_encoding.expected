@@ -1,0 +1,15 @@
+=== Base64 tests ===
+base64 encode: SGVsbG8sIFdvcmxkIQ==
+base64 roundtrip: true
+base64 empty: 
+=== Hex tests ===
+hex encode ABC: 414243
+hex roundtrip: true
+=== URL tests ===
+url encode: hello+world%21
+url roundtrip: true
+url special: a%3db%26c%3dd
+=== Base32 tests ===
+base32 encode: KRSXG5A=
+base32 roundtrip: true
+=== Done ===
