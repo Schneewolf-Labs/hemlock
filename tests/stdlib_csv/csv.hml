@@ -1,0 +1,78 @@
+// Test @stdlib/csv module
+import { parse, parse_row, stringify, stringify_row, get_column, row_count, column_count } from "@stdlib/csv";
+
+print("=== CSV Module Tests ===");
+
+// Test basic parsing
+print("\n--- parse() ---");
+let csv_text = "name,age,city\nAlice,30,NYC\nBob,25,LA";
+let rows = parse(csv_text);
+print("Row count: " + rows.length);
+print("Row 0: " + rows[0].join(","));
+print("Row 1: " + rows[1].join(","));
+print("Row 2: " + rows[2].join(","));
+
+// Test quoted fields
+print("\n--- Quoted fields ---");
+let quoted_csv = "name,description\nAlice,\"Hello, World\"\nBob,\"Line1\nLine2\"";
+let quoted_rows = parse(quoted_csv);
+print("Quoted row count: " + quoted_rows.length);
+print("Description 1: " + quoted_rows[1][1]);
+print("Description 2 contains newline: " + quoted_rows[2][1].contains("\n"));
+
+// Test escaped quotes
+print("\n--- Escaped quotes ---");
+let escaped_csv = "text\n\"He said \"\"hello\"\"\"";
+let escaped_rows = parse(escaped_csv);
+print("Escaped text: " + escaped_rows[1][0]);
+
+// Test parse_row
+print("\n--- parse_row() ---");
+let row = parse_row("a,b,c,d");
+print("Fields: " + row.join(" | "));
+
+// Test stringify_row
+print("\n--- stringify_row() ---");
+let row_out = stringify_row(["hello", "world", "test"]);
+print("CSV line: " + row_out);
+
+// Test stringify with quotes needed
+let needs_quote = stringify_row(["normal", "has,comma", "has\"quote"]);
+print("Quoted CSV: " + needs_quote);
+
+// Test stringify
+print("\n--- stringify() ---");
+let data = [
+    ["name", "value"],
+    ["foo", "100"],
+    ["bar", "200"]
+];
+let csv_out = stringify(data);
+print("CSV output:");
+print(csv_out);
+
+// Test with custom delimiter
+print("\n--- Custom delimiter ---");
+let tsv_text = "a\tb\tc\n1\t2\t3";
+let tsv_rows = parse(tsv_text, { delimiter: "\t" });
+print("TSV row 0: " + tsv_rows[0].join(","));
+print("TSV row 1: " + tsv_rows[1].join(","));
+
+// Test skip_header
+print("\n--- skip_header ---");
+let with_skip = parse(csv_text, { skip_header: true });
+print("Rows after skip: " + with_skip.length);
+
+// Test utility functions
+print("\n--- Utilities ---");
+let test_data = [
+    ["a", "b", "c"],
+    ["1", "2", "3"],
+    ["4", "5", "6"]
+];
+print("Row count: " + row_count(test_data));
+print("Column count: " + column_count(test_data));
+let col = get_column(test_data, 1);
+print("Column 1: " + col.join(","));
+
+print("\n=== All CSV tests completed ===");
