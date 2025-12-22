@@ -5722,6 +5722,7 @@ static void* task_thread_wrapper(void* arg) {
     void *closure_env = fn->closure_env;
 
     // Call function with arguments based on num_args
+    // Supports up to 10 arguments for async functions
     HmlValue result;
     typedef HmlValue (*Fn0)(void*);
     typedef HmlValue (*Fn1)(void*, HmlValue);
@@ -5729,6 +5730,11 @@ static void* task_thread_wrapper(void* arg) {
     typedef HmlValue (*Fn3)(void*, HmlValue, HmlValue, HmlValue);
     typedef HmlValue (*Fn4)(void*, HmlValue, HmlValue, HmlValue, HmlValue);
     typedef HmlValue (*Fn5)(void*, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue);
+    typedef HmlValue (*Fn6)(void*, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue);
+    typedef HmlValue (*Fn7)(void*, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue);
+    typedef HmlValue (*Fn8)(void*, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue);
+    typedef HmlValue (*Fn9)(void*, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue);
+    typedef HmlValue (*Fn10)(void*, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue, HmlValue);
 
     switch (task->num_args) {
         case 0:
@@ -5749,7 +5755,23 @@ static void* task_thread_wrapper(void* arg) {
         case 5:
             result = ((Fn5)fn_ptr)(closure_env, task->args[0], task->args[1], task->args[2], task->args[3], task->args[4]);
             break;
+        case 6:
+            result = ((Fn6)fn_ptr)(closure_env, task->args[0], task->args[1], task->args[2], task->args[3], task->args[4], task->args[5]);
+            break;
+        case 7:
+            result = ((Fn7)fn_ptr)(closure_env, task->args[0], task->args[1], task->args[2], task->args[3], task->args[4], task->args[5], task->args[6]);
+            break;
+        case 8:
+            result = ((Fn8)fn_ptr)(closure_env, task->args[0], task->args[1], task->args[2], task->args[3], task->args[4], task->args[5], task->args[6], task->args[7]);
+            break;
+        case 9:
+            result = ((Fn9)fn_ptr)(closure_env, task->args[0], task->args[1], task->args[2], task->args[3], task->args[4], task->args[5], task->args[6], task->args[7], task->args[8]);
+            break;
+        case 10:
+            result = ((Fn10)fn_ptr)(closure_env, task->args[0], task->args[1], task->args[2], task->args[3], task->args[4], task->args[5], task->args[6], task->args[7], task->args[8], task->args[9]);
+            break;
         default:
+            hml_runtime_error("async functions with more than 10 arguments are not supported");
             result = hml_val_null();
             break;
     }
@@ -5899,19 +5921,35 @@ void hml_task_debug_info(HmlValue task_val) {
 HmlValue hml_channel(int32_t capacity) {
     HmlChannel *ch = malloc(sizeof(HmlChannel));
     ch->capacity = capacity;
-    ch->buffer = malloc(sizeof(HmlValue) * capacity);
     ch->head = 0;
     ch->tail = 0;
     ch->count = 0;
     ch->closed = 0;
     ch->ref_count = 1;
 
+    // Only allocate buffer for buffered channels (capacity > 0)
+    if (capacity > 0) {
+        ch->buffer = malloc(sizeof(HmlValue) * capacity);
+    } else {
+        ch->buffer = NULL;
+    }
+
     ch->mutex = malloc(sizeof(pthread_mutex_t));
     ch->not_empty = malloc(sizeof(pthread_cond_t));
     ch->not_full = malloc(sizeof(pthread_cond_t));
+    ch->rendezvous = malloc(sizeof(pthread_cond_t));
     pthread_mutex_init((pthread_mutex_t*)ch->mutex, NULL);
     pthread_cond_init((pthread_cond_t*)ch->not_empty, NULL);
     pthread_cond_init((pthread_cond_t*)ch->not_full, NULL);
+    pthread_cond_init((pthread_cond_t*)ch->rendezvous, NULL);
+
+    // Initialize unbuffered channel fields
+    ch->unbuffered_value = malloc(sizeof(HmlValue));
+    if (ch->unbuffered_value) {
+        *(ch->unbuffered_value) = hml_val_null();
+    }
+    ch->sender_waiting = 0;
+    ch->receiver_waiting = 0;
 
     HmlValue result;
     result.type = HML_VAL_CHANNEL;
@@ -5928,11 +5966,45 @@ void hml_channel_send(HmlValue channel, HmlValue value) {
 
     pthread_mutex_lock((pthread_mutex_t*)ch->mutex);
 
-    // Wait while buffer is full
-    while (ch->count == ch->capacity && !ch->closed) {
+    // Check if channel is closed
+    if (ch->closed) {
+        pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
+        hml_runtime_error("cannot send to closed channel");
+    }
+
+    if (ch->capacity == 0) {
+        // Unbuffered channel - rendezvous with receiver
+        hml_retain(&value);
+        *(ch->unbuffered_value) = value;
+        ch->sender_waiting = 1;
+
+        // Signal any waiting receiver that data is available
+        pthread_cond_signal((pthread_cond_t*)ch->not_empty);
+
+        // Wait for receiver to pick up the value
+        while (ch->sender_waiting && !ch->closed) {
+            pthread_cond_wait((pthread_cond_t*)ch->rendezvous, (pthread_mutex_t*)ch->mutex);
+        }
+
+        // Check if we were woken because channel closed
+        if (ch->closed && ch->sender_waiting) {
+            ch->sender_waiting = 0;
+            hml_release(ch->unbuffered_value);
+            *(ch->unbuffered_value) = hml_val_null();
+            pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
+            hml_runtime_error("cannot send to closed channel");
+        }
+
+        pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
+        return;
+    }
+
+    // Buffered channel - wait while buffer is full
+    while (ch->count >= ch->capacity && !ch->closed) {
         pthread_cond_wait((pthread_cond_t*)ch->not_full, (pthread_mutex_t*)ch->mutex);
     }
 
+    // Check again if closed after waking up
     if (ch->closed) {
         pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
         hml_runtime_error("cannot send to closed channel");
@@ -5957,7 +6029,32 @@ HmlValue hml_channel_recv(HmlValue channel) {
 
     pthread_mutex_lock((pthread_mutex_t*)ch->mutex);
 
-    // Wait while buffer is empty
+    if (ch->capacity == 0) {
+        // Unbuffered channel - rendezvous with sender
+        // Wait for sender to have data available
+        while (!ch->sender_waiting && !ch->closed) {
+            pthread_cond_wait((pthread_cond_t*)ch->not_empty, (pthread_mutex_t*)ch->mutex);
+        }
+
+        // If channel is closed and no sender waiting, return null
+        if (!ch->sender_waiting && ch->closed) {
+            pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
+            return hml_val_null();
+        }
+
+        // Get the value from sender
+        HmlValue value = *(ch->unbuffered_value);
+        *(ch->unbuffered_value) = hml_val_null();
+        ch->sender_waiting = 0;
+
+        // Signal sender that value was received
+        pthread_cond_signal((pthread_cond_t*)ch->rendezvous);
+        pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
+
+        return value;
+    }
+
+    // Buffered channel - wait while buffer is empty
     while (ch->count == 0 && !ch->closed) {
         pthread_cond_wait((pthread_cond_t*)ch->not_empty, (pthread_mutex_t*)ch->mutex);
     }
@@ -5999,7 +6096,37 @@ HmlValue hml_channel_recv_timeout(HmlValue channel, HmlValue timeout_val) {
 
     pthread_mutex_lock((pthread_mutex_t*)ch->mutex);
 
-    // Wait while buffer is empty
+    if (ch->capacity == 0) {
+        // Unbuffered channel with timeout - rendezvous with sender
+        // Wait for sender to have data available (with timeout)
+        while (!ch->sender_waiting && !ch->closed) {
+            int rc = pthread_cond_timedwait((pthread_cond_t*)ch->not_empty,
+                                            (pthread_mutex_t*)ch->mutex, &deadline);
+            if (rc == ETIMEDOUT) {
+                pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
+                return hml_val_null();  // Timeout
+            }
+        }
+
+        // If channel is closed and no sender waiting, return null
+        if (!ch->sender_waiting && ch->closed) {
+            pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
+            return hml_val_null();
+        }
+
+        // Get the value from sender
+        HmlValue value = *(ch->unbuffered_value);
+        *(ch->unbuffered_value) = hml_val_null();
+        ch->sender_waiting = 0;
+
+        // Signal sender that value was received
+        pthread_cond_signal((pthread_cond_t*)ch->rendezvous);
+        pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
+
+        return value;
+    }
+
+    // Buffered channel - wait while buffer is empty
     while (ch->count == 0 && !ch->closed) {
         int rc = pthread_cond_timedwait((pthread_cond_t*)ch->not_empty,
                                         (pthread_mutex_t*)ch->mutex, &deadline);
@@ -6052,7 +6179,43 @@ HmlValue hml_channel_send_timeout(HmlValue channel, HmlValue value, HmlValue tim
         hml_runtime_error("cannot send to closed channel");
     }
 
-    // Wait while buffer is full
+    if (ch->capacity == 0) {
+        // Unbuffered channel with timeout - rendezvous with receiver
+        hml_retain(&value);
+        *(ch->unbuffered_value) = value;
+        ch->sender_waiting = 1;
+
+        // Signal any waiting receiver that data is available
+        pthread_cond_signal((pthread_cond_t*)ch->not_empty);
+
+        // Wait for receiver to pick up the value (with timeout)
+        while (ch->sender_waiting && !ch->closed) {
+            int rc = pthread_cond_timedwait((pthread_cond_t*)ch->rendezvous,
+                                            (pthread_mutex_t*)ch->mutex, &deadline);
+            if (rc == ETIMEDOUT) {
+                // Timeout - clean up and return failure
+                ch->sender_waiting = 0;
+                hml_release(ch->unbuffered_value);
+                *(ch->unbuffered_value) = hml_val_null();
+                pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
+                return hml_val_bool(0);  // Timeout - send failed
+            }
+        }
+
+        // Check if we were woken because channel closed
+        if (ch->closed && ch->sender_waiting) {
+            ch->sender_waiting = 0;
+            hml_release(ch->unbuffered_value);
+            *(ch->unbuffered_value) = hml_val_null();
+            pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
+            hml_runtime_error("cannot send to closed channel");
+        }
+
+        pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
+        return hml_val_bool(1);  // Success
+    }
+
+    // Buffered channel - wait while buffer is full
     while (ch->count >= ch->capacity && !ch->closed) {
         int rc = pthread_cond_timedwait((pthread_cond_t*)ch->not_full,
                                         (pthread_mutex_t*)ch->mutex, &deadline);
@@ -6089,8 +6252,11 @@ void hml_channel_close(HmlValue channel) {
 
     pthread_mutex_lock((pthread_mutex_t*)ch->mutex);
     ch->closed = 1;
+    // Wake up all waiting threads
     pthread_cond_broadcast((pthread_cond_t*)ch->not_empty);
     pthread_cond_broadcast((pthread_cond_t*)ch->not_full);
+    // Also wake up any unbuffered channel senders waiting on rendezvous
+    pthread_cond_broadcast((pthread_cond_t*)ch->rendezvous);
     pthread_mutex_unlock((pthread_mutex_t*)ch->mutex);
 }
 

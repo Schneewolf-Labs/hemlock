@@ -179,6 +179,11 @@ struct HmlChannel {
     void *not_empty;        // pthread_cond_t
     void *not_full;         // pthread_cond_t
     int ref_count;
+    // Unbuffered channel support (rendezvous)
+    HmlValue *unbuffered_value;  // Pointer to value being transferred in rendezvous
+    int sender_waiting;          // Flag: sender is blocked waiting for receiver
+    int receiver_waiting;        // Flag: receiver is blocked waiting for sender
+    void *rendezvous;            // pthread_cond_t for rendezvous completion
 };
 
 // Socket (TCP/UDP networking)
