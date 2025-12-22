@@ -1333,7 +1333,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 if (fn->rest_param) {
                     Array *rest_arr = array_new();
                     int extra_count = expr->as.call.num_args - fn->num_params;
-                    if (extra_count > 0) {
+                    if (extra_count > 0 && args) {
                         for (int i = fn->num_params; i < expr->as.call.num_args; i++) {
                             Value arg = args[i];
                             // Type check if rest param has type annotation (array element type)
@@ -1621,11 +1621,17 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 void *ptr = object.as.as_ptr;
                 if (ptr == NULL) {
                     runtime_error(ctx, "Cannot index into null pointer");
+                    VALUE_RELEASE(object);
+                    VALUE_RELEASE(index_val);
+                    return val_null();
                 }
                 // Return the byte as u8
                 result = val_u8(((unsigned char *)ptr)[index]);
             } else {
                 runtime_error(ctx, "Only strings, buffers, arrays, pointers, and objects can be indexed");
+                VALUE_RELEASE(object);
+                VALUE_RELEASE(index_val);
+                return val_null();
             }
 
             // Release the object and index after use
@@ -1746,6 +1752,10 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                     char *new_data = malloc(new_total + 1);
                     if (!new_data) {
                         runtime_error(ctx, "Failed to allocate memory for string resize");
+                        VALUE_RELEASE(object);
+                        VALUE_RELEASE(index_val);
+                        VALUE_RELEASE(value);
+                        return val_null();
                     }
 
                     // Copy prefix (before index)
@@ -1792,6 +1802,10 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 void *ptr = object.as.as_ptr;
                 if (ptr == NULL) {
                     runtime_error(ctx, "Cannot index into null pointer");
+                    VALUE_RELEASE(object);
+                    VALUE_RELEASE(index_val);
+                    VALUE_RELEASE(value);
+                    return val_null();
                 }
                 // Treat as byte array
                 ((unsigned char *)ptr)[index] = (unsigned char)value_to_int(value);
@@ -1800,6 +1814,9 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                 return value;
             } else {
                 runtime_error(ctx, "Only strings, buffers, arrays, pointers, and objects support index assignment");
+                VALUE_RELEASE(object);
+                VALUE_RELEASE(index_val);
+                VALUE_RELEASE(value);
                 return val_null();
             }
         }
@@ -1990,6 +2007,7 @@ Value eval_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
                     VALUE_RELEASE(object);
                     VALUE_RELEASE(value);
                     runtime_error(ctx, "Failed to grow object capacity");
+                    return val_null();
                 }
                 obj->field_names = new_names;
                 obj->field_values = new_values;
