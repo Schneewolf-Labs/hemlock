@@ -1,0 +1,55 @@
+// Test unbuffered channel operations (capacity = 0)
+// Unbuffered channels use rendezvous semantics: sender blocks until receiver picks up
+
+// Basic unbuffered channel with async producer/consumer
+async fn send_values(ch) {
+    ch.send(1);
+    ch.send(2);
+    ch.send(3);
+    ch.close();
+}
+
+async fn receive_values(ch) {
+    let sum = 0;
+    let val = ch.recv();
+    while (val != null) {
+        print(val);
+        sum = sum + val;
+        val = ch.recv();
+    }
+    return sum;
+}
+
+let ch = channel(0);  // Unbuffered
+print(typeof(ch));
+
+let sender = spawn(send_values, ch);
+let receiver = spawn(receive_values, ch);
+
+await sender;
+let total = await receiver;
+print(total);
+
+// Test multiple rounds
+async fn produce_numbers(ch, count) {
+    for (let i = 0; i < count; i = i + 1) {
+        ch.send(i * 10);
+    }
+    ch.close();
+}
+
+async fn consume_numbers(ch) {
+    let val = ch.recv();
+    while (val != null) {
+        print(val);
+        val = ch.recv();
+    }
+}
+
+let ch2 = channel(0);
+let p2 = spawn(produce_numbers, ch2, 5);
+let c2 = spawn(consume_numbers, ch2);
+await p2;
+await c2;
+
+print("done");
