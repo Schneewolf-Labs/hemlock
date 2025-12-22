@@ -1,13 +1,13 @@
 // WebSocket Echo Client Example
-// Demonstrates @stdlib/websocket_pure (pure Hemlock implementation)
+// Demonstrates @stdlib/websocket (requires libwebsockets)
 
-import { WebSocket } from "@stdlib/websocket_pure";
+import { WebSocket } from "@stdlib/websocket";
 
 print("=== Hemlock WebSocket Echo Client ===");
 print("");
 
-// Note: This uses the pure Hemlock implementation
-// For production with SSL, use @stdlib/websocket (requires libwebsockets)
+// Note: This uses libwebsockets implementation with SSL/TLS support
+// Requires: libwebsockets-dev package (sudo apt-get install libwebsockets-dev)
 
 print("Connecting to ws://echo.websocket.org...");
 
@@ -23,7 +23,7 @@ try {
     ws.send_text("Hello WebSocket!");
 
     print("Waiting for echo...");
-    let msg1 = ws.recv();
+    let msg1 = ws.recv(5000);  // 5 second timeout
 
     if (msg1 != null && msg1.type == "text") {
         print("✓ Received: " + msg1.data);
@@ -38,7 +38,7 @@ try {
     ws.send_text("Hemlock WebSocket Test");
 
     print("Waiting for echo...");
-    let msg2 = ws.recv();
+    let msg2 = ws.recv(5000);  // 5 second timeout
 
     if (msg2 != null && msg2.type == "text") {
         print("✓ Received: " + msg2.data);
@@ -53,16 +53,12 @@ try {
     print("ERROR: " + e);
     print("");
     print("Common issues:");
-    print("- Message >125 bytes (not yet supported in pure implementation)");
+    print("- libwebsockets not installed");
     print("- Network connectivity");
     print("- echo.websocket.org is down");
     print("");
-    print("Limitations of pure Hemlock implementation:");
-    print("- No wss:// (SSL) support");
-    print("- Messages limited to <126 bytes");
-    print("- Simplified masking and validation");
-    print("");
-    print("For production use, install libwebsockets and use @stdlib/websocket");
+    print("To install libwebsockets:");
+    print("  sudo apt-get install libwebsockets-dev");
 }
 
 print("Done!");
