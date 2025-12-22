@@ -462,9 +462,30 @@ int main(int argc, char **argv) {
     CodegenContext *ctx = codegen_new(output);
     codegen_set_module_cache(ctx, module_cache);
     codegen_program(ctx, statements, stmt_count);
+
+    // Check for compilation errors
+    int had_errors = ctx->error_count > 0;
+    if (had_errors) {
+        fprintf(stderr, "%d error%s generated\n", ctx->error_count, ctx->error_count > 1 ? "s" : "");
+    }
+
     codegen_free(ctx);
     module_cache_free(module_cache);
     fclose(output);
+
+    // If there were errors, cleanup and exit
+    if (had_errors) {
+        for (int i = 0; i < stmt_count; i++) {
+            stmt_free(statements[i]);
+        }
+        free(statements);
+        free(source);
+        if (!opts.keep_c && !opts.c_output) {
+            unlink(c_file);
+        }
+        if (c_file_allocated) free(c_file);
+        return 1;
+    }
 
     // Cleanup AST
     for (int i = 0; i < stmt_count; i++) {

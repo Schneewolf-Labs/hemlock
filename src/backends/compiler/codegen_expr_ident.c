@@ -35,6 +35,13 @@ char* codegen_expr_ident(CodegenContext *ctx, Expr *expr, char *result) {
     // Handle 'self' specially - maps to hml_self global
     if (strcmp(expr->as.ident.name, "self") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_self;", result);
+    // Handle I/O builtins as first-class functions
+    } else if (strcmp(expr->as.ident.name, "print") == 0) {
+        codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_print, 1, 1, 0);", result);
+    } else if (strcmp(expr->as.ident.name, "println") == 0) {
+        codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_println, 1, 1, 0);", result);
+    } else if (strcmp(expr->as.ident.name, "eprint") == 0) {
+        codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_eprint, 1, 1, 0);", result);
     // Handle signal constants
     } else if (strcmp(expr->as.ident.name, "SIGINT") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_i32(SIGINT);", result);
@@ -389,63 +396,63 @@ char* codegen_expr_ident(CodegenContext *ctx, Expr *expr, char *result) {
     // Socket builtins
     } else if (strcmp(expr->as.ident.name, "socket_create") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_socket_create, 3, 3, 0);", result);
-    // OS info builtins (unprefixed)
-    } else if (strcmp(expr->as.ident.name, "platform") == 0) {
+    // OS info builtins (unprefixed) - must check for local shadowing
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "platform") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_platform, 0, 0, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "arch") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "arch") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_arch, 0, 0, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "hostname") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "hostname") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_hostname, 0, 0, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "username") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "username") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_username, 0, 0, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "homedir") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "homedir") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_homedir, 0, 0, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "cpu_count") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "cpu_count") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_cpu_count, 0, 0, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "total_memory") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "total_memory") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_total_memory, 0, 0, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "free_memory") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "free_memory") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_free_memory, 0, 0, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "os_version") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "os_version") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_os_version, 0, 0, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "os_name") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "os_name") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_os_name, 0, 0, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "tmpdir") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "tmpdir") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_tmpdir, 0, 0, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "uptime") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "uptime") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_uptime, 0, 0, 0);", result);
-    // Filesystem builtins (unprefixed)
-    } else if (strcmp(expr->as.ident.name, "exists") == 0) {
+    // Filesystem builtins (unprefixed) - must check for local shadowing
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "exists") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_exists, 1, 1, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "read_file") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "read_file") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_read_file, 1, 1, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "write_file") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "write_file") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_write_file, 2, 2, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "append_file") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "append_file") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_append_file, 2, 2, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "remove_file") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "remove_file") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_remove_file, 1, 1, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "rename") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "rename") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_rename, 2, 2, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "copy_file") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "copy_file") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_copy_file, 2, 2, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "is_file") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "is_file") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_is_file, 1, 1, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "is_dir") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "is_dir") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_is_dir, 1, 1, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "file_stat") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "file_stat") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_file_stat, 1, 1, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "make_dir") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "make_dir") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_make_dir, 2, 2, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "remove_dir") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "remove_dir") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_remove_dir, 1, 1, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "list_dir") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "list_dir") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_list_dir, 1, 1, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "cwd") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "cwd") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_cwd, 0, 0, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "chdir") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "chdir") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_chdir, 1, 1, 0);", result);
-    } else if (strcmp(expr->as.ident.name, "absolute_path") == 0) {
+    } else if (!codegen_is_local(ctx, expr->as.ident.name) && strcmp(expr->as.ident.name, "absolute_path") == 0) {
         codegen_writeln(ctx, "HmlValue %s = hml_val_function((void*)hml_builtin_absolute_path, 1, 1, 0);", result);
     // Unprefixed aliases for math functions (for parity with interpreter)
     // NOTE: Only use builtin if not shadowed by a local variable
@@ -523,8 +530,15 @@ char* codegen_expr_ident(CodegenContext *ctx, Expr *expr, char *result) {
             free(safe_ident);
         } else if (codegen_is_local(ctx, expr->as.ident.name)) {
             // Local variable - check context to determine how to access
-            if (ctx->current_module) {
-                // In a module - check if it's a module export (self-reference in closure)
+            // Local variables in functions shadow module exports
+            if (ctx->in_function) {
+                // Inside a function - locals (params, loop vars) ALWAYS shadow module exports
+                // This must be checked BEFORE module export lookup
+                char *safe_ident = codegen_sanitize_ident(expr->as.ident.name);
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, safe_ident);
+                free(safe_ident);
+            } else if (ctx->current_module) {
+                // At module level (not in function) - check if it's a module export (self-reference)
                 ExportedSymbol *exp = module_find_export(ctx->current_module, expr->as.ident.name);
                 if (exp) {
                     // Use the mangled export name to access module-level function
@@ -534,11 +548,6 @@ char* codegen_expr_ident(CodegenContext *ctx, Expr *expr, char *result) {
                     codegen_writeln(ctx, "HmlValue %s = %s;", result, safe_ident);
                     free(safe_ident);
                 }
-            } else if (ctx->in_function) {
-                // Inside a function - locals (params, loop vars) shadow main vars
-                char *safe_ident = codegen_sanitize_ident(expr->as.ident.name);
-                codegen_writeln(ctx, "HmlValue %s = %s;", result, safe_ident);
-                free(safe_ident);
             } else if (codegen_is_main_var(ctx, expr->as.ident.name)) {
                 // In main scope, and this is a main var - use _main_ prefix
                 codegen_writeln(ctx, "HmlValue %s = _main_%s;", result, expr->as.ident.name);
@@ -549,9 +558,28 @@ char* codegen_expr_ident(CodegenContext *ctx, Expr *expr, char *result) {
                 free(safe_ident);
             }
         } else if (ctx->current_module) {
-            // Not local, not shadow, have module - use module prefix
-            codegen_writeln(ctx, "HmlValue %s = %s%s;", result,
-                          ctx->current_module->module_prefix, expr->as.ident.name);
+            // Not local, not shadow, have module - check if it's an export first
+            ExportedSymbol *exp = module_find_export(ctx->current_module, expr->as.ident.name);
+            if (exp) {
+                // It's a module export - use the mangled name
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, exp->mangled_name);
+            } else {
+                // Not an export - use module prefix for module-level variable
+                codegen_writeln(ctx, "HmlValue %s = %s%s;", result,
+                              ctx->current_module->module_prefix, expr->as.ident.name);
+            }
+        } else if (ctx->current_closure && ctx->current_closure->source_module) {
+            // Inside a closure - check if identifier is a module export from the closure's source module
+            ExportedSymbol *exp = module_find_export(ctx->current_closure->source_module, expr->as.ident.name);
+            if (exp) {
+                // It's a module export - use the mangled name
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, exp->mangled_name);
+            } else {
+                // Not an export - fallback to bare identifier (may cause C error)
+                char *safe_ident = codegen_sanitize_ident(expr->as.ident.name);
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, safe_ident);
+                free(safe_ident);
+            }
         } else if (codegen_is_main_var(ctx, expr->as.ident.name)) {
             // Main file top-level variable - use _main_ prefix
             codegen_writeln(ctx, "HmlValue %s = _main_%s;", result, expr->as.ident.name);

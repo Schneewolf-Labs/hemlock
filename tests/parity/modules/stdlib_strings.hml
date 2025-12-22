@@ -1,0 +1,38 @@
+// Parity test for @stdlib/strings module
+import { pad_left, pad_right, center, is_alpha, is_digit, is_alnum, reverse, lines, words, snake_case, camel_case, pascal_case, kebab_case, slugify, truncate } from "@stdlib/strings";
+
+// Test padding functions
+print("=== Padding tests ===");
+print("pad_left: [" + pad_left("hi", 5) + "]");
+print("pad_right: [" + pad_right("hi", 5) + "]");
+print("center: [" + center("hi", 6) + "]");
+print("pad with char: [" + pad_left("5", 3, "0") + "]");
+
+// Test character type checking
+print("=== Character type tests ===");
+print("is_alpha abc: " + is_alpha("abc"));
+print("is_alpha 123: " + is_alpha("123"));
+print("is_digit 123: " + is_digit("123"));
+print("is_digit abc: " + is_digit("abc"));
+print("is_alnum a1b2: " + is_alnum("a1b2"));
+
+// Test string manipulation
+print("=== String manipulation ===");
+print("reverse hello: " + reverse("hello"));
+print("lines count: " + lines("a\nb\nc").length);
+print("words count: " + words("  hello   world  ").length);
+
+// Test case conversion
+print("=== Case conversion ===");
+print("snake_case: " + snake_case("helloWorld"));
+print("camel_case: " + camel_case("hello_world"));
+print("pascal_case: " + pascal_case("hello_world"));
+print("kebab_case: " + kebab_case("helloWorld"));
+print("slugify: " + slugify("Hello World!"));
+
+// Test truncation
+print("=== Truncation ===");
+print("truncate short: " + truncate("Hi", 10));
+print("truncate long: " + truncate("Hello World", 8));
+
+print("=== Done ===");

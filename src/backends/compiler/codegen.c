@@ -83,6 +83,8 @@ CodegenContext* codegen_new(FILE *output) {
     ctx->type_ctx = type_infer_new();
     ctx->optimize = 1;  // Enable optimization by default
     ctx->has_defers = 0;  // Track if any defers exist in current function
+    ctx->error_count = 0;
+    ctx->warning_count = 0;
     return ctx;
 }
 
@@ -227,6 +229,34 @@ void codegen_writeln(CodegenContext *ctx, const char *fmt, ...) {
     vfprintf(ctx->output, fmt, args);
     va_end(args);
     fprintf(ctx->output, "\n");
+}
+
+void codegen_error(CodegenContext *ctx, int line, const char *fmt, ...) {
+    ctx->error_count++;
+    fprintf(stderr, "error");
+    if (line > 0) {
+        fprintf(stderr, " (line %d)", line);
+    }
+    fprintf(stderr, ": ");
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fprintf(stderr, "\n");
+}
+
+void codegen_warning(CodegenContext *ctx, int line, const char *fmt, ...) {
+    ctx->warning_count++;
+    fprintf(stderr, "warning");
+    if (line > 0) {
+        fprintf(stderr, " (line %d)", line);
+    }
+    fprintf(stderr, ": ");
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fprintf(stderr, "\n");
 }
 
 char* codegen_temp(CodegenContext *ctx) {

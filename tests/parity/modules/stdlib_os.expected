@@ -1,0 +1,17 @@
+=== Platform detection ===
+platform is string: true
+platform not empty: true
+arch is string: true
+arch not empty: true
+hostname is string: true
+cpu_count is i32: true
+cpu_count positive: true
+=== Convenience functions ===
+is_linux is bool: true
+is_unix is bool: true
+=== format_bytes ===
+format 0: 0 B
+format 512: 512 B
+format 1024: 1 KB
+format 1048576: 1 MB
+=== Done ===

@@ -1,0 +1,20 @@
+// Parity test for @stdlib/time module
+import { now, time_ms, clock } from "@stdlib/time";
+
+// Test now() - Unix timestamp
+print("=== Time functions ===");
+let ts = now();
+print("now is i64: " + (typeof(ts) == "i64"));
+print("now > 1700000000: " + (ts > 1700000000));
+
+// Test time_ms() - Milliseconds
+let ms = time_ms();
+print("time_ms is i64: " + (typeof(ms) == "i64"));
+print("time_ms > now*1000: " + (ms >= ts * 1000));
+
+// Test clock() - CPU time
+let cpu = clock();
+print("clock is f64: " + (typeof(cpu) == "f64"));
+print("clock >= 0: " + (cpu >= 0.0));
+
+print("=== Done ===");

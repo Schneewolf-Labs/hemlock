@@ -1,0 +1,8 @@
+=== Time functions ===
+now is i64: true
+now > 1700000000: true
+time_ms is i64: true
+time_ms > now*1000: true
+clock is f64: true
+clock >= 0: true
+=== Done ===

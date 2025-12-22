@@ -187,6 +187,10 @@ typedef struct {
 
     // Defer optimization tracking
     int has_defers;               // Whether any defer statements exist in current function
+
+    // Error tracking
+    int error_count;              // Number of compilation errors
+    int warning_count;            // Number of compilation warnings
 } CodegenContext;
 
 // Initialize code generation context
@@ -230,6 +234,12 @@ void codegen_write(CodegenContext *ctx, const char *fmt, ...);
 
 // Helper: Write a line with indentation
 void codegen_writeln(CodegenContext *ctx, const char *fmt, ...);
+
+// Helper: Report a compilation error (prints to stderr, increments error_count)
+void codegen_error(CodegenContext *ctx, int line, const char *fmt, ...);
+
+// Helper: Report a compilation warning (prints to stderr, increments warning_count)
+void codegen_warning(CodegenContext *ctx, int line, const char *fmt, ...);
 
 // Helper: Add a local variable to the tracking list
 void codegen_add_local(CodegenContext *ctx, const char *name);

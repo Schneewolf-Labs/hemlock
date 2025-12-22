@@ -68,6 +68,11 @@ void hml_print(HmlValue val);
 void hml_eprint(HmlValue val);
 HmlValue hml_read_line(void);
 
+// I/O builtins as first-class functions (for defer, higher-order functions, etc.)
+HmlValue hml_builtin_print(HmlClosureEnv *env, HmlValue val);
+HmlValue hml_builtin_println(HmlClosureEnv *env, HmlValue val);
+HmlValue hml_builtin_eprint(HmlClosureEnv *env, HmlValue val);
+
 // Type checking
 const char* hml_typeof(HmlValue val);
 void hml_check_type(HmlValue val, HmlValueType expected, const char *var_name);
@@ -300,6 +305,7 @@ HmlValue hml_array_reduce(HmlValue arr, HmlValue reducer, HmlValue initial);
 // ========== OBJECT OPERATIONS ==========
 
 HmlValue hml_object_get_field(HmlValue obj, const char *field);
+HmlValue hml_object_get_field_required(HmlValue obj, const char *field);  // Throws if field not found
 void hml_object_set_field(HmlValue obj, const char *field, HmlValue val);
 int hml_object_has_field(HmlValue obj, const char *field);
 int hml_object_num_fields(HmlValue obj);
@@ -378,6 +384,7 @@ typedef void (*HmlDeferFn)(void *arg);
 
 void hml_defer_push(HmlDeferFn fn, void *arg);
 void hml_defer_push_call(HmlValue fn);
+void hml_defer_push_call_with_args(HmlValue fn, HmlValue *args, int num_args);
 void hml_defer_pop_and_execute(void);
 void hml_defer_execute_all(void);
 

@@ -1,0 +1,47 @@
+// Parity test for @stdlib/encoding module
+import { base64_encode, base64_decode, hex_encode, hex_decode, url_encode, url_decode, base32_encode, base32_decode } from "@stdlib/encoding";
+
+// Test Base64 encoding
+print("=== Base64 tests ===");
+let b64_input = "Hello, World!";
+let b64_encoded = base64_encode(b64_input);
+print("base64 encode: " + b64_encoded);
+
+let b64_decoded = base64_decode(b64_encoded);
+print("base64 roundtrip: " + (b64_decoded == b64_input));
+
+// Test empty string
+print("base64 empty: " + base64_encode(""));
+
+// Test hex encoding
+print("=== Hex tests ===");
+let hex_input = "ABC";
+let hex_encoded = hex_encode(hex_input);
+print("hex encode ABC: " + hex_encoded);
+
+let hex_decoded = hex_decode(hex_encoded);
+print("hex roundtrip: " + (hex_decoded == hex_input));
+
+// Test URL encoding
+print("=== URL tests ===");
+let url_input = "hello world!";
+let url_encoded = url_encode(url_input);
+print("url encode: " + url_encoded);
+
+let url_decoded = url_decode(url_encoded);
+print("url roundtrip: " + (url_decoded == url_input));
+
+// Test special characters
+let special = "a=b&c=d";
+print("url special: " + url_encode(special));
+
+// Test Base32 encoding
+print("=== Base32 tests ===");
+let b32_input = "Test";
+let b32_encoded = base32_encode(b32_input);
+print("base32 encode: " + b32_encoded);
+
+let b32_decoded = base32_decode(b32_encoded);
+print("base32 roundtrip: " + (b32_decoded == b32_input));
+
+print("=== Done ===");

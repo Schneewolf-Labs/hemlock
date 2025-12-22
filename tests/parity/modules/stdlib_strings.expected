@@ -1,0 +1,25 @@
+=== Padding tests ===
+pad_left: [   hi]
+pad_right: [hi   ]
+center: [  hi  ]
+pad with char: [005]
+=== Character type tests ===
+is_alpha abc: true
+is_alpha 123: false
+is_digit 123: true
+is_digit abc: false
+is_alnum a1b2: true
+=== String manipulation ===
+reverse hello: olleh
+lines count: 3
+words count: 2
+=== Case conversion ===
+snake_case: hello_world
+camel_case: helloWorld
+pascal_case: HelloWorld
+kebab_case: hello-world
+slugify: hello-world
+=== Truncation ===
+truncate short: Hi
+truncate long: Hello...
+=== Done ===

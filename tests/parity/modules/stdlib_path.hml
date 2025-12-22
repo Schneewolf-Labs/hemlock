@@ -1,0 +1,54 @@
+// Parity test for @stdlib/path module
+
+import { join, join_all, dirname, basename, extname, normalize, is_absolute, parse } from "@stdlib/path";
+
+print("=== Join tests ===");
+// join takes exactly 2 arguments
+print("join a+b: " + join("a", "b"));
+print("join /home+user: " + join("/home", "user"));
+print("join with trailing slash: " + join("/home/", "user"));
+print("join with leading slash: " + join("/home", "/user"));
+
+print("=== Join_all tests ===");
+// join_all takes an array
+print("join_all 3 parts: " + join_all(["/home", "user", "file.txt"]));
+print("join_all empty: " + join_all([]));
+print("join_all one: " + join_all(["single"]));
+
+print("=== Dirname tests ===");
+print("dirname /home/user/file.txt: " + dirname("/home/user/file.txt"));
+print("dirname /home/user/: " + dirname("/home/user/"));
+print("dirname file.txt: " + dirname("file.txt"));
+print("dirname /: " + dirname("/"));
+
+print("=== Basename tests ===");
+print("basename /home/user/file.txt: " + basename("/home/user/file.txt"));
+print("basename with suffix: " + basename("/home/file.txt", ".txt"));
+print("basename /home/user/: " + basename("/home/user/"));
+
+print("=== Extname tests ===");
+print("extname file.txt: " + extname("file.txt"));
+print("extname file.tar.gz: " + extname("file.tar.gz"));
+print("extname noext: " + extname("noext"));
+print("extname .hidden: " + extname(".hidden"));
+
+print("=== Normalize tests ===");
+print("normalize a/b/../c: " + normalize("a/b/../c"));
+print("normalize a/./b: " + normalize("a/./b"));
+print("normalize /a//b/c: " + normalize("/a//b/c"));
+print("normalize ../a: " + normalize("../a"));
+
+print("=== Is_absolute tests ===");
+print("is_absolute /home: " + is_absolute("/home"));
+print("is_absolute home: " + is_absolute("home"));
+print("is_absolute ./home: " + is_absolute("./home"));
+
+print("=== Parse tests ===");
+let parsed = parse("/home/user/file.txt");
+print("parse root: " + parsed.root);
+print("parse dir: " + parsed.dir);
+print("parse base: " + parsed.base);
+print("parse ext: " + parsed.ext);
+print("parse name: " + parsed.name);
+
+print("=== Done ===");

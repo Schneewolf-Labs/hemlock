@@ -1,0 +1,35 @@
+// Parity test for @stdlib/os module
+import { platform, arch, hostname, cpu_count, is_linux, is_unix, format_bytes } from "@stdlib/os";
+
+// Test platform detection
+print("=== Platform detection ===");
+let p = platform();
+print("platform is string: " + (typeof(p) == "string"));
+print("platform not empty: " + (p.length > 0));
+
+let a = arch();
+print("arch is string: " + (typeof(a) == "string"));
+print("arch not empty: " + (a.length > 0));
+
+// Test hostname
+let h = hostname();
+print("hostname is string: " + (typeof(h) == "string"));
+
+// Test CPU count
+let cpus = cpu_count();
+print("cpu_count is i32: " + (typeof(cpus) == "i32"));
+print("cpu_count positive: " + (cpus > 0));
+
+// Test convenience functions
+print("=== Convenience functions ===");
+print("is_linux is bool: " + (typeof(is_linux()) == "bool"));
+print("is_unix is bool: " + (typeof(is_unix()) == "bool"));
+
+// Test format_bytes
+print("=== format_bytes ===");
+print("format 0: " + format_bytes(0));
+print("format 512: " + format_bytes(512));
+print("format 1024: " + format_bytes(1024));
+print("format 1048576: " + format_bytes(1048576));
+
+print("=== Done ===");

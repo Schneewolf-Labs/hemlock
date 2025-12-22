@@ -639,25 +639,51 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
 
         case STMT_DEFER: {
             ctx->has_defers = 1;  // Mark that this function has defers
-            if (ctx->loop_depth > 0) {
-                // Inside a loop - use runtime defer stack
-                // For `defer foo()`, we need to push the function `foo` to be called later
-                if (stmt->as.defer_stmt.call->type == EXPR_CALL) {
-                    // Get the function being called
-                    char *fn_val = codegen_expr(ctx, stmt->as.defer_stmt.call->as.call.func);
+            // Always use runtime defer stack - this correctly handles:
+            // - Defers inside loops
+            // - Defers inside conditionals (if/else branches)
+            // - Nested control flow
+            if (stmt->as.defer_stmt.call->type == EXPR_CALL) {
+                // Get the function being called and its arguments
+                Expr *call_expr = stmt->as.defer_stmt.call;
+                char *fn_val = codegen_expr(ctx, call_expr->as.call.func);
+                int num_args = call_expr->as.call.num_args;
+
+                if (num_args == 0) {
+                    // No arguments - use simpler push
                     codegen_writeln(ctx, "hml_defer_push_call(%s);", fn_val);
                     codegen_writeln(ctx, "hml_release(&%s);", fn_val);
-                    free(fn_val);
                 } else {
-                    // For non-call expressions, evaluate and push
-                    char *val = codegen_expr(ctx, stmt->as.defer_stmt.call);
-                    codegen_writeln(ctx, "hml_defer_push_call(%s);", val);
-                    codegen_writeln(ctx, "hml_release(&%s);", val);
-                    free(val);
+                    // Has arguments - evaluate them and push with args
+                    char **arg_vals = malloc(sizeof(char*) * num_args);
+                    for (int i = 0; i < num_args; i++) {
+                        arg_vals[i] = codegen_expr(ctx, call_expr->as.call.args[i]);
+                    }
+                    // Build array of arguments
+                    codegen_writeln(ctx, "{");
+                    ctx->indent++;
+                    codegen_writeln(ctx, "HmlValue _defer_args[%d];", num_args);
+                    for (int i = 0; i < num_args; i++) {
+                        codegen_writeln(ctx, "_defer_args[%d] = %s;", i, arg_vals[i]);
+                    }
+                    codegen_writeln(ctx, "hml_defer_push_call_with_args(%s, _defer_args, %d);", fn_val, num_args);
+                    // Release the values (runtime defer has its own copies)
+                    for (int i = 0; i < num_args; i++) {
+                        codegen_writeln(ctx, "hml_release(&%s);", arg_vals[i]);
+                        free(arg_vals[i]);
+                    }
+                    codegen_writeln(ctx, "hml_release(&%s);", fn_val);
+                    free(arg_vals);
+                    ctx->indent--;
+                    codegen_writeln(ctx, "}");
                 }
+                free(fn_val);
             } else {
-                // Not in a loop - use compile-time defer stack
-                codegen_defer_push(ctx, stmt->as.defer_stmt.call);
+                // For non-call expressions (like identifiers), evaluate and push as 0-arg call
+                char *val = codegen_expr(ctx, stmt->as.defer_stmt.call);
+                codegen_writeln(ctx, "hml_defer_push_call(%s);", val);
+                codegen_writeln(ctx, "hml_release(&%s);", val);
+                free(val);
             }
             break;
         }
@@ -778,7 +804,7 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
         case STMT_IMPORT: {
             // Handle module imports
             if (!ctx->module_cache) {
-                codegen_writeln(ctx, "// WARNING: import without module cache: \"%s\"", stmt->as.import_stmt.module_path);
+                codegen_warning(ctx, stmt->line, "import without module cache: \"%s\"", stmt->as.import_stmt.module_path);
                 break;
             }
 
@@ -786,7 +812,7 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             const char *importer_path = ctx->current_module ? ctx->current_module->absolute_path : NULL;
             char *resolved = module_resolve_path(ctx->module_cache, importer_path, stmt->as.import_stmt.module_path);
             if (!resolved) {
-                codegen_writeln(ctx, "// ERROR: Could not resolve import \"%s\"", stmt->as.import_stmt.module_path);
+                codegen_error(ctx, stmt->line, "could not resolve import \"%s\"", stmt->as.import_stmt.module_path);
                 break;
             }
 
@@ -798,7 +824,7 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             free(resolved);
 
             if (!imported) {
-                codegen_writeln(ctx, "// ERROR: Failed to compile import \"%s\"", stmt->as.import_stmt.module_path);
+                codegen_error(ctx, stmt->line, "failed to compile import \"%s\"", stmt->as.import_stmt.module_path);
                 break;
             }
 
@@ -845,7 +871,8 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
                         codegen_writeln(ctx, "HmlValue %s = %s;", bind_name, exp->mangled_name);
                         codegen_add_local(ctx, bind_name);
                     } else {
-                        codegen_writeln(ctx, "// ERROR: '%s' not exported from module", import_name);
+                        codegen_error(ctx, stmt->line, "'%s' is not exported from module \"%s\"",
+                                     import_name, stmt->as.import_stmt.module_path);
                         codegen_writeln(ctx, "HmlValue %s = hml_val_null();", bind_name);
                         codegen_add_local(ctx, bind_name);
                     }
@@ -922,7 +949,7 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             break;
 
         default:
-            codegen_writeln(ctx, "// Unsupported statement type %d", stmt->type);
+            codegen_error(ctx, stmt->line, "unsupported statement type %d", stmt->type);
             break;
     }
 }

@@ -1181,6 +1181,58 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     break;
                 }
 
+                // ========== FILESYSTEM BUILTINS ==========
+
+                // cwd()
+                if ((strcmp(fn_name, "cwd") == 0 || strcmp(fn_name, "__cwd") == 0) && expr->as.call.num_args == 0) {
+                    codegen_writeln(ctx, "HmlValue %s = hml_cwd();", result);
+                    break;
+                }
+
+                // chdir(path)
+                if ((strcmp(fn_name, "chdir") == 0 || strcmp(fn_name, "__chdir") == 0) && expr->as.call.num_args == 1) {
+                    char *path_arg = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_chdir(%s);", result, path_arg);
+                    codegen_writeln(ctx, "hml_release(&%s);", path_arg);
+                    free(path_arg);
+                    break;
+                }
+
+                // list_dir(path)
+                if ((strcmp(fn_name, "list_dir") == 0 || strcmp(fn_name, "__list_dir") == 0) && expr->as.call.num_args == 1) {
+                    char *path_arg = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_list_dir(%s);", result, path_arg);
+                    codegen_writeln(ctx, "hml_release(&%s);", path_arg);
+                    free(path_arg);
+                    break;
+                }
+
+                // make_dir(path, mode?)
+                if ((strcmp(fn_name, "make_dir") == 0 || strcmp(fn_name, "__make_dir") == 0) &&
+                    (expr->as.call.num_args == 1 || expr->as.call.num_args == 2)) {
+                    char *path_arg = codegen_expr(ctx, expr->as.call.args[0]);
+                    if (expr->as.call.num_args == 2) {
+                        char *mode_arg = codegen_expr(ctx, expr->as.call.args[1]);
+                        codegen_writeln(ctx, "HmlValue %s = hml_make_dir(%s, %s);", result, path_arg, mode_arg);
+                        codegen_writeln(ctx, "hml_release(&%s);", mode_arg);
+                        free(mode_arg);
+                    } else {
+                        codegen_writeln(ctx, "HmlValue %s = hml_make_dir(%s, hml_val_i32(0755));", result, path_arg);
+                    }
+                    codegen_writeln(ctx, "hml_release(&%s);", path_arg);
+                    free(path_arg);
+                    break;
+                }
+
+                // remove_dir(path)
+                if ((strcmp(fn_name, "remove_dir") == 0 || strcmp(fn_name, "__remove_dir") == 0) && expr->as.call.num_args == 1) {
+                    char *path_arg = codegen_expr(ctx, expr->as.call.args[0]);
+                    codegen_writeln(ctx, "HmlValue %s = hml_remove_dir(%s);", result, path_arg);
+                    codegen_writeln(ctx, "hml_release(&%s);", path_arg);
+                    free(path_arg);
+                    break;
+                }
+
                 // ========== PROCESS MANAGEMENT BUILTINS ==========
 
                 // getppid()
@@ -2596,6 +2648,20 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
             // Generic function call handling
             char *func_val = codegen_expr(ctx, expr->as.call.func);
 
+            // Check if func is an optional chain - if it evaluated to null, short-circuit
+            // This handles: obj?.method(args) when obj is null
+            int is_optional_chain_call = (expr->as.call.func->type == EXPR_OPTIONAL_CHAIN);
+
+            if (is_optional_chain_call) {
+                codegen_writeln(ctx, "HmlValue %s;", result);
+                codegen_writeln(ctx, "if (%s.type == HML_VAL_NULL) {", func_val);
+                codegen_indent_inc(ctx);
+                codegen_writeln(ctx, "%s = hml_val_null();", result);
+                codegen_indent_dec(ctx);
+                codegen_writeln(ctx, "} else {");
+                codegen_indent_inc(ctx);
+            }
+
             // Reserve a counter for the args array BEFORE generating arg expressions
             // (which may increment temp_counter internally)
             int args_counter = ctx->temp_counter++;
@@ -2612,19 +2678,35 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 for (int i = 0; i < expr->as.call.num_args; i++) {
                     codegen_writeln(ctx, "_args%d[%d] = %s;", args_counter, i, arg_temps[i]);
                 }
-                codegen_writeln(ctx, "HmlValue %s = hml_call_function(%s, _args%d, %d);",
-                              result, func_val, args_counter, expr->as.call.num_args);
+                if (is_optional_chain_call) {
+                    codegen_writeln(ctx, "%s = hml_call_function(%s, _args%d, %d);",
+                                  result, func_val, args_counter, expr->as.call.num_args);
+                } else {
+                    codegen_writeln(ctx, "HmlValue %s = hml_call_function(%s, _args%d, %d);",
+                                  result, func_val, args_counter, expr->as.call.num_args);
+                }
             } else {
-                codegen_writeln(ctx, "HmlValue %s = hml_call_function(%s, NULL, 0);", result, func_val);
+                if (is_optional_chain_call) {
+                    codegen_writeln(ctx, "%s = hml_call_function(%s, NULL, 0);", result, func_val);
+                } else {
+                    codegen_writeln(ctx, "HmlValue %s = hml_call_function(%s, NULL, 0);", result, func_val);
+                }
             }
 
-            // Release temporaries
-            codegen_writeln(ctx, "hml_release(&%s);", func_val);
+            // Release argument temporaries
             for (int i = 0; i < expr->as.call.num_args; i++) {
                 codegen_writeln(ctx, "hml_release(&%s);", arg_temps[i]);
                 free(arg_temps[i]);
             }
             free(arg_temps);
+
+            if (is_optional_chain_call) {
+                codegen_indent_dec(ctx);
+                codegen_writeln(ctx, "}");
+            }
+
+            // Release function temporary
+            codegen_writeln(ctx, "hml_release(&%s);", func_val);
             free(func_val);
             break;
         }
@@ -2759,7 +2841,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"length\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"length\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             // Socket properties: fd, address, port, closed
@@ -2771,7 +2853,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"fd\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"fd\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             } else if (strcmp(expr->as.get_property.property, "address") == 0) {
@@ -2782,7 +2864,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"address\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"address\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             } else if (strcmp(expr->as.get_property.property, "port") == 0) {
@@ -2793,7 +2875,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"port\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"port\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             } else if (strcmp(expr->as.get_property.property, "closed") == 0) {
@@ -2804,7 +2886,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"closed\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"closed\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             // String byte_length property
@@ -2816,7 +2898,7 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"byte_length\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"byte_length\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             // Buffer capacity property
@@ -2828,11 +2910,12 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "} else {");
                 codegen_indent_inc(ctx);
-                codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"capacity\");", result, obj);
+                codegen_writeln(ctx, "%s = hml_object_get_field_required(%s, \"capacity\");", result, obj);
                 codegen_indent_dec(ctx);
                 codegen_writeln(ctx, "}");
             } else {
-                codegen_writeln(ctx, "HmlValue %s = hml_object_get_field(%s, \"%s\");",
+                // Regular property access - throws error if field not found (parity with interpreter)
+                codegen_writeln(ctx, "HmlValue %s = hml_object_get_field_required(%s, \"%s\");",
                               result, obj, expr->as.get_property.property);
             }
             codegen_writeln(ctx, "hml_release(&%s);", obj);
@@ -3464,9 +3547,34 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     codegen_writeln(ctx, "%s = hml_object_get_field(%s, \"%s\");", result, obj, prop);
                 }
             } else if (expr->as.optional_chain.is_call) {
-                // obj?.method(args) - not yet supported
-                codegen_writeln(ctx, "hml_runtime_error(\"Optional chaining for function calls is not yet supported\");");
-                codegen_writeln(ctx, "%s = hml_val_null();", result);
+                // obj?.(args) - call obj directly if not null
+                int num_args = expr->as.optional_chain.num_args;
+                int args_counter = ctx->temp_counter++;
+
+                // Evaluate arguments
+                char **arg_temps = malloc(num_args * sizeof(char*));
+                for (int i = 0; i < num_args; i++) {
+                    arg_temps[i] = codegen_expr(ctx, expr->as.optional_chain.args[i]);
+                }
+
+                // Build args array and call
+                if (num_args > 0) {
+                    codegen_writeln(ctx, "HmlValue _args%d[%d];", args_counter, num_args);
+                    for (int i = 0; i < num_args; i++) {
+                        codegen_writeln(ctx, "_args%d[%d] = %s;", args_counter, i, arg_temps[i]);
+                    }
+                    codegen_writeln(ctx, "%s = hml_call_function(%s, _args%d, %d);",
+                                  result, obj, args_counter, num_args);
+                } else {
+                    codegen_writeln(ctx, "%s = hml_call_function(%s, NULL, 0);", result, obj);
+                }
+
+                // Release argument temporaries
+                for (int i = 0; i < num_args; i++) {
+                    codegen_writeln(ctx, "hml_release(&%s);", arg_temps[i]);
+                    free(arg_temps[i]);
+                }
+                free(arg_temps);
             } else {
                 // obj?.[index]
                 char *idx = codegen_expr(ctx, expr->as.optional_chain.index);
@@ -3499,7 +3607,8 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
         }
 
         default:
-            codegen_writeln(ctx, "HmlValue %s = hml_val_null(); // Unsupported expression type %d", result, expr->type);
+            codegen_error(ctx, expr->line, "unsupported expression type %d", expr->type);
+            codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
             break;
     }
 

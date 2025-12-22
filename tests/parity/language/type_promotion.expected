@@ -1,0 +1,14 @@
+=== Integer promotion ===
+i8 + i16 type: i16
+i16 + i32 type: i32
+i32 + i64 type: i64
+=== Float promotion ===
+i32 + f64 type: f64
+i32 + f64 value: true
+f32 + f64 type: f64
+f32 + f64 value: true
+=== Mixed operations ===
+mixed type: f64
+10 / 3 type: f64
+10 / 3 value: true
+=== Done ===
