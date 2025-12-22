@@ -20,6 +20,24 @@
 #include <libgen.h>
 #include <limits.h>
 
+// ========== IN-MEMORY BUFFER SUPPORT ==========
+
+// In-memory buffer for code generation (replaces tmpfile for better performance)
+typedef struct {
+    char *data;      // Buffer data (dynamically allocated by open_memstream)
+    size_t size;     // Current size of data
+    FILE *stream;    // Stream for writing (NULL after close)
+} MemBuffer;
+
+// Create a new in-memory buffer
+MemBuffer* membuf_new(void);
+
+// Flush buffer contents to a FILE* (can be called multiple times)
+void membuf_flush_to(MemBuffer *buf, FILE *output);
+
+// Close and free the buffer
+void membuf_free(MemBuffer *buf);
+
 // ========== INTERNAL HELPER FUNCTIONS ==========
 
 // Remove a local variable from scope (used for catch params that go out of scope)
@@ -124,7 +142,7 @@ void codegen_module_init(CodegenContext *ctx, CompiledModule *module);
 
 // Generate function declarations for a module
 void codegen_module_funcs(CodegenContext *ctx, CompiledModule *module,
-                          FILE *decl_buffer, FILE *impl_buffer);
+                          MemBuffer *decl_buffer, MemBuffer *impl_buffer);
 
 // ========== MODULE COMPILATION ==========
 

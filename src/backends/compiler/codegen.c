@@ -854,3 +854,44 @@ const char* type_kind_to_ffi_type(TypeKind kind) {
     }
 }
 
+// ========== IN-MEMORY BUFFER SUPPORT ==========
+
+MemBuffer* membuf_new(void) {
+    MemBuffer *buf = malloc(sizeof(MemBuffer));
+    if (!buf) return NULL;
+    buf->data = NULL;
+    buf->size = 0;
+    buf->stream = open_memstream(&buf->data, &buf->size);
+    if (!buf->stream) {
+        free(buf);
+        return NULL;
+    }
+    return buf;
+}
+
+void membuf_flush_to(MemBuffer *buf, FILE *output) {
+    if (!buf || !output) return;
+    // Flush the stream to update data and size
+    if (buf->stream) {
+        fflush(buf->stream);
+    }
+    // Write all buffered data to output
+    if (buf->data && buf->size > 0) {
+        fwrite(buf->data, 1, buf->size, output);
+    }
+}
+
+void membuf_free(MemBuffer *buf) {
+    if (!buf) return;
+    if (buf->stream) {
+        fclose(buf->stream);
+        buf->stream = NULL;
+    }
+    // open_memstream allocates data, we must free it
+    if (buf->data) {
+        free(buf->data);
+        buf->data = NULL;
+    }
+    free(buf);
+}
+

@@ -529,7 +529,7 @@ void codegen_module_init(CodegenContext *ctx, CompiledModule *module) {
 }
 
 // Helper to generate function declarations for a module
-void codegen_module_funcs(CodegenContext *ctx, CompiledModule *module, FILE *decl_buffer, FILE *impl_buffer) {
+void codegen_module_funcs(CodegenContext *ctx, CompiledModule *module, MemBuffer *decl_buffer, MemBuffer *impl_buffer) {
     FILE *saved_output = ctx->output;
     CompiledModule *saved_module = ctx->current_module;
     ctx->current_module = module;
@@ -559,7 +559,7 @@ void codegen_module_funcs(CodegenContext *ctx, CompiledModule *module, FILE *dec
             snprintf(mangled_fn, sizeof(mangled_fn), "%sfn_%s", module->module_prefix, name);
 
             // Generate forward declaration
-            ctx->output = decl_buffer;
+            ctx->output = decl_buffer->stream;
             codegen_write(ctx, "HmlValue %s(HmlClosureEnv *_closure_env", mangled_fn);
             for (int j = 0; j < func->as.function.num_params; j++) {
                 char *safe_param = codegen_sanitize_ident(func->as.function.param_names[j]);
@@ -569,7 +569,7 @@ void codegen_module_funcs(CodegenContext *ctx, CompiledModule *module, FILE *dec
             codegen_write(ctx, ");\n");
 
             // Generate implementation
-            ctx->output = impl_buffer;
+            ctx->output = impl_buffer->stream;
             codegen_write(ctx, "HmlValue %s(HmlClosureEnv *_closure_env", mangled_fn);
             for (int j = 0; j < func->as.function.num_params; j++) {
                 char *safe_param = codegen_sanitize_ident(func->as.function.param_names[j]);
@@ -750,11 +750,11 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
         }
     }
 
-    // Buffer for named function implementations
-    FILE *func_buffer = tmpfile();
-    FILE *main_buffer = tmpfile();
-    FILE *module_decl_buffer = tmpfile();
-    FILE *module_impl_buffer = tmpfile();
+    // In-memory buffers for code generation (faster than tmpfile)
+    MemBuffer *func_buffer = membuf_new();
+    MemBuffer *main_buffer = membuf_new();
+    MemBuffer *module_decl_buffer = membuf_new();
+    MemBuffer *module_impl_buffer = membuf_new();
     FILE *saved_output = ctx->output;
 
     // Pre-pass: Collect all main file variable names BEFORE generating code
@@ -826,7 +826,7 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
     }
 
     // Pass 1: Generate named function bodies to buffer (this collects closures)
-    ctx->output = func_buffer;
+    ctx->output = func_buffer->stream;
     for (int i = 0; i < stmt_count; i++) {
         char *name;
         Expr *func;
@@ -836,7 +836,7 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
     }
 
     // Pass 2: Generate main function body to buffer (this collects more closures)
-    ctx->output = main_buffer;
+    ctx->output = main_buffer->stream;
     codegen_write(ctx, "int main(int argc, char **argv) {\n");
     codegen_indent_inc(ctx);
     codegen_writeln(ctx, "hml_runtime_init(argc, argv);");
@@ -1194,9 +1194,9 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
     free(declared_statics);
 
     // Generate closure implementations to a buffer first (this may create nested closures)
-    FILE *closure_buffer = tmpfile();
+    MemBuffer *closure_buffer = membuf_new();
     FILE *saved_for_closures = ctx->output;
-    ctx->output = closure_buffer;
+    ctx->output = closure_buffer->stream;
 
     // Iteratively generate closures until no new ones are created
     // This handles nested closures (functions inside functions)
@@ -1290,12 +1290,7 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
 
         // Module function forward declarations (from buffer)
         codegen_write(ctx, "// Module function forward declarations\n");
-        rewind(module_decl_buffer);
-        char buf[4096];
-        size_t n;
-        while ((n = fread(buf, 1, sizeof(buf), module_decl_buffer)) > 0) {
-            fwrite(buf, 1, n, ctx->output);
-        }
+        membuf_flush_to(module_decl_buffer, ctx->output);
         codegen_write(ctx, "\n");
 
         // Module init function forward declarations
@@ -1345,14 +1340,9 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
     // Output closure implementations from buffer
     if (ctx->closures) {
         codegen_write(ctx, "// Closure implementations\n");
-        rewind(closure_buffer);
-        char buf[4096];
-        size_t n;
-        while ((n = fread(buf, 1, sizeof(buf), closure_buffer)) > 0) {
-            fwrite(buf, 1, n, ctx->output);
-        }
+        membuf_flush_to(closure_buffer, ctx->output);
     }
-    fclose(closure_buffer);
+    membuf_free(closure_buffer);
 
     // FFI extern function wrapper implementations (including from block scopes)
     for (int i = 0; i < all_extern_fns.count; i++) {
@@ -1401,12 +1391,7 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
     // Module function implementations (from buffer)
     if (ctx->module_cache && ctx->module_cache->modules) {
         codegen_write(ctx, "// Module function implementations\n");
-        rewind(module_impl_buffer);
-        char mbuf[4096];
-        size_t mn;
-        while ((mn = fread(mbuf, 1, sizeof(mbuf), module_impl_buffer)) > 0) {
-            fwrite(mbuf, 1, mn, ctx->output);
-        }
+        membuf_flush_to(module_impl_buffer, ctx->output);
 
         // Module init function implementations
         codegen_write(ctx, "// Module init functions\n");
@@ -1416,23 +1401,15 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
             mod = mod->next;
         }
     }
-    fclose(module_decl_buffer);
-    fclose(module_impl_buffer);
+    membuf_free(module_decl_buffer);
+    membuf_free(module_impl_buffer);
 
     // Named function implementations (from buffer)
     codegen_write(ctx, "// Named function implementations\n");
-    rewind(func_buffer);
-    char buf[4096];
-    size_t n;
-    while ((n = fread(buf, 1, sizeof(buf), func_buffer)) > 0) {
-        fwrite(buf, 1, n, ctx->output);
-    }
-    fclose(func_buffer);
+    membuf_flush_to(func_buffer, ctx->output);
+    membuf_free(func_buffer);
 
     // Main function (from buffer)
-    rewind(main_buffer);
-    while ((n = fread(buf, 1, sizeof(buf), main_buffer)) > 0) {
-        fwrite(buf, 1, n, ctx->output);
-    }
-    fclose(main_buffer);
+    membuf_flush_to(main_buffer, ctx->output);
+    membuf_free(main_buffer);
 }
