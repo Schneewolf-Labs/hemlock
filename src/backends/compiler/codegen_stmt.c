@@ -25,47 +25,14 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
                            stmt->as.let.type_annotation->kind == TYPE_ARRAY) {
                     // Typed array: let arr: array<type> = [...]
                     Type *elem_type = stmt->as.let.type_annotation->element_type;
-                    const char *hml_type = "HML_VAL_NULL";  // Default to untyped
-                    if (elem_type) {
-                        switch (elem_type->kind) {
-                            case TYPE_I8:    hml_type = "HML_VAL_I8"; break;
-                            case TYPE_I16:   hml_type = "HML_VAL_I16"; break;
-                            case TYPE_I32:   hml_type = "HML_VAL_I32"; break;
-                            case TYPE_I64:   hml_type = "HML_VAL_I64"; break;
-                            case TYPE_U8:    hml_type = "HML_VAL_U8"; break;
-                            case TYPE_U16:   hml_type = "HML_VAL_U16"; break;
-                            case TYPE_U32:   hml_type = "HML_VAL_U32"; break;
-                            case TYPE_U64:   hml_type = "HML_VAL_U64"; break;
-                            case TYPE_F32:   hml_type = "HML_VAL_F32"; break;
-                            case TYPE_F64:   hml_type = "HML_VAL_F64"; break;
-                            case TYPE_BOOL:  hml_type = "HML_VAL_BOOL"; break;
-                            case TYPE_STRING: hml_type = "HML_VAL_STRING"; break;
-                            case TYPE_RUNE:  hml_type = "HML_VAL_RUNE"; break;
-                            default: hml_type = "HML_VAL_NULL"; break;
-                        }
-                    }
+                    const char *hml_type = elem_type ? type_kind_to_hml_val(elem_type->kind) : NULL;
+                    if (!hml_type) hml_type = "HML_VAL_NULL";
                     codegen_writeln(ctx, "HmlValue %s = hml_validate_typed_array(%s, %s);",
                                   safe_name, value, hml_type);
                 } else if (stmt->as.let.type_annotation) {
                     // Primitive type annotation: let x: i64 = 0;
                     // Convert value to the annotated type with range checking
-                    const char *hml_type = NULL;
-                    switch (stmt->as.let.type_annotation->kind) {
-                        case TYPE_I8:    hml_type = "HML_VAL_I8"; break;
-                        case TYPE_I16:   hml_type = "HML_VAL_I16"; break;
-                        case TYPE_I32:   hml_type = "HML_VAL_I32"; break;
-                        case TYPE_I64:   hml_type = "HML_VAL_I64"; break;
-                        case TYPE_U8:    hml_type = "HML_VAL_U8"; break;
-                        case TYPE_U16:   hml_type = "HML_VAL_U16"; break;
-                        case TYPE_U32:   hml_type = "HML_VAL_U32"; break;
-                        case TYPE_U64:   hml_type = "HML_VAL_U64"; break;
-                        case TYPE_F32:   hml_type = "HML_VAL_F32"; break;
-                        case TYPE_F64:   hml_type = "HML_VAL_F64"; break;
-                        case TYPE_BOOL:  hml_type = "HML_VAL_BOOL"; break;
-                        case TYPE_STRING: hml_type = "HML_VAL_STRING"; break;
-                        case TYPE_RUNE:  hml_type = "HML_VAL_RUNE"; break;
-                        default: break;
-                    }
+                    const char *hml_type = type_kind_to_hml_val(stmt->as.let.type_annotation->kind);
                     if (hml_type) {
                         codegen_writeln(ctx, "HmlValue %s = hml_convert_to_type(%s, %s);",
                                       safe_name, value, hml_type);

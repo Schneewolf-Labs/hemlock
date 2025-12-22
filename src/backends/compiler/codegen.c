@@ -810,3 +810,47 @@ void codegen_defer_clear(CodegenContext *ctx) {
     }
 }
 
+// ========== TYPE MAPPING HELPERS ==========
+
+const char* type_kind_to_hml_val(TypeKind kind) {
+    switch (kind) {
+        case TYPE_I8:     return "HML_VAL_I8";
+        case TYPE_I16:    return "HML_VAL_I16";
+        case TYPE_I32:    return "HML_VAL_I32";
+        case TYPE_I64:    return "HML_VAL_I64";
+        case TYPE_U8:     return "HML_VAL_U8";
+        case TYPE_U16:    return "HML_VAL_U16";
+        case TYPE_U32:    return "HML_VAL_U32";
+        case TYPE_U64:    return "HML_VAL_U64";
+        case TYPE_F32:    return "HML_VAL_F32";
+        case TYPE_F64:    return "HML_VAL_F64";
+        case TYPE_BOOL:   return "HML_VAL_BOOL";
+        case TYPE_STRING: return "HML_VAL_STRING";
+        case TYPE_RUNE:   return "HML_VAL_RUNE";
+        case TYPE_PTR:    return "HML_VAL_PTR";
+        case TYPE_BUFFER: return "HML_VAL_BUFFER";
+        case TYPE_ARRAY:  return "HML_VAL_ARRAY";
+        case TYPE_NULL:   return "HML_VAL_NULL";
+        default:          return NULL;
+    }
+}
+
+const char* type_kind_to_ffi_type(TypeKind kind) {
+    switch (kind) {
+        case TYPE_I8:     return "HML_FFI_I8";
+        case TYPE_I16:    return "HML_FFI_I16";
+        case TYPE_I32:    return "HML_FFI_I32";
+        case TYPE_I64:    return "HML_FFI_I64";
+        case TYPE_U8:     return "HML_FFI_U8";
+        case TYPE_U16:    return "HML_FFI_U16";
+        case TYPE_U32:    return "HML_FFI_U32";
+        case TYPE_U64:    return "HML_FFI_U64";
+        case TYPE_F32:    return "HML_FFI_F32";
+        case TYPE_F64:    return "HML_FFI_F64";
+        case TYPE_PTR:    return "HML_FFI_PTR";
+        case TYPE_STRING: return "HML_FFI_STRING";
+        case TYPE_VOID:   return "HML_FFI_VOID";
+        default:          return "HML_FFI_VOID";
+    }
+}
+

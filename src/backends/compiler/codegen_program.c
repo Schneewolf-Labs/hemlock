@@ -928,56 +928,23 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
                     codegen_writeln(ctx, "_main_%s = hml_validate_object_type(%s, \"%s\");",
                                   stmt->as.let.name, value, stmt->as.let.type_annotation->type_name);
                 } else if (stmt->as.let.type_annotation) {
-                    // Primitive type annotation: let x: i64 = 0;
-                    // Convert value to the annotated type with range checking
-                    const char *hml_type = NULL;
-                    switch (stmt->as.let.type_annotation->kind) {
-                        case TYPE_I8:    hml_type = "HML_VAL_I8"; break;
-                        case TYPE_I16:   hml_type = "HML_VAL_I16"; break;
-                        case TYPE_I32:   hml_type = "HML_VAL_I32"; break;
-                        case TYPE_I64:   hml_type = "HML_VAL_I64"; break;
-                        case TYPE_U8:    hml_type = "HML_VAL_U8"; break;
-                        case TYPE_U16:   hml_type = "HML_VAL_U16"; break;
-                        case TYPE_U32:   hml_type = "HML_VAL_U32"; break;
-                        case TYPE_U64:   hml_type = "HML_VAL_U64"; break;
-                        case TYPE_F32:   hml_type = "HML_VAL_F32"; break;
-                        case TYPE_F64:   hml_type = "HML_VAL_F64"; break;
-                        case TYPE_BOOL:  hml_type = "HML_VAL_BOOL"; break;
-                        case TYPE_STRING: hml_type = "HML_VAL_STRING"; break;
-                        case TYPE_RUNE:  hml_type = "HML_VAL_RUNE"; break;
-                        case TYPE_ARRAY: {
-                            // Typed array: let arr: array<type> = [...]
-                            Type *elem_type = stmt->as.let.type_annotation->element_type;
-                            const char *arr_type = "HML_VAL_NULL";
-                            if (elem_type) {
-                                switch (elem_type->kind) {
-                                    case TYPE_I8:    arr_type = "HML_VAL_I8"; break;
-                                    case TYPE_I16:   arr_type = "HML_VAL_I16"; break;
-                                    case TYPE_I32:   arr_type = "HML_VAL_I32"; break;
-                                    case TYPE_I64:   arr_type = "HML_VAL_I64"; break;
-                                    case TYPE_U8:    arr_type = "HML_VAL_U8"; break;
-                                    case TYPE_U16:   arr_type = "HML_VAL_U16"; break;
-                                    case TYPE_U32:   arr_type = "HML_VAL_U32"; break;
-                                    case TYPE_U64:   arr_type = "HML_VAL_U64"; break;
-                                    case TYPE_F32:   arr_type = "HML_VAL_F32"; break;
-                                    case TYPE_F64:   arr_type = "HML_VAL_F64"; break;
-                                    case TYPE_BOOL:  arr_type = "HML_VAL_BOOL"; break;
-                                    case TYPE_STRING: arr_type = "HML_VAL_STRING"; break;
-                                    case TYPE_RUNE:  arr_type = "HML_VAL_RUNE"; break;
-                                    default: break;
-                                }
-                            }
-                            codegen_writeln(ctx, "_main_%s = hml_validate_typed_array(%s, %s);",
-                                          stmt->as.let.name, value, arr_type);
-                            break;
+                    // Handle type annotations
+                    if (stmt->as.let.type_annotation->kind == TYPE_ARRAY) {
+                        // Typed array: let arr: array<type> = [...]
+                        Type *elem_type = stmt->as.let.type_annotation->element_type;
+                        const char *arr_type = elem_type ? type_kind_to_hml_val(elem_type->kind) : NULL;
+                        if (!arr_type) arr_type = "HML_VAL_NULL";
+                        codegen_writeln(ctx, "_main_%s = hml_validate_typed_array(%s, %s);",
+                                      stmt->as.let.name, value, arr_type);
+                    } else {
+                        // Primitive type annotation: let x: i64 = 0;
+                        const char *hml_type = type_kind_to_hml_val(stmt->as.let.type_annotation->kind);
+                        if (hml_type) {
+                            codegen_writeln(ctx, "_main_%s = hml_convert_to_type(%s, %s);",
+                                          stmt->as.let.name, value, hml_type);
+                        } else {
+                            codegen_writeln(ctx, "_main_%s = %s;", stmt->as.let.name, value);
                         }
-                        default: break;
-                    }
-                    if (hml_type) {
-                        codegen_writeln(ctx, "_main_%s = hml_convert_to_type(%s, %s);",
-                                      stmt->as.let.name, value, hml_type);
-                    } else if (stmt->as.let.type_annotation->kind != TYPE_ARRAY) {
-                        codegen_writeln(ctx, "_main_%s = %s;", stmt->as.let.name, value);
                     }
                 } else {
                     codegen_writeln(ctx, "_main_%s = %s;", stmt->as.let.name, value);
@@ -1407,47 +1374,13 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
         codegen_write(ctx, "    HmlFFIType _types[%d];\n", num_params + 1);
 
         // Return type
-        const char *ret_str = "HML_FFI_VOID";
-        if (return_type) {
-            switch (return_type->kind) {
-                case TYPE_I8: ret_str = "HML_FFI_I8"; break;
-                case TYPE_I16: ret_str = "HML_FFI_I16"; break;
-                case TYPE_I32: ret_str = "HML_FFI_I32"; break;
-                case TYPE_I64: ret_str = "HML_FFI_I64"; break;
-                case TYPE_U8: ret_str = "HML_FFI_U8"; break;
-                case TYPE_U16: ret_str = "HML_FFI_U16"; break;
-                case TYPE_U32: ret_str = "HML_FFI_U32"; break;
-                case TYPE_U64: ret_str = "HML_FFI_U64"; break;
-                case TYPE_F32: ret_str = "HML_FFI_F32"; break;
-                case TYPE_F64: ret_str = "HML_FFI_F64"; break;
-                case TYPE_PTR: ret_str = "HML_FFI_PTR"; break;
-                case TYPE_STRING: ret_str = "HML_FFI_STRING"; break;
-                default: ret_str = "HML_FFI_I32"; break;
-            }
-        }
+        const char *ret_str = return_type ? type_kind_to_ffi_type(return_type->kind) : "HML_FFI_VOID";
         codegen_write(ctx, "    _types[0] = %s;\n", ret_str);
 
         // Parameter types
         for (int j = 0; j < num_params; j++) {
             Type *ptype = stmt->as.extern_fn.param_types[j];
-            const char *type_str = "HML_FFI_I32";
-            if (ptype) {
-                switch (ptype->kind) {
-                    case TYPE_I8: type_str = "HML_FFI_I8"; break;
-                    case TYPE_I16: type_str = "HML_FFI_I16"; break;
-                    case TYPE_I32: type_str = "HML_FFI_I32"; break;
-                    case TYPE_I64: type_str = "HML_FFI_I64"; break;
-                    case TYPE_U8: type_str = "HML_FFI_U8"; break;
-                    case TYPE_U16: type_str = "HML_FFI_U16"; break;
-                    case TYPE_U32: type_str = "HML_FFI_U32"; break;
-                    case TYPE_U64: type_str = "HML_FFI_U64"; break;
-                    case TYPE_F32: type_str = "HML_FFI_F32"; break;
-                    case TYPE_F64: type_str = "HML_FFI_F64"; break;
-                    case TYPE_PTR: type_str = "HML_FFI_PTR"; break;
-                    case TYPE_STRING: type_str = "HML_FFI_STRING"; break;
-                    default: type_str = "HML_FFI_I32"; break;
-                }
-            }
+            const char *type_str = ptype ? type_kind_to_ffi_type(ptype->kind) : "HML_FFI_I32";
             codegen_write(ctx, "    _types[%d] = %s;\n", j + 1, type_str);
         }
 

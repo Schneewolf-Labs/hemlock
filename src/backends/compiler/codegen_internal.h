@@ -131,4 +131,14 @@ void codegen_module_funcs(CodegenContext *ctx, CompiledModule *module,
 // Parse a module file
 Stmt** parse_module_file(const char *path, int *stmt_count);
 
+// ========== TYPE MAPPING HELPERS ==========
+
+// Convert TypeKind to HML_VAL_* string (e.g., TYPE_I8 -> "HML_VAL_I8")
+// Returns NULL for types that don't have a direct HML_VAL mapping
+const char* type_kind_to_hml_val(TypeKind kind);
+
+// Convert TypeKind to HML_FFI_* string (e.g., TYPE_I8 -> "HML_FFI_I8")
+// Returns "HML_FFI_VOID" for unknown types
+const char* type_kind_to_ffi_type(TypeKind kind);
+
 #endif // HEMLOCK_CODEGEN_INTERNAL_H
