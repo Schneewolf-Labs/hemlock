@@ -217,6 +217,7 @@ void codegen_closure_impl(CodegenContext *ctx, ClosureInfo *closure) {
 
     // Save locals, defer state, module context, current closure, and in_function flag
     int saved_num_locals = ctx->num_locals;
+    ctx->num_locals = 0;  // Reset locals - closures have their own isolated scope
     DeferEntry *saved_defer_stack = ctx->defer_stack;
     ctx->defer_stack = NULL;  // Start fresh for this function
     CompiledModule *saved_module = ctx->current_module;

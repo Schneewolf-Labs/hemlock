@@ -551,9 +551,28 @@ char* codegen_expr_ident(CodegenContext *ctx, Expr *expr, char *result) {
                 free(safe_ident);
             }
         } else if (ctx->current_module) {
-            // Not local, not shadow, have module - use module prefix
-            codegen_writeln(ctx, "HmlValue %s = %s%s;", result,
-                          ctx->current_module->module_prefix, expr->as.ident.name);
+            // Not local, not shadow, have module - check if it's an export first
+            ExportedSymbol *exp = module_find_export(ctx->current_module, expr->as.ident.name);
+            if (exp) {
+                // It's a module export - use the mangled name
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, exp->mangled_name);
+            } else {
+                // Not an export - use module prefix for module-level variable
+                codegen_writeln(ctx, "HmlValue %s = %s%s;", result,
+                              ctx->current_module->module_prefix, expr->as.ident.name);
+            }
+        } else if (ctx->current_closure && ctx->current_closure->source_module) {
+            // Inside a closure - check if identifier is a module export from the closure's source module
+            ExportedSymbol *exp = module_find_export(ctx->current_closure->source_module, expr->as.ident.name);
+            if (exp) {
+                // It's a module export - use the mangled name
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, exp->mangled_name);
+            } else {
+                // Not an export - fallback to bare identifier (may cause C error)
+                char *safe_ident = codegen_sanitize_ident(expr->as.ident.name);
+                codegen_writeln(ctx, "HmlValue %s = %s;", result, safe_ident);
+                free(safe_ident);
+            }
         } else if (codegen_is_main_var(ctx, expr->as.ident.name)) {
             // Main file top-level variable - use _main_ prefix
             codegen_writeln(ctx, "HmlValue %s = _main_%s;", result, expr->as.ident.name);
