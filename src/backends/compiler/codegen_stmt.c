@@ -804,7 +804,7 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
         case STMT_IMPORT: {
             // Handle module imports
             if (!ctx->module_cache) {
-                codegen_writeln(ctx, "// WARNING: import without module cache: \"%s\"", stmt->as.import_stmt.module_path);
+                codegen_warning(ctx, stmt->line, "import without module cache: \"%s\"", stmt->as.import_stmt.module_path);
                 break;
             }
 
@@ -812,7 +812,7 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             const char *importer_path = ctx->current_module ? ctx->current_module->absolute_path : NULL;
             char *resolved = module_resolve_path(ctx->module_cache, importer_path, stmt->as.import_stmt.module_path);
             if (!resolved) {
-                codegen_writeln(ctx, "// ERROR: Could not resolve import \"%s\"", stmt->as.import_stmt.module_path);
+                codegen_error(ctx, stmt->line, "could not resolve import \"%s\"", stmt->as.import_stmt.module_path);
                 break;
             }
 
@@ -824,7 +824,7 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             free(resolved);
 
             if (!imported) {
-                codegen_writeln(ctx, "// ERROR: Failed to compile import \"%s\"", stmt->as.import_stmt.module_path);
+                codegen_error(ctx, stmt->line, "failed to compile import \"%s\"", stmt->as.import_stmt.module_path);
                 break;
             }
 
@@ -871,7 +871,8 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
                         codegen_writeln(ctx, "HmlValue %s = %s;", bind_name, exp->mangled_name);
                         codegen_add_local(ctx, bind_name);
                     } else {
-                        codegen_writeln(ctx, "// ERROR: '%s' not exported from module", import_name);
+                        codegen_error(ctx, stmt->line, "'%s' is not exported from module \"%s\"",
+                                     import_name, stmt->as.import_stmt.module_path);
                         codegen_writeln(ctx, "HmlValue %s = hml_val_null();", bind_name);
                         codegen_add_local(ctx, bind_name);
                     }
@@ -948,7 +949,7 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             break;
 
         default:
-            codegen_writeln(ctx, "// Unsupported statement type %d", stmt->type);
+            codegen_error(ctx, stmt->line, "unsupported statement type %d", stmt->type);
             break;
     }
 }

@@ -3607,7 +3607,8 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
         }
 
         default:
-            codegen_writeln(ctx, "HmlValue %s = hml_val_null(); // Unsupported expression type %d", result, expr->type);
+            codegen_error(ctx, expr->line, "unsupported expression type %d", expr->type);
+            codegen_writeln(ctx, "HmlValue %s = hml_val_null();", result);
             break;
     }
 
