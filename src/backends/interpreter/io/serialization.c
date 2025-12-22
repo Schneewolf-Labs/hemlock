@@ -55,10 +55,6 @@ static inline void jbuf_append_str(JsonBuffer *buf, const char *s, size_t len) {
     buf->len += len;
 }
 
-static inline void jbuf_append_cstr(JsonBuffer *buf, const char *s) {
-    jbuf_append_str(buf, s, strlen(s));
-}
-
 // Fast integer to string - write directly to buffer
 static inline void jbuf_append_i64(JsonBuffer *buf, int64_t val) {
     char tmp[24];

@@ -103,10 +103,8 @@ static SymbolDef *symbol_table_find_def(SymbolTable *st, const char *name) {
 // Calculate column for a token given the source content
 static int calc_token_col(const char *content, Token *token) {
     const char *line_start = content;
-    int current_line = 1;
     for (const char *p = content; p < token->start && *p; p++) {
         if (*p == '\n') {
-            current_line++;
             line_start = p + 1;
         }
     }

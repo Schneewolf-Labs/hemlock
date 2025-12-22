@@ -182,7 +182,9 @@ FFILibrary* ffi_load_library(const char *path, ExecutionContext *ctx) {
         // SECURITY: Check for integer overflow before doubling capacity
         int new_capacity = g_ffi_state.libraries_capacity == 0 ? 4 : g_ffi_state.libraries_capacity * 2;
         if (new_capacity < g_ffi_state.libraries_capacity) {
-            // Overflow detected
+            // Overflow detected - free allocated resources before returning
+            free(lib->path);
+            free(lib);
             pthread_mutex_unlock(&ffi_cache_mutex);
             ctx->exception_state.is_throwing = 1;
             ctx->exception_state.exception_value = val_string("FFI library cache capacity overflow");
