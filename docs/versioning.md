@@ -30,9 +30,9 @@ The version is defined in `include/version.h`:
 ```c
 #define HEMLOCK_VERSION_MAJOR 1
 #define HEMLOCK_VERSION_MINOR 2
-#define HEMLOCK_VERSION_PATCH 0
+#define HEMLOCK_VERSION_PATCH 1
 
-#define HEMLOCK_VERSION "1.2.0"
+#define HEMLOCK_VERSION "1.2.1"
 ```
 
 ### Checking Versions
@@ -93,6 +93,7 @@ import { sin, cos } from "@stdlib/math";
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **1.2.1** | 2025 | Fix macOS test failures (RSA key generation, directory symlinks) |
 | **1.2.0** | 2025 | AST optimizer, apply() builtin, unbuffered channels, 7 new stdlib modules, 97 parity tests |
 | **1.1.3** | 2025 | Documentation updates, consistency fixes |
 | **1.1.1** | 2025 | Bug fixes and improvements |
