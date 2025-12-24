@@ -151,7 +151,7 @@ See [Bundling & Packaging](docs/advanced/bundling-packaging.md) for details.
 
 ## Project Status
 
-Hemlock v1.2.2 is released with:
+Hemlock v1.2.3 is released with:
 
 - Full type system with 64-bit integers and Unicode support
 - Manual memory management with safe and unsafe options
