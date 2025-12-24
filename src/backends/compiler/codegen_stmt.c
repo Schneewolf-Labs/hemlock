@@ -849,6 +849,8 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
                         name = decl->as.let.name;
                     } else if (decl->type == STMT_CONST) {
                         name = decl->as.const_stmt.name;
+                    } else if (decl->type == STMT_EXTERN_FN) {
+                        name = decl->as.extern_fn.function_name;
                     }
 
                     if (name) {
@@ -873,6 +875,11 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
                             char *val = codegen_expr(ctx, decl->as.const_stmt.value);
                             codegen_writeln(ctx, "%s = %s;", mangled, val);
                             free(val);
+                        } else if (decl->type == STMT_EXTERN_FN) {
+                            // Export extern function - assign wrapper function to module global
+                            int num_params = decl->as.extern_fn.num_params;
+                            codegen_writeln(ctx, "%s = hml_val_function((void*)hml_fn_%s, %d, %d, 0);",
+                                          mangled, name, num_params, num_params);
                         }
                     } else {
                         // For non-variable exports, just generate the declaration

@@ -533,7 +533,7 @@ int codegen_get_main_func_has_rest(CodegenContext *ctx, const char *name) {
 }
 
 // Main file import tracking (for function call resolution)
-void codegen_add_main_import(CodegenContext *ctx, const char *local_name, const char *original_name, const char *module_prefix, int is_function, int num_params) {
+void codegen_add_main_import(CodegenContext *ctx, const char *local_name, const char *original_name, const char *module_prefix, int is_function, int num_params, int is_extern) {
     if (ctx->num_main_imports >= ctx->main_imports_capacity) {
         int new_cap = (ctx->main_imports_capacity == 0) ? 16 : ctx->main_imports_capacity * 2;
         ctx->main_imports = realloc(ctx->main_imports, new_cap * sizeof(ImportBinding));
@@ -545,6 +545,7 @@ void codegen_add_main_import(CodegenContext *ctx, const char *local_name, const 
     binding->module_prefix = strdup(module_prefix);
     binding->is_function = is_function;
     binding->num_params = num_params;
+    binding->is_extern = is_extern;
 }
 
 ImportBinding* codegen_find_main_import(CodegenContext *ctx, const char *name) {

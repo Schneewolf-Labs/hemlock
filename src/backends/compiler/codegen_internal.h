@@ -121,7 +121,7 @@ int codegen_get_main_func_has_rest(CodegenContext *ctx, const char *name);
 // Main file import tracking
 void codegen_add_main_import(CodegenContext *ctx, const char *local_name,
                              const char *original_name, const char *module_prefix,
-                             int is_function, int num_params);
+                             int is_function, int num_params, int is_extern);
 ImportBinding* codegen_find_main_import(CodegenContext *ctx, const char *name);
 
 // ========== SHARED ENVIRONMENT SUPPORT ==========
@@ -154,7 +154,7 @@ ImportBinding* module_find_import(CompiledModule *module, const char *name);
 // Add an import to a module
 void module_add_import(CompiledModule *module, const char *local_name,
                        const char *original_name, const char *module_prefix,
-                       int is_function, int num_params);
+                       int is_function, int num_params, int is_extern);
 
 // Check if a name is an extern function in the given module
 int module_is_extern_fn(CompiledModule *module, const char *name);

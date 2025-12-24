@@ -1,0 +1,17 @@
+// Test: export extern fn
+// This tests that FFI functions can be exported from modules
+
+import { strlen, string_length } from "./ffi_export_module.hml";
+
+// Test the directly exported extern function
+let msg = "Hello, Hemlock!";
+let len1 = strlen(msg);
+print(len1);
+
+// Test the wrapper function
+let len2 = string_length("Test");
+print(len2);
+
+// Verify they're consistent
+print(len1 == 15);
+print(len2 == 4);

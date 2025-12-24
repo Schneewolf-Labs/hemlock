@@ -2324,10 +2324,16 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     codegen_indent(ctx);
                     // All functions use closure env as first param for uniform calling convention
                     if (import_binding) {
-                        // Use the mangled function name from the import
-                        // module_prefix is like "_mod1_", original_name is the export name
-                        fprintf(ctx->output, "HmlValue %s = %sfn_%s(NULL", result,
-                                import_binding->module_prefix, import_binding->original_name);
+                        if (import_binding->is_extern) {
+                            // Extern functions use hml_fn_<name> without module prefix
+                            fprintf(ctx->output, "HmlValue %s = hml_fn_%s(NULL", result,
+                                    import_binding->original_name);
+                        } else {
+                            // Use the mangled function name from the import
+                            // module_prefix is like "_mod1_", original_name is the export name
+                            fprintf(ctx->output, "HmlValue %s = %sfn_%s(NULL", result,
+                                    import_binding->module_prefix, import_binding->original_name);
+                        }
                     } else if (ctx->current_module) {
                         // Check if this is an extern function - externs don't get module prefix
                         if (module_is_extern_fn(ctx->current_module, fn_name)) {

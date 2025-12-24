@@ -766,6 +766,10 @@ void execute_module(Module *module, ModuleCache *cache, Environment *global_env,
                     ensure_export_capacity(module);
                     module->export_names[module->num_exports] = strdup(decl->as.const_stmt.name);
                     module->num_exports++;
+                } else if (decl->type == STMT_EXTERN_FN) {
+                    ensure_export_capacity(module);
+                    module->export_names[module->num_exports] = strdup(decl->as.extern_fn.function_name);
+                    module->num_exports++;
                 }
             } else if (stmt->as.export_stmt.is_reexport) {
                 // Re-export: copy exports from another module

@@ -212,7 +212,7 @@ ExportedSymbol* module_find_export(CompiledModule *module, const char *name) {
     return NULL;
 }
 
-void module_add_import(CompiledModule *module, const char *local_name, const char *original_name, const char *module_prefix, int is_function, int num_params) {
+void module_add_import(CompiledModule *module, const char *local_name, const char *original_name, const char *module_prefix, int is_function, int num_params, int is_extern) {
     if (module->num_imports >= module->import_capacity) {
         module->import_capacity = module->import_capacity == 0 ? 16 : module->import_capacity * 2;
         module->imports = realloc(module->imports, sizeof(ImportBinding) * module->import_capacity);
@@ -222,6 +222,7 @@ void module_add_import(CompiledModule *module, const char *local_name, const cha
     module->imports[module->num_imports].module_prefix = strdup(module_prefix);
     module->imports[module->num_imports].is_function = is_function;
     module->imports[module->num_imports].num_params = num_params;
+    module->imports[module->num_imports].is_extern = is_extern;
     module->num_imports++;
 }
 
@@ -239,8 +240,17 @@ ImportBinding* module_find_import(CompiledModule *module, const char *name) {
 int module_is_extern_fn(CompiledModule *module, const char *name) {
     if (!module || !module->statements) return 0;
     for (int i = 0; i < module->num_statements; i++) {
-        if (module->statements[i]->type == STMT_EXTERN_FN) {
-            if (strcmp(module->statements[i]->as.extern_fn.function_name, name) == 0) {
+        Stmt *stmt = module->statements[i];
+        if (stmt->type == STMT_EXTERN_FN) {
+            if (strcmp(stmt->as.extern_fn.function_name, name) == 0) {
+                return 1;
+            }
+        }
+        // Also check for export extern fn
+        if (stmt->type == STMT_EXPORT && stmt->as.export_stmt.is_declaration &&
+            stmt->as.export_stmt.declaration &&
+            stmt->as.export_stmt.declaration->type == STMT_EXTERN_FN) {
+            if (strcmp(stmt->as.export_stmt.declaration->as.extern_fn.function_name, name) == 0) {
                 return 1;
             }
         }
@@ -365,8 +375,9 @@ CompiledModule* module_compile(CodegenContext *ctx, const char *absolute_path) {
                     ExportedSymbol *exp = module_find_export(imported, import_name);
                     if (exp) {
                         // Track this as an import binding with original name, module prefix, and func info
+                        int is_extern = module_is_extern_fn(imported, import_name);
                         module_add_import(module, bind_name, import_name, imported->module_prefix,
-                                        exp->is_function, exp->num_params);
+                                        exp->is_function, exp->num_params, is_extern);
                     }
                 }
             }
@@ -396,6 +407,10 @@ CompiledModule* module_compile(CodegenContext *ctx, const char *absolute_path) {
                         is_function = 1;
                         num_params = decl->as.const_stmt.value->as.function.num_params;
                     }
+                } else if (decl->type == STMT_EXTERN_FN) {
+                    name = decl->as.extern_fn.function_name;
+                    is_function = 1;
+                    num_params = decl->as.extern_fn.num_params;
                 }
                 if (name) {
                     char mangled[CODEGEN_MANGLED_NAME_SIZE];
