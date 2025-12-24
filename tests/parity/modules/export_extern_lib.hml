@@ -1,0 +1,11 @@
+// Module that exports FFI functions directly
+// Note: Linux-only test (uses libc.so.6)
+import "libc.so.6";
+
+// Export extern function directly
+export extern fn strlen(s: string): i32;
+
+// Also export a wrapper function to show both work
+export fn string_length(s: string): i32 {
+    return strlen(s);
+}

@@ -3,6 +3,7 @@
 // ========== STATEMENT PARSING ==========
 
 Stmt* statement(Parser *p);
+Stmt* extern_fn_statement(Parser *p);
 
 Stmt* let_statement(Parser *p) {
     consume(p, TOK_IDENT, "Expect variable name");
@@ -378,6 +379,12 @@ Stmt* export_statement(Parser *p) {
     if (match(p, TOK_LET)) {
         Stmt *decl = let_statement(p);
         return stmt_export_declaration(decl);
+    }
+
+    // Export extern function: export extern fn name(...)
+    if (match(p, TOK_EXTERN)) {
+        Stmt *extern_stmt = extern_fn_statement(p);
+        return stmt_export_declaration(extern_stmt);
     }
 
     // Named function: export fn name(...) or export async fn name(...)

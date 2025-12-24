@@ -507,6 +507,9 @@ static void collect_extern_fn_from_stmt(Stmt *stmt, ExternFnList *list) {
         for (int i = 0; i < stmt->as.switch_stmt.num_cases; i++) {
             collect_extern_fn_from_stmt(stmt->as.switch_stmt.case_bodies[i], list);
         }
+    } else if (stmt->type == STMT_EXPORT && stmt->as.export_stmt.is_declaration) {
+        // Handle export extern fn
+        collect_extern_fn_from_stmt(stmt->as.export_stmt.declaration, list);
     }
 }
 
@@ -590,7 +593,8 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
                                 ExportedSymbol *exp = module_find_export(mod, import_name);
                                 int is_function = exp ? exp->is_function : 0;
                                 int num_params = exp ? exp->num_params : 0;
-                                codegen_add_main_import(ctx, local_name, import_name, mod->module_prefix, is_function, num_params);
+                                int is_extern = module_is_extern_fn(mod, import_name);
+                                codegen_add_main_import(ctx, local_name, import_name, mod->module_prefix, is_function, num_params, is_extern);
                             }
                         }
                     }

@@ -67,6 +67,7 @@ typedef struct {
     char *module_prefix;    // Module prefix (e.g., "_mod1_")
     int is_function;        // Whether this is a function binding
     int num_params;         // Number of parameters (for functions)
+    int is_extern;          // Whether this is an extern FFI function
 } ImportBinding;
 
 // Compiled module tracking

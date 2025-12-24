@@ -224,7 +224,29 @@ See `stdlib/docs/` for detailed module documentation.
 
 ## FFI (Foreign Function Interface)
 
-Call C functions from shared libraries:
+Declare and call C functions from shared libraries:
+```hemlock
+import "libc.so.6";
+
+extern fn strlen(s: string): i32;
+extern fn getpid(): i32;
+
+let len = strlen("Hello!");  // 6
+let pid = getpid();
+```
+
+Export FFI functions from modules:
+```hemlock
+// string_utils.hml
+import "libc.so.6";
+
+export extern fn strlen(s: string): i32;
+export fn string_length(s: string): i32 {
+    return strlen(s);
+}
+```
+
+Dynamic FFI (runtime binding):
 ```hemlock
 let lib = ffi_open("libc.so.6");
 let puts = ffi_bind(lib, "puts", [FFI_POINTER], FFI_INT);
@@ -415,16 +437,17 @@ make parity
 
 ## Version
 
-**v1.2.1** - Current release with:
+**v1.2.2** - Current release with:
 - Full type system (i8-i64, u8-u64, f32/f64, bool, string, rune, ptr, buffer, array, object, enum, file, task, channel)
 - UTF-8 strings with 19 methods
 - Arrays with 18 methods including map/filter/reduce
 - Manual memory management with `talloc()` and `sizeof()`
 - Async/await with true pthread parallelism
 - 39 stdlib modules (+ assert, semver, toml, retry, iter, random, shell)
-- FFI for C interop
+- FFI for C interop with `export extern fn` for reusable library wrappers
 - defer, try/catch/finally/throw, panic
 - File I/O, signal handling, command execution
+- [hpm](https://github.com/hemlang/hpm) package manager with GitHub-based registry
 - Compiler backend (C code generation)
 - LSP server with go-to-definition and find-references
 - AST optimization pass and variable resolution for O(1) lookup
