@@ -7320,6 +7320,57 @@ HmlValue hml_socket_get_closed(HmlValue socket_val) {
 
 // ========== FFI (Foreign Function Interface) ==========
 
+// Helper to check if a file exists
+static int ffi_file_exists(const char *path) {
+    return access(path, F_OK) == 0;
+}
+
+// Translate Linux library names to macOS equivalents (on macOS only)
+static const char* translate_library_path(const char *path) {
+#ifdef __APPLE__
+    // libc.so.6 -> libSystem.B.dylib (macOS system C library)
+    if (strcmp(path, "libc.so.6") == 0) {
+        return "libSystem.B.dylib";
+    }
+    // libm.so.6 -> libSystem.B.dylib (math is part of libSystem on macOS)
+    if (strcmp(path, "libm.so.6") == 0) {
+        return "libSystem.B.dylib";
+    }
+    // libcrypto.so.3 -> Homebrew OpenSSL
+    if (strcmp(path, "libcrypto.so.3") == 0 || strcmp(path, "libcrypto.dylib") == 0) {
+        if (ffi_file_exists("/opt/homebrew/opt/openssl@3/lib/libcrypto.dylib")) {
+            return "/opt/homebrew/opt/openssl@3/lib/libcrypto.dylib";
+        }
+        if (ffi_file_exists("/usr/local/opt/openssl@3/lib/libcrypto.dylib")) {
+            return "/usr/local/opt/openssl@3/lib/libcrypto.dylib";
+        }
+        return "libcrypto.dylib";
+    }
+    // Generic .so to .dylib translation
+    static char translated[512];
+    size_t len = strlen(path);
+    // Handle .so.N pattern (e.g., libfoo.so.6)
+    const char *so_pos = strstr(path, ".so.");
+    if (so_pos) {
+        size_t base_len = so_pos - path;
+        if (base_len < sizeof(translated) - 7) {
+            strncpy(translated, path, base_len);
+            strcpy(translated + base_len, ".dylib");
+            return translated;
+        }
+    }
+    // Handle plain .so (e.g., libfoo.so)
+    if (len > 3 && strcmp(path + len - 3, ".so") == 0) {
+        if (len < sizeof(translated) - 4) {
+            strncpy(translated, path, len - 3);
+            strcpy(translated + len - 3, ".dylib");
+            return translated;
+        }
+    }
+#endif
+    return path;  // No translation on Linux or if no pattern matched
+}
+
 // SECURITY: Validate FFI library path for obvious security issues
 static const char* validate_ffi_path(const char *path) {
     if (!path || path[0] == '\0') {
@@ -7348,13 +7399,16 @@ static const char* validate_ffi_path(const char *path) {
 }
 
 HmlValue hml_ffi_load(const char *path) {
+    // Translate library path for cross-platform compatibility (e.g., .so -> .dylib on macOS)
+    const char *actual_path = translate_library_path(path);
+
     // SECURITY: Validate library path before loading
-    const char *validation_error = validate_ffi_path(path);
+    const char *validation_error = validate_ffi_path(actual_path);
     if (validation_error) {
-        hml_runtime_error("FFI security error: %s (path: %s)", validation_error, path);
+        hml_runtime_error("FFI security error: %s (path: %s)", validation_error, actual_path);
     }
 
-    void *handle = dlopen(path, RTLD_LAZY);
+    void *handle = dlopen(actual_path, RTLD_LAZY);
     if (!handle) {
         hml_runtime_error("Failed to load library '%s': %s", path, dlerror());
     }
