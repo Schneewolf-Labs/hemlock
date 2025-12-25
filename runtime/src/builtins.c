@@ -7589,6 +7589,113 @@ HmlValue hml_ffi_call(void *func_ptr, HmlValue *args, int num_args, HmlFFIType *
     return ret;
 }
 
+// FFI call with struct support
+// struct_names: array of struct type names, one for each type that is HML_FFI_STRUCT (or NULL for non-struct types)
+//               struct_names[0] is for return type, struct_names[1..] for args
+HmlValue hml_ffi_call_with_structs(void *func_ptr, HmlValue *args, int num_args,
+                                    HmlFFIType *types, const char **struct_names) {
+    if (!func_ptr) {
+        hml_runtime_error("FFI call with null function pointer");
+    }
+
+    // Forward declaration
+    HmlFFIStructType* hml_ffi_lookup_struct(const char *name);
+    void* hml_ffi_object_to_struct(HmlValue obj, HmlFFIStructType *struct_type);
+    HmlValue hml_ffi_struct_to_object(void *struct_ptr, HmlFFIStructType *struct_type);
+
+    // types[0] is return type, types[1..] are arg types
+    HmlFFIType return_type = types[0];
+    HmlFFIStructType *return_struct = NULL;
+
+    if (return_type == HML_FFI_STRUCT && struct_names && struct_names[0]) {
+        return_struct = hml_ffi_lookup_struct(struct_names[0]);
+        if (!return_struct) {
+            hml_runtime_error("FFI struct type '%s' not registered", struct_names[0]);
+        }
+    }
+
+    // Prepare libffi call interface
+    ffi_cif cif;
+    ffi_type **arg_types = NULL;
+    void **arg_values = NULL;
+    void **arg_storage = NULL;
+    HmlFFIStructType **arg_structs = NULL;
+
+    if (num_args > 0) {
+        arg_types = malloc(num_args * sizeof(ffi_type*));
+        arg_values = malloc(num_args * sizeof(void*));
+        arg_storage = malloc(num_args * sizeof(void*));
+        arg_structs = malloc(num_args * sizeof(HmlFFIStructType*));
+
+        for (int i = 0; i < num_args; i++) {
+            HmlFFIType arg_type = types[i + 1];
+            arg_structs[i] = NULL;
+
+            if (arg_type == HML_FFI_STRUCT && struct_names && struct_names[i + 1]) {
+                // Struct argument
+                arg_structs[i] = hml_ffi_lookup_struct(struct_names[i + 1]);
+                if (!arg_structs[i]) {
+                    hml_runtime_error("FFI struct type '%s' not registered", struct_names[i + 1]);
+                }
+                arg_types[i] = (ffi_type*)arg_structs[i]->ffi_type;
+                arg_storage[i] = hml_ffi_object_to_struct(args[i], arg_structs[i]);
+                arg_values[i] = arg_storage[i];
+            } else {
+                // Non-struct argument
+                arg_types[i] = hml_ffi_type_to_ffi(arg_type);
+                arg_storage[i] = malloc(hml_ffi_type_size(arg_type));
+                hml_value_to_ffi(args[i], arg_type, arg_storage[i]);
+                arg_values[i] = arg_storage[i];
+            }
+        }
+    }
+
+    ffi_type *ret_type;
+    if (return_struct) {
+        ret_type = (ffi_type*)return_struct->ffi_type;
+    } else {
+        ret_type = hml_ffi_type_to_ffi(return_type);
+    }
+
+    ffi_status status = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, num_args, ret_type, arg_types);
+
+    if (status != FFI_OK) {
+        hml_runtime_error("Failed to prepare FFI call");
+    }
+
+    // Allocate space for return value
+    void *result_ptr;
+    if (return_struct) {
+        result_ptr = calloc(1, return_struct->size);
+    } else {
+        result_ptr = malloc(sizeof(double) > sizeof(void*) ? sizeof(double) : sizeof(void*));
+    }
+
+    ffi_call(&cif, func_ptr, result_ptr, arg_values);
+
+    // Convert result
+    HmlValue ret;
+    if (return_struct) {
+        ret = hml_ffi_struct_to_object(result_ptr, return_struct);
+    } else {
+        ret = hml_ffi_to_value(result_ptr, return_type);
+    }
+
+    // Cleanup
+    free(result_ptr);
+    if (num_args > 0) {
+        for (int i = 0; i < num_args; i++) {
+            free(arg_storage[i]);
+        }
+        free(arg_types);
+        free(arg_values);
+        free(arg_storage);
+        free(arg_structs);
+    }
+
+    return ret;
+}
+
 // ========== FFI STRUCT SUPPORT ==========
 
 // Global struct registry

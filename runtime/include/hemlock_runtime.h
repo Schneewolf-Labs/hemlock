@@ -692,6 +692,11 @@ void* hml_ffi_sym(HmlValue lib, const char *name);
 // types array contains: [return_type, arg1_type, arg2_type, ...]
 HmlValue hml_ffi_call(void *func_ptr, HmlValue *args, int num_args, HmlFFIType *types);
 
+// Call an FFI function with struct support
+// struct_names: array of struct type names (NULL for non-struct types), indexed same as types
+HmlValue hml_ffi_call_with_structs(void *func_ptr, HmlValue *args, int num_args,
+                                    HmlFFIType *types, const char **struct_names);
+
 // ========== FFI CALLBACKS ==========
 
 // Opaque handle for FFI callback
