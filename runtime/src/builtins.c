@@ -372,7 +372,6 @@ HmlValue hml_convert_to_type(HmlValue val, HmlValueType target_type) {
     int64_t int_val = 0;
     double float_val = 0.0;
     int is_source_float = hml_is_float_type(val);
-    int is_source_string = 0;
 
     if (hml_is_integer_type(val) || val.type == HML_VAL_BOOL || val.type == HML_VAL_RUNE) {
         int_val = hml_val_to_int64(val);
@@ -396,7 +395,6 @@ HmlValue hml_convert_to_type(HmlValue val, HmlValueType target_type) {
         return hml_val_null();
     } else if (val.type == HML_VAL_STRING) {
         // String to numeric conversion - parse the string
-        is_source_string = 1;
         HmlString *str = val.as.as_string;
         if (str && str->length > 0) {
             // Create null-terminated copy for parsing
