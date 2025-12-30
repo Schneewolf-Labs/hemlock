@@ -94,6 +94,49 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
         }
 
         case STMT_IF: {
+            // OPTIMIZATION: Compile-time evaluation of constant conditions
+            // Proof: if (true) { A } else { B } -> A (true is always truthy)
+            // Proof: if (false) { A } else { B } -> B (false is always falsy)
+            if (ctx->optimize && stmt->as.if_stmt.condition->type == EXPR_BOOL) {
+                if (stmt->as.if_stmt.condition->as.boolean) {
+                    // if (true) -> always execute then branch
+                    codegen_stmt(ctx, stmt->as.if_stmt.then_branch);
+                } else {
+                    // if (false) -> skip then branch, execute else if present
+                    if (stmt->as.if_stmt.else_branch) {
+                        codegen_stmt(ctx, stmt->as.if_stmt.else_branch);
+                    }
+                    // if no else branch, emit nothing
+                }
+                break;
+            }
+
+            // OPTIMIZATION: Constant null check
+            // Proof: if (null) -> always false (null is falsy)
+            if (ctx->optimize && stmt->as.if_stmt.condition->type == EXPR_NULL) {
+                if (stmt->as.if_stmt.else_branch) {
+                    codegen_stmt(ctx, stmt->as.if_stmt.else_branch);
+                }
+                break;
+            }
+
+            // OPTIMIZATION: Constant number check
+            // Proof: if (0) -> false (0 is falsy), if (non-zero) -> true
+            if (ctx->optimize && stmt->as.if_stmt.condition->type == EXPR_NUMBER) {
+                int is_truthy = 0;
+                if (stmt->as.if_stmt.condition->as.number.is_float) {
+                    is_truthy = stmt->as.if_stmt.condition->as.number.float_value != 0.0;
+                } else {
+                    is_truthy = stmt->as.if_stmt.condition->as.number.int_value != 0;
+                }
+                if (is_truthy) {
+                    codegen_stmt(ctx, stmt->as.if_stmt.then_branch);
+                } else if (stmt->as.if_stmt.else_branch) {
+                    codegen_stmt(ctx, stmt->as.if_stmt.else_branch);
+                }
+                break;
+            }
+
             char *cond = codegen_expr(ctx, stmt->as.if_stmt.condition);
             codegen_writeln(ctx, "if (hml_to_bool(%s)) {", cond);
             codegen_indent_inc(ctx);
@@ -437,9 +480,26 @@ void codegen_stmt(CodegenContext *ctx, Stmt *stmt) {
             codegen_push_scope(ctx);
             codegen_writeln(ctx, "{");
             codegen_indent_inc(ctx);
+
+            // OPTIMIZATION: Dead code elimination
+            // Skip statements after return, throw, break, continue
+            // Proof: Control flow terminators make subsequent code unreachable
             for (int i = 0; i < stmt->as.block.count; i++) {
                 codegen_stmt(ctx, stmt->as.block.statements[i]);
+
+                // Check if this statement terminates control flow
+                if (ctx->optimize) {
+                    Stmt *s = stmt->as.block.statements[i];
+                    if (s->type == STMT_RETURN || s->type == STMT_THROW ||
+                        s->type == STMT_BREAK || s->type == STMT_CONTINUE) {
+                        // Skip remaining statements (they are dead code)
+                        // Note: We don't warn here because this may be intentional
+                        // (e.g., conditional returns with code below)
+                        break;
+                    }
+                }
             }
+
             codegen_indent_dec(ctx);
             codegen_writeln(ctx, "}");
             codegen_pop_scope(ctx);
