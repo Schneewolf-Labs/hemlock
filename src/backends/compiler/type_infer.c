@@ -1138,6 +1138,201 @@ int type_variable_escapes_in_expr(const char *var_name, Expr *expr) {
     return variable_escapes_in_expr(expr, var_name);
 }
 
+// Helper: Check if an expression is unboxable (primitive literal, arithmetic, etc.)
+static int is_unboxable_expr(Expr *expr) {
+    if (!expr) return 0;
+
+    switch (expr->type) {
+        case EXPR_NUMBER:
+            // Numeric literals are unboxable
+            return 1;
+
+        case EXPR_BOOL:
+            // Boolean literals are unboxable
+            return 1;
+
+        case EXPR_IDENT:
+            // Other identifiers - we'll assume they might be unboxed
+            // (this will be checked at codegen time)
+            return 1;
+
+        case EXPR_BINARY:
+            // Arithmetic and bitwise operations on unboxable operands
+            // are unboxable
+            return is_unboxable_expr(expr->as.binary.left) &&
+                   is_unboxable_expr(expr->as.binary.right);
+
+        case EXPR_UNARY:
+            return is_unboxable_expr(expr->as.unary.operand);
+
+        case EXPR_PREFIX_INC:
+        case EXPR_PREFIX_DEC:
+            return is_unboxable_expr(expr->as.prefix_inc.operand);
+
+        case EXPR_POSTFIX_INC:
+        case EXPR_POSTFIX_DEC:
+            return is_unboxable_expr(expr->as.postfix_inc.operand);
+
+        case EXPR_TERNARY:
+            // Ternary is unboxable if both branches are unboxable
+            return is_unboxable_expr(expr->as.ternary.true_expr) &&
+                   is_unboxable_expr(expr->as.ternary.false_expr);
+
+        case EXPR_RUNE:
+            // Rune literals are unboxable (they're i32)
+            return 1;
+
+        // These are NOT unboxable - they return HmlValue
+        case EXPR_INDEX:
+        case EXPR_GET_PROPERTY:
+        case EXPR_CALL:
+        case EXPR_ARRAY_LITERAL:
+        case EXPR_OBJECT_LITERAL:
+        case EXPR_STRING:
+        case EXPR_STRING_INTERPOLATION:
+        case EXPR_FUNCTION:
+        case EXPR_AWAIT:
+        case EXPR_NULL:
+            return 0;
+
+        default:
+            return 0;
+    }
+}
+
+// Helper: Check if a variable has incompatible assignments in an expression
+static int has_incompatible_assignment_expr(Expr *expr, const char *var_name);
+static int has_incompatible_assignment_stmt(Stmt *stmt, const char *var_name);
+
+static int has_incompatible_assignment_expr(Expr *expr, const char *var_name) {
+    if (!expr) return 0;
+
+    switch (expr->type) {
+        case EXPR_ASSIGN:
+            // Check if assigning to our variable
+            if (strcmp(expr->as.assign.name, var_name) == 0) {
+                // Check if the value is unboxable
+                if (!is_unboxable_expr(expr->as.assign.value)) {
+                    return 1;  // Incompatible assignment!
+                }
+            }
+            // Also check the value expression
+            return has_incompatible_assignment_expr(expr->as.assign.value, var_name);
+
+        case EXPR_BINARY:
+            return has_incompatible_assignment_expr(expr->as.binary.left, var_name) ||
+                   has_incompatible_assignment_expr(expr->as.binary.right, var_name);
+
+        case EXPR_UNARY:
+            return has_incompatible_assignment_expr(expr->as.unary.operand, var_name);
+
+        case EXPR_CALL:
+            if (has_incompatible_assignment_expr(expr->as.call.func, var_name)) return 1;
+            for (int i = 0; i < expr->as.call.num_args; i++) {
+                if (has_incompatible_assignment_expr(expr->as.call.args[i], var_name)) return 1;
+            }
+            return 0;
+
+        case EXPR_INDEX:
+            return has_incompatible_assignment_expr(expr->as.index.object, var_name) ||
+                   has_incompatible_assignment_expr(expr->as.index.index, var_name);
+
+        case EXPR_INDEX_ASSIGN:
+            return has_incompatible_assignment_expr(expr->as.index_assign.object, var_name) ||
+                   has_incompatible_assignment_expr(expr->as.index_assign.index, var_name) ||
+                   has_incompatible_assignment_expr(expr->as.index_assign.value, var_name);
+
+        case EXPR_TERNARY:
+            return has_incompatible_assignment_expr(expr->as.ternary.condition, var_name) ||
+                   has_incompatible_assignment_expr(expr->as.ternary.true_expr, var_name) ||
+                   has_incompatible_assignment_expr(expr->as.ternary.false_expr, var_name);
+
+        case EXPR_ARRAY_LITERAL:
+            for (int i = 0; i < expr->as.array_literal.num_elements; i++) {
+                if (has_incompatible_assignment_expr(expr->as.array_literal.elements[i], var_name)) return 1;
+            }
+            return 0;
+
+        case EXPR_OBJECT_LITERAL:
+            for (int i = 0; i < expr->as.object_literal.num_fields; i++) {
+                if (has_incompatible_assignment_expr(expr->as.object_literal.field_values[i], var_name)) return 1;
+            }
+            return 0;
+
+        case EXPR_PREFIX_INC:
+        case EXPR_PREFIX_DEC:
+            return has_incompatible_assignment_expr(expr->as.prefix_inc.operand, var_name);
+
+        case EXPR_POSTFIX_INC:
+        case EXPR_POSTFIX_DEC:
+            return has_incompatible_assignment_expr(expr->as.postfix_inc.operand, var_name);
+
+        default:
+            return 0;
+    }
+}
+
+static int has_incompatible_assignment_stmt(Stmt *stmt, const char *var_name) {
+    if (!stmt) return 0;
+
+    switch (stmt->type) {
+        case STMT_EXPR:
+            return has_incompatible_assignment_expr(stmt->as.expr, var_name);
+
+        case STMT_LET:
+        case STMT_CONST:
+            if (stmt->as.let.value) {
+                return has_incompatible_assignment_expr(stmt->as.let.value, var_name);
+            }
+            return 0;
+
+        case STMT_RETURN:
+            if (stmt->as.return_stmt.value) {
+                return has_incompatible_assignment_expr(stmt->as.return_stmt.value, var_name);
+            }
+            return 0;
+
+        case STMT_BLOCK:
+            for (int i = 0; i < stmt->as.block.count; i++) {
+                if (has_incompatible_assignment_stmt(stmt->as.block.statements[i], var_name)) {
+                    return 1;
+                }
+            }
+            return 0;
+
+        case STMT_IF:
+            return has_incompatible_assignment_expr(stmt->as.if_stmt.condition, var_name) ||
+                   has_incompatible_assignment_stmt(stmt->as.if_stmt.then_branch, var_name) ||
+                   (stmt->as.if_stmt.else_branch && has_incompatible_assignment_stmt(stmt->as.if_stmt.else_branch, var_name));
+
+        case STMT_WHILE:
+            return has_incompatible_assignment_expr(stmt->as.while_stmt.condition, var_name) ||
+                   has_incompatible_assignment_stmt(stmt->as.while_stmt.body, var_name);
+
+        case STMT_FOR:
+            return (stmt->as.for_loop.initializer && has_incompatible_assignment_stmt(stmt->as.for_loop.initializer, var_name)) ||
+                   (stmt->as.for_loop.condition && has_incompatible_assignment_expr(stmt->as.for_loop.condition, var_name)) ||
+                   (stmt->as.for_loop.increment && has_incompatible_assignment_expr(stmt->as.for_loop.increment, var_name)) ||
+                   has_incompatible_assignment_stmt(stmt->as.for_loop.body, var_name);
+
+        case STMT_FOR_IN:
+            return has_incompatible_assignment_expr(stmt->as.for_in.iterable, var_name) ||
+                   has_incompatible_assignment_stmt(stmt->as.for_in.body, var_name);
+
+        case STMT_TRY:
+            return has_incompatible_assignment_stmt(stmt->as.try_stmt.try_block, var_name) ||
+                   (stmt->as.try_stmt.catch_block && has_incompatible_assignment_stmt(stmt->as.try_stmt.catch_block, var_name)) ||
+                   (stmt->as.try_stmt.finally_block && has_incompatible_assignment_stmt(stmt->as.try_stmt.finally_block, var_name));
+
+        case STMT_DEFER:
+            // defer takes a call expression, not a statement
+            return has_incompatible_assignment_expr(stmt->as.defer_stmt.call, var_name);
+
+        default:
+            return 0;
+    }
+}
+
 // Check if a variable escapes in a statement
 int type_variable_escapes(const char *var_name, Stmt *stmt) {
     return variable_escapes_in_stmt(stmt, var_name);
@@ -1164,11 +1359,19 @@ void type_analyze_typed_let(TypeInferContext *ctx, Stmt *stmt, Stmt *containing_
     InferredTypeKind native_type = type_can_unbox_annotation(stmt->as.let.type_annotation);
     if (native_type == INFER_UNKNOWN) return;
 
-    // Check if variable escapes in subsequent statements in the containing block
+    // Check if the initializer is unboxable
+    if (stmt->as.let.value && !is_unboxable_expr(stmt->as.let.value)) {
+        return;  // Initialized from non-unboxable expression
+    }
+
+    // Check if variable escapes or has incompatible assignments in subsequent statements
     if (containing_block && containing_block->type == STMT_BLOCK) {
         for (int i = stmt_index + 1; i < containing_block->as.block.count; i++) {
             if (variable_escapes_in_stmt(containing_block->as.block.statements[i], var_name)) {
                 return;  // Variable escapes, cannot unbox
+            }
+            if (has_incompatible_assignment_stmt(containing_block->as.block.statements[i], var_name)) {
+                return;  // Variable assigned from non-unboxable expression
             }
         }
     }
