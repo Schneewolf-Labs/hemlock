@@ -76,6 +76,36 @@ let arr = [1, 2, 3];     // array
 let obj = { x: 10 };     // object
 ```
 
+### Type Conversion
+```hemlock
+// Type constructor functions - parse strings to types
+let n = i32("42");       // Parse string to i32
+let f = f64("3.14");     // Parse string to f64
+let b = bool("true");    // Parse string to bool ("true" or "false")
+
+// All numeric types supported
+let a = i8("-128");      // i8, i16, i32, i64
+let c = u8("255");       // u8, u16, u32, u64
+let d = f32("1.5");      // f32, f64
+
+// Hex and negative numbers
+let hex = i32("0xFF");   // 255
+let neg = i32("-42");    // -42
+
+// Type aliases work too
+let x = integer("100");  // Same as i32("100")
+let y = number("1.5");   // Same as f64("1.5")
+let z = byte("200");     // Same as u8("200")
+
+// Convert between numeric types
+let big = i64(42);       // i32 to i64
+let truncated = i32(3.99); // f64 to i32 (truncates to 3)
+
+// Type annotations also perform conversion
+let n: i32 = "42";       // String to i32 via annotation
+let f: f64 = 100;        // i32 to f64 via annotation
+```
+
 ### Memory
 ```hemlock
 let p = alloc(64);       // raw pointer
