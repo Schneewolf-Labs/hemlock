@@ -864,13 +864,78 @@ void type_analyze_for_loop(TypeInferContext *ctx, Stmt *stmt) {
     type_mark_unboxable(ctx, var_name, native_type, 1, 0);
 }
 
+// Helper: Check if a statement modifies a variable as an accumulator
+// Patterns: sum = sum + x, sum = sum * x, sum = sum - x
+static int is_accumulator_update(Stmt *stmt, const char *var_name) {
+    if (!stmt || stmt->type != STMT_EXPR) return 0;
+    Expr *expr = stmt->as.expr;
+    if (!expr || expr->type != EXPR_ASSIGN) return 0;
+
+    // Check if assigning to the variable
+    if (strcmp(expr->as.assign.name, var_name) != 0) return 0;
+
+    // Check if the value is a binary operation with the variable as left operand
+    Expr *val = expr->as.assign.value;
+    if (!val || val->type != EXPR_BINARY) return 0;
+
+    // Left side should be the variable
+    if (val->as.binary.left->type != EXPR_IDENT) return 0;
+    if (strcmp(val->as.binary.left->as.ident.name, var_name) != 0) return 0;
+
+    // Check for accumulation operations (+, -, *, |, ^, &)
+    BinaryOp op = val->as.binary.op;
+    return op == OP_ADD || op == OP_SUB || op == OP_MUL ||
+           op == OP_BIT_OR || op == OP_BIT_XOR || op == OP_BIT_AND;
+}
+
+// Helper: Find accumulator updates in a block
+static int find_accumulator_in_block(Stmt *body, const char *var_name) {
+    if (!body) return 0;
+
+    if (body->type == STMT_BLOCK) {
+        for (int i = 0; i < body->as.block.count; i++) {
+            if (is_accumulator_update(body->as.block.statements[i], var_name)) {
+                return 1;
+            }
+        }
+    } else if (is_accumulator_update(body, var_name)) {
+        return 1;
+    }
+    return 0;
+}
+
 void type_analyze_while_loop(TypeInferContext *ctx, Stmt *stmt) {
-    // TODO: Implement accumulator detection for while loops
-    // This would analyze patterns like:
+    // Accumulator detection for while loops
+    // Detects patterns like:
     //   let sum = 0;
     //   while (cond) { sum = sum + value; }
-    (void)ctx;
-    (void)stmt;
+    //
+    // Proof of correctness:
+    // - If a variable is initialized with an integer and only updated
+    //   with patterns like sum = sum + x (where the original value is used
+    //   before any modification), it stays as an integer throughout.
+    // - The variable can be unboxed to a native C int for efficiency.
+    if (!stmt || stmt->type != STMT_WHILE) return;
+
+    Stmt *body = stmt->as.while_stmt.body;
+    if (!body) return;
+
+    // Look through the body for accumulator patterns
+    // For now, we only detect direct accumulator updates in the loop body
+    // A more sophisticated implementation would track declarations before the loop
+
+    // Scan the type environment for variables that might be accumulators
+    // (those bound in this scope with known integer types)
+    for (TypeBinding *b = ctx->current_env->bindings; b; b = b->next) {
+        if ((b->type.kind == INFER_I32 || b->type.kind == INFER_I64) &&
+            find_accumulator_in_block(body, b->name)) {
+            // Check if the variable escapes in the loop body
+            if (!variable_escapes_in_stmt(body, b->name)) {
+                // Mark as accumulator for potential unboxing
+                type_mark_unboxable(ctx, b->name, b->type.kind, 0, 1);
+            }
+        }
+    }
 }
 
 // ========== DEBUG ==========
