@@ -227,10 +227,10 @@ Value eval_binary_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
 
     // String + object/array concatenation (auto-serialize to JSON)
     if (expr->as.binary.op == OP_ADD && left.type == VAL_STRING && (right.type == VAL_OBJECT || right.type == VAL_ARRAY)) {
-        VisitedSet visited;
-        visited_init(&visited);
+        SerializeVisitedSet visited;
+        serialize_visited_init(&visited);
         char *right_json = serialize_value(right, &visited, ctx);
-        visited_free(&visited);
+        serialize_visited_free(&visited);
         if (right_json == NULL) {
             // Serialization failed (exception already thrown)
             goto binary_cleanup;
@@ -245,10 +245,10 @@ Value eval_binary_expr(Expr *expr, Environment *env, ExecutionContext *ctx) {
 
     // Object/array + string concatenation (auto-serialize to JSON)
     if (expr->as.binary.op == OP_ADD && (left.type == VAL_OBJECT || left.type == VAL_ARRAY) && right.type == VAL_STRING) {
-        VisitedSet visited;
-        visited_init(&visited);
+        SerializeVisitedSet visited;
+        serialize_visited_init(&visited);
         char *left_json = serialize_value(left, &visited, ctx);
-        visited_free(&visited);
+        serialize_visited_free(&visited);
         if (left_json == NULL) {
             // Serialization failed (exception already thrown)
             goto binary_cleanup;

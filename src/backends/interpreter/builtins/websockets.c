@@ -74,9 +74,6 @@ static int http_callback(struct lws *wsi, enum lws_callback_reasons reason,
                          void *user, void *in, size_t len) {
     http_response_t *resp = (http_response_t *)user;
 
-    // Debug output (uncomment for debugging)
-    // fprintf(stderr, "[HTTP] callback reason: %d, resp=%p\n", reason, (void*)resp);
-
     switch (reason) {
         case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER:
             // Add custom headers to the HTTP request

@@ -124,10 +124,10 @@ static inline void jbuf_append_escaped_string(JsonBuffer *buf, const char *str, 
 }
 
 // Forward declaration for recursive serialization
-static int serialize_to_buffer(Value val, JsonBuffer *buf, VisitedSet *visited, ExecutionContext *ctx);
+static int serialize_to_buffer(Value val, JsonBuffer *buf, SerializeVisitedSet *visited, ExecutionContext *ctx);
 
 // Recursive serialization that writes directly to buffer
-static int serialize_to_buffer(Value val, JsonBuffer *buf, VisitedSet *visited, ExecutionContext *ctx) {
+static int serialize_to_buffer(Value val, JsonBuffer *buf, SerializeVisitedSet *visited, ExecutionContext *ctx) {
     char tmp[32];
 
     switch (val.type) {
@@ -184,11 +184,11 @@ static int serialize_to_buffer(Value val, JsonBuffer *buf, VisitedSet *visited, 
             Object *obj = val.as.as_object;
 
             // Check for cycles
-            if (visited_contains(visited, obj)) {
+            if (serialize_visited_contains(visited, obj)) {
                 throw_runtime_error(ctx, "serialize() detected circular reference");
                 return 0;
             }
-            visited_add(visited, obj);
+            serialize_visited_add(visited, obj);
 
             jbuf_append_char(buf, '{');
 
@@ -213,11 +213,11 @@ static int serialize_to_buffer(Value val, JsonBuffer *buf, VisitedSet *visited, 
             Array *arr = val.as.as_array;
 
             // Check for cycles
-            if (visited_contains(visited, (Object*)arr)) {
+            if (serialize_visited_contains(visited, (Object*)arr)) {
                 throw_runtime_error(ctx, "serialize() detected circular reference");
                 return 0;
             }
-            visited_add(visited, (Object*)arr);
+            serialize_visited_add(visited, (Object*)arr);
 
             jbuf_append_char(buf, '[');
 
@@ -238,15 +238,15 @@ static int serialize_to_buffer(Value val, JsonBuffer *buf, VisitedSet *visited, 
     }
 }
 
-// ========== LEGACY API (for compatibility) ==========
+// ========== SERIALIZATION VISITED SET ==========
 
-void visited_init(VisitedSet *set) {
+void serialize_visited_init(SerializeVisitedSet *set) {
     set->capacity = 16;
     set->count = 0;
     set->visited = malloc(sizeof(Object*) * set->capacity);
 }
 
-int visited_contains(VisitedSet *set, Object *obj) {
+int serialize_visited_contains(SerializeVisitedSet *set, Object *obj) {
     for (int i = 0; i < set->count; i++) {
         if (set->visited[i] == obj) {
             return 1;
@@ -255,7 +255,7 @@ int visited_contains(VisitedSet *set, Object *obj) {
     return 0;
 }
 
-void visited_add(VisitedSet *set, Object *obj) {
+void serialize_visited_add(SerializeVisitedSet *set, Object *obj) {
     if (set->count >= set->capacity) {
         set->capacity *= 2;
         set->visited = realloc(set->visited, sizeof(Object*) * set->capacity);
@@ -263,7 +263,7 @@ void visited_add(VisitedSet *set, Object *obj) {
     set->visited[set->count++] = obj;
 }
 
-void visited_free(VisitedSet *set) {
+void serialize_visited_free(SerializeVisitedSet *set) {
     free(set->visited);
 }
 
@@ -305,7 +305,7 @@ char* escape_json_string(const char *str) {
 }
 
 // Optimized serialize_value using the buffer-based approach
-char* serialize_value(Value val, VisitedSet *visited, ExecutionContext *ctx) {
+char* serialize_value(Value val, SerializeVisitedSet *visited, ExecutionContext *ctx) {
     JsonBuffer buf;
     jbuf_init(&buf, 256);
 
@@ -771,13 +771,13 @@ Value call_object_method(Object *obj, const char *method, Value *args, int num_a
             return throw_runtime_error(ctx, "serialize() expects no arguments");
         }
 
-        VisitedSet visited;
-        visited_init(&visited);
+        SerializeVisitedSet visited;
+        serialize_visited_init(&visited);
 
         Value obj_val = val_object(obj);
         char *json = serialize_value(obj_val, &visited, ctx);
 
-        visited_free(&visited);
+        serialize_visited_free(&visited);
 
         if (json == NULL) {
             // Exception was already thrown by serialize_value

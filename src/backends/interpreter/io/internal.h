@@ -10,12 +10,13 @@
 
 // ========== SERIALIZATION SUPPORT ==========
 
-// Cycle detection for serialization
+// Cycle detection for JSON serialization (uses Object** specifically)
+// Note: This is distinct from VisitedSet in internal.h which uses void** for general cycle detection
 typedef struct {
     Object **visited;
     int count;
     int capacity;
-} VisitedSet;
+} SerializeVisitedSet;
 
 // JSON parsing
 typedef struct {
@@ -24,12 +25,12 @@ typedef struct {
 } JSONParser;
 
 // Serialization functions
-void visited_init(VisitedSet *set);
-int visited_contains(VisitedSet *set, Object *obj);
-void visited_add(VisitedSet *set, Object *obj);
-void visited_free(VisitedSet *set);
+void serialize_visited_init(SerializeVisitedSet *set);
+int serialize_visited_contains(SerializeVisitedSet *set, Object *obj);
+void serialize_visited_add(SerializeVisitedSet *set, Object *obj);
+void serialize_visited_free(SerializeVisitedSet *set);
 char* escape_json_string(const char *str);
-char* serialize_value(Value val, VisitedSet *visited, ExecutionContext *ctx);
+char* serialize_value(Value val, SerializeVisitedSet *visited, ExecutionContext *ctx);
 
 // JSON parsing functions
 void json_skip_whitespace(JSONParser *p);
