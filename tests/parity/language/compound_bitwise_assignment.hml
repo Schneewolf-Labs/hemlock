@@ -1,0 +1,93 @@
+// Test compound bitwise assignment operators (%=, &=, |=, ^=, <<=, >>=)
+
+// Modulo assignment
+let a = 17;
+a %= 5;
+print(a);  // 2
+
+// Bitwise AND assignment
+let b = 0b1111;  // 15
+b &= 0b1100;     // 12
+print(b);
+
+// Bitwise OR assignment
+let c = 0b1010;  // 10
+c |= 0b0101;     // 15
+print(c);
+
+// Bitwise XOR assignment
+let d = 0b1111;  // 15
+d ^= 0b1010;     // 5
+print(d);
+
+// Left shift assignment
+let e = 1;
+e <<= 4;
+print(e);  // 16
+
+// Right shift assignment
+let f = 64;
+f >>= 2;
+print(f);  // 16
+
+// Chained operations
+let g = 255;
+g &= 0xF0;   // 240
+g >>= 4;     // 15
+print(g);
+
+// With array indexing
+let arr = [0b1111, 0b1010, 8];
+arr[0] &= 0b0011;
+print(arr[0]);  // 3
+
+arr[1] |= 0b0101;
+print(arr[1]);  // 15
+
+arr[2] <<= 2;
+print(arr[2]);  // 32
+
+// With object properties
+let obj = { flags: 0b1111, shift: 4 };
+obj.flags ^= 0b1100;
+print(obj.flags);  // 3
+
+obj.shift <<= 1;
+print(obj.shift);  // 8
+
+// Combined with arithmetic compound assignments (verify they still work)
+let h = 10;
+h += 5;
+print(h);  // 15
+
+h -= 3;
+print(h);  // 12
+
+h *= 2;
+print(h);  // 24
+
+h /= 4;
+print(h);  // 6 (float)
+
+// Modulo with larger numbers
+let i = 100;
+i %= 30;
+print(i);  // 10
+
+// Practical use case: bit flags
+let flags = 0;
+let FLAG_READ = 1;
+let FLAG_WRITE = 2;
+let FLAG_EXEC = 4;
+
+flags |= FLAG_READ;
+flags |= FLAG_WRITE;
+print(flags);  // 3
+
+flags &= ~FLAG_READ;  // Clear read flag
+print(flags);  // 2
+
+flags ^= FLAG_EXEC;   // Toggle exec flag
+print(flags);  // 6
+
+print("done");
