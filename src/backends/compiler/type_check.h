@@ -121,6 +121,18 @@ typedef struct UnboxableVar {
     struct UnboxableVar *next;
 } UnboxableVar;
 
+// ========== STRUCTURED ERROR COLLECTION ==========
+
+// Represents a type error or warning with full position information
+typedef struct TypeCheckError {
+    int line;                   // 1-based line number
+    int column;                 // 0-based column offset
+    int end_column;             // End column for range highlighting
+    char *message;              // Error message
+    int is_warning;             // 0 = error, 1 = warning
+    struct TypeCheckError *next;
+} TypeCheckError;
+
 // ========== TYPE CHECK CONTEXT ==========
 
 typedef struct {
@@ -148,6 +160,12 @@ typedef struct {
 
     // Unboxing optimization
     UnboxableVar *unboxable_vars;  // Variables that can use native C types
+
+    // Structured error collection (for LSP integration)
+    TypeCheckError *errors;     // Linked list of collected errors
+    TypeCheckError *errors_tail; // Tail pointer for O(1) append
+    const char *source;         // Source code (for column calculation)
+    int collect_errors;         // If true, collect errors instead of printing
 } TypeCheckContext;
 
 // ========== CONTEXT MANAGEMENT ==========
@@ -280,6 +298,21 @@ void type_error(TypeCheckContext *ctx, int line, const char *fmt, ...);
 
 // Report a type warning
 void type_warning(TypeCheckContext *ctx, int line, const char *fmt, ...);
+
+// ========== ERROR COLLECTION API (for LSP integration) ==========
+
+// Enable error collection mode (errors are stored instead of printed to stderr)
+void type_check_enable_collection(TypeCheckContext *ctx, const char *source);
+
+// Get the list of collected errors (returns linked list head)
+TypeCheckError* type_check_get_errors(TypeCheckContext *ctx);
+
+// Free all collected errors
+void type_check_free_errors(TypeCheckContext *ctx);
+
+// Calculate column position for a given line number in source
+// Returns 0 if unable to calculate
+int type_check_calc_column(const char *source, int target_line, const char *hint);
 
 // ========== UNBOXING OPTIMIZATION ==========
 

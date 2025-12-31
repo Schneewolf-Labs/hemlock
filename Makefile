@@ -75,8 +75,9 @@ INTERP_SRCS = $(wildcard $(SRC_DIR)/backends/interpreter/*.c) \
               $(wildcard $(SRC_DIR)/backends/interpreter/io/*.c) \
               $(wildcard $(SRC_DIR)/backends/interpreter/runtime/*.c)
 
-# Other components
-OTHER_SRCS = $(wildcard $(SRC_DIR)/lsp/*.c) $(wildcard $(SRC_DIR)/bundler/*.c)
+# Other components (LSP, bundler, and type checker for LSP integration)
+OTHER_SRCS = $(wildcard $(SRC_DIR)/lsp/*.c) $(wildcard $(SRC_DIR)/bundler/*.c) \
+             $(SRC_DIR)/backends/compiler/type_check.c
 
 # All interpreter sources
 SRCS = $(FRONTEND_SRCS) $(INTERP_SRCS) $(OTHER_SRCS)
