@@ -9,6 +9,7 @@
 #include "../../include/lexer.h"
 #include "../../include/parser.h"
 #include "../../include/ast.h"
+#include "../backends/compiler/type_check.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -195,7 +196,7 @@ void lsp_document_parse(LSPDocument *doc) {
     int stmt_count = 0;
     Stmt **statements = parse_program(&parser, &stmt_count);
 
-    // Check for errors
+    // Check for parse errors
     if (parser.had_error) {
         // The parser error occurred at parser.previous or parser.current
         // Convert to LSP diagnostic
@@ -237,6 +238,40 @@ void lsp_document_parse(LSPDocument *doc) {
     doc->ast = statements;
     doc->ast_stmt_count = stmt_count;
     doc->ast_valid = !parser.had_error;
+
+    // Run type checking if parsing succeeded
+    if (doc->ast_valid && statements && stmt_count > 0) {
+        // Create type check context
+        TypeCheckContext *type_ctx = type_check_new(doc->uri);
+
+        // Enable error collection mode for LSP
+        type_check_enable_collection(type_ctx, doc->content);
+
+        // Run type checking
+        type_check_program(type_ctx, statements, stmt_count);
+
+        // Convert type errors to LSP diagnostics
+        TypeCheckError *err = type_check_get_errors(type_ctx);
+        while (err) {
+            // Convert 1-based line to 0-based for LSP
+            int lsp_line = err->line > 0 ? err->line - 1 : 0;
+
+            LSPRange range = {
+                .start = { .line = lsp_line, .character = err->column },
+                .end = { .line = lsp_line, .character = err->end_column }
+            };
+
+            LSPDiagnosticSeverity severity = err->is_warning ?
+                LSP_SEVERITY_WARNING : LSP_SEVERITY_ERROR;
+
+            lsp_document_add_diagnostic(doc, range, severity, err->message);
+
+            err = err->next;
+        }
+
+        // Clean up type checker
+        type_check_free(type_ctx);
+    }
 }
 
 // ============================================================================
