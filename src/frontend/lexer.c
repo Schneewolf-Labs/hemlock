@@ -684,7 +684,12 @@ Token lexer_next(Lexer *lex) {
                 return make_token(lex, TOK_SLASH_EQUAL);
             }
             return make_token(lex, TOK_SLASH);
-        case '%': return make_token(lex, TOK_PERCENT);
+        case '%':
+            if (peek(lex) == '=') {
+                advance(lex);
+                return make_token(lex, TOK_PERCENT_EQUAL);
+            }
+            return make_token(lex, TOK_PERCENT);
         case ';': return make_token(lex, TOK_SEMICOLON);
         case ':': return make_token(lex, TOK_COLON);
         case ',': return make_token(lex, TOK_COMMA);
@@ -736,6 +741,10 @@ Token lexer_next(Lexer *lex) {
             }
             if (peek(lex) == '<') {
                 advance(lex);
+                if (peek(lex) == '=') {
+                    advance(lex);
+                    return make_token(lex, TOK_LESS_LESS_EQUAL);
+                }
                 return make_token(lex, TOK_LESS_LESS);
             }
             return make_token(lex, TOK_LESS);
@@ -747,6 +756,10 @@ Token lexer_next(Lexer *lex) {
             }
             if (peek(lex) == '>') {
                 advance(lex);
+                if (peek(lex) == '=') {
+                    advance(lex);
+                    return make_token(lex, TOK_GREATER_GREATER_EQUAL);
+                }
                 return make_token(lex, TOK_GREATER_GREATER);
             }
             return make_token(lex, TOK_GREATER);
@@ -756,6 +769,10 @@ Token lexer_next(Lexer *lex) {
                 advance(lex);
                 return make_token(lex, TOK_AMP_AMP);
             }
+            if (peek(lex) == '=') {
+                advance(lex);
+                return make_token(lex, TOK_AMP_EQUAL);
+            }
             return make_token(lex, TOK_AMP);
 
         case '|':
@@ -763,9 +780,17 @@ Token lexer_next(Lexer *lex) {
                 advance(lex);
                 return make_token(lex, TOK_PIPE_PIPE);
             }
+            if (peek(lex) == '=') {
+                advance(lex);
+                return make_token(lex, TOK_PIPE_EQUAL);
+            }
             return make_token(lex, TOK_PIPE);
 
         case '^':
+            if (peek(lex) == '=') {
+                advance(lex);
+                return make_token(lex, TOK_CARET_EQUAL);
+            }
             return make_token(lex, TOK_CARET);
 
         case '~':

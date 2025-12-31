@@ -84,6 +84,12 @@ typedef enum {
     TOK_MINUS_EQUAL,
     TOK_STAR_EQUAL,
     TOK_SLASH_EQUAL,
+    TOK_PERCENT_EQUAL,       // %=
+    TOK_AMP_EQUAL,           // &=
+    TOK_PIPE_EQUAL,          // |=
+    TOK_CARET_EQUAL,         // ^=
+    TOK_LESS_LESS_EQUAL,     // <<=
+    TOK_GREATER_GREATER_EQUAL, // >>=
     TOK_EQUAL_EQUAL,
     TOK_BANG_EQUAL,
     TOK_BANG,

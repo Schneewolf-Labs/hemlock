@@ -666,7 +666,7 @@ Expr* ternary(Parser *p) {
 Expr* assignment(Parser *p) {
     Expr *expr = ternary(p);
 
-    // Check for compound assignment operators (+=, -=, *=, /=)
+    // Check for compound assignment operators (+=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=)
     BinaryOp compound_op;
     int is_compound = 0;
 
@@ -681,6 +681,24 @@ Expr* assignment(Parser *p) {
         is_compound = 1;
     } else if (match(p, TOK_SLASH_EQUAL)) {
         compound_op = OP_DIV;
+        is_compound = 1;
+    } else if (match(p, TOK_PERCENT_EQUAL)) {
+        compound_op = OP_MOD;
+        is_compound = 1;
+    } else if (match(p, TOK_AMP_EQUAL)) {
+        compound_op = OP_BIT_AND;
+        is_compound = 1;
+    } else if (match(p, TOK_PIPE_EQUAL)) {
+        compound_op = OP_BIT_OR;
+        is_compound = 1;
+    } else if (match(p, TOK_CARET_EQUAL)) {
+        compound_op = OP_BIT_XOR;
+        is_compound = 1;
+    } else if (match(p, TOK_LESS_LESS_EQUAL)) {
+        compound_op = OP_BIT_LSHIFT;
+        is_compound = 1;
+    } else if (match(p, TOK_GREATER_GREATER_EQUAL)) {
+        compound_op = OP_BIT_RSHIFT;
         is_compound = 1;
     }
 
