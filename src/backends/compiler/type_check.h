@@ -321,6 +321,14 @@ CheckedTypeKind type_check_can_unbox_annotation(Type *type_annotation);
 int type_check_variable_escapes(const char *var_name, Stmt *stmt);
 int type_check_variable_escapes_in_expr(const char *var_name, Expr *expr);
 
+// ========== TAIL CALL OPTIMIZATION ==========
+
+// Check if a statement body is tail-recursive for the given function name
+int is_tail_recursive_function(Stmt *body, const char *func_name);
+
+// Check if an expression is a tail call to the given function
+int is_tail_call_expr(Expr *expr, const char *func_name);
+
 // ========== DEBUG ==========
 
 // Get a human-readable name for a type
