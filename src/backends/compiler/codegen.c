@@ -851,12 +851,27 @@ void funcgen_restore_state(CodegenContext *ctx, FuncGenState *state) {
 }
 
 void funcgen_add_params(CodegenContext *ctx, Expr *func) {
+    // Track function parameters for unboxing checks
+    // These are always HmlValue and cannot be unboxed
+    ctx->func_params = func->as.function.param_names;
+    ctx->num_func_params = func->as.function.num_params;
+
     for (int i = 0; i < func->as.function.num_params; i++) {
         codegen_add_local(ctx, func->as.function.param_names[i]);
     }
     if (func->as.function.rest_param) {
         codegen_add_local(ctx, func->as.function.rest_param);
     }
+}
+
+// Check if a variable name is a function parameter (and thus cannot be unboxed)
+int codegen_is_func_param(CodegenContext *ctx, const char *name) {
+    for (int i = 0; i < ctx->num_func_params; i++) {
+        if (strcmp(ctx->func_params[i], name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 void funcgen_apply_defaults(CodegenContext *ctx, Expr *func) {
