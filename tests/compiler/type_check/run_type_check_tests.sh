@@ -75,7 +75,7 @@ fi
 # Test 6: Return type mismatch
 echo "Test 6: Return type mismatch"
 cat > /tmp/test_return.hml << 'EOF'
-let fn getNum(): i32 { return "hello"; };
+let getNum = fn(): i32 { return "hello"; };
 EOF
 if $HEMLOCKC --type-check /tmp/test_return.hml 2>&1 | grep -q "return type mismatch"; then
     echo "  PASSED: Caught return type mismatch"
