@@ -72,6 +72,9 @@ void funcgen_restore_state(CodegenContext *ctx, FuncGenState *state);
 // Add function parameters as locals
 void funcgen_add_params(CodegenContext *ctx, Expr *func);
 
+// Check if a variable name is a function parameter (cannot be unboxed)
+int codegen_is_func_param(CodegenContext *ctx, const char *name);
+
 // Apply default values for optional parameters
 void funcgen_apply_defaults(CodegenContext *ctx, Expr *func);
 

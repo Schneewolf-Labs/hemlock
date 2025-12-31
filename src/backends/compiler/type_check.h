@@ -67,6 +67,7 @@ typedef struct TypeCheckBinding {
     char *name;
     CheckedType *type;
     int is_const;                   // Whether this is a const binding
+    int is_param;                   // Whether this is a function parameter (cannot be unboxed)
     int line;                       // Line where declared (for error messages)
     struct TypeCheckBinding *next;
 } TypeCheckBinding;
@@ -167,8 +168,9 @@ void type_check_push_scope(TypeCheckContext *ctx);
 void type_check_pop_scope(TypeCheckContext *ctx);
 
 // Bind a variable to a type in the current scope
+// is_param: 1 if this is a function parameter (cannot be unboxed), 0 otherwise
 void type_check_bind(TypeCheckContext *ctx, const char *name, CheckedType *type,
-                     int is_const, int line);
+                     int is_const, int is_param, int line);
 
 // Look up a variable's type (searches parent scopes)
 CheckedType* type_check_lookup(TypeCheckContext *ctx, const char *name);

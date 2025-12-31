@@ -1,0 +1,18 @@
+Testing grid_loop:
+(0,0)
+(0,1)
+(0,2)
+(1,0)
+(1,1)
+(1,2)
+(2,0)
+(2,1)
+(2,2)
+
+Testing compute:
+compute(5, 3) = 8
+compute(10, 20) = 30
+
+Testing count_neighbors:
+count_neighbors at (1,1) = 8
+count_neighbors at (0,0) = 3

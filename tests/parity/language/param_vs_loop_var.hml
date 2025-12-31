@@ -1,0 +1,56 @@
+// Test that function parameters are NOT unboxed even when a loop variable
+// with the same name exists in another function.
+// This is a regression test for a bug where the unboxable variable tracking
+// was global, causing function parameters to be incorrectly treated as unboxed.
+
+// This function uses x and y as loop counter variables
+// The type checker may mark x and y as unboxable for this function
+fn grid_loop() {
+    for (let x = 0; x < 3; x = x + 1) {
+        for (let y = 0; y < 3; y = y + 1) {
+            print("(" + x + "," + y + ")");
+        }
+    }
+}
+
+// This function has x and y as PARAMETERS (with type annotations)
+// Parameters should NEVER be unboxed - they are always HmlValue
+fn compute(x: i32, y: i32): i32 {
+    // Calling grid_loop here ensures both functions exist in the same compilation unit
+    // The bug occurred when the compiler incorrectly treated x and y parameters
+    // as native int32_t instead of HmlValue
+    return x + y;
+}
+
+// Another function with typed parameters that match common loop variable names
+fn count_neighbors(grid, x: i32, y: i32): i32 {
+    // This pattern is common in grid-based programs like Conway's Game of Life
+    let count = 0;
+    for (let dx = -1; dx <= 1; dx = dx + 1) {
+        for (let dy = -1; dy <= 1; dy = dy + 1) {
+            if (dx == 0 && dy == 0) {
+                continue;
+            }
+            // Use x and y parameters in arithmetic expressions
+            let nx = x + dx;
+            let ny = y + dy;
+            if (nx >= 0 && ny >= 0) {
+                count = count + 1;
+            }
+        }
+    }
+    return count;
+}
+
+// Test the functions
+print("Testing grid_loop:");
+grid_loop();
+
+print("\nTesting compute:");
+print("compute(5, 3) = " + compute(5, 3));
+print("compute(10, 20) = " + compute(10, 20));
+
+print("\nTesting count_neighbors:");
+let dummy_grid = [];
+print("count_neighbors at (1,1) = " + count_neighbors(dummy_grid, 1, 1));
+print("count_neighbors at (0,0) = " + count_neighbors(dummy_grid, 0, 0));

@@ -360,11 +360,12 @@ void type_check_pop_scope(TypeCheckContext *ctx) {
 }
 
 void type_check_bind(TypeCheckContext *ctx, const char *name, CheckedType *type,
-                     int is_const, int line) {
+                     int is_const, int is_param, int line) {
     TypeCheckBinding *binding = calloc(1, sizeof(TypeCheckBinding));
     binding->name = strdup(name);
     binding->type = type;
     binding->is_const = is_const;
+    binding->is_param = is_param;  // Function parameters cannot be unboxed
     binding->line = line;
     binding->next = ctx->current_env->bindings;
     ctx->current_env->bindings = binding;
@@ -1585,7 +1586,7 @@ static void type_check_function_body(TypeCheckContext *ctx, Expr *func, const ch
         } else {
             param_type = checked_type_primitive(CHECKED_ANY);
         }
-        type_check_bind(ctx, func->as.function.param_names[i], param_type, 0, 0);
+        type_check_bind(ctx, func->as.function.param_names[i], param_type, 0, 1, 0);  // is_param=1
     }
 
     // Bind rest parameter if present
@@ -1595,7 +1596,7 @@ static void type_check_function_body(TypeCheckContext *ctx, Expr *func, const ch
                 ? checked_type_from_ast(func->as.function.rest_param_type)
                 : checked_type_primitive(CHECKED_ANY)
         );
-        type_check_bind(ctx, func->as.function.rest_param, rest_type, 0, 0);
+        type_check_bind(ctx, func->as.function.rest_param, rest_type, 0, 1, 0);  // is_param=1
     }
 
     // Check body
@@ -1643,7 +1644,7 @@ void type_check_stmt(TypeCheckContext *ctx, Stmt *stmt) {
                 declared_type = checked_type_primitive(CHECKED_ANY);
             }
 
-            type_check_bind(ctx, stmt->as.let.name, declared_type, 0, stmt->line);
+            type_check_bind(ctx, stmt->as.let.name, declared_type, 0, 0, stmt->line);
             break;
         }
 
@@ -1672,7 +1673,7 @@ void type_check_stmt(TypeCheckContext *ctx, Stmt *stmt) {
                 declared_type = checked_type_primitive(CHECKED_ANY);
             }
 
-            type_check_bind(ctx, stmt->as.const_stmt.name, declared_type, 1, stmt->line);
+            type_check_bind(ctx, stmt->as.const_stmt.name, declared_type, 1, 0, stmt->line);
             break;
         }
 
@@ -1726,9 +1727,9 @@ void type_check_stmt(TypeCheckContext *ctx, Stmt *stmt) {
 
             if (stmt->as.for_in.key_var) {
                 type_check_bind(ctx, stmt->as.for_in.key_var,
-                    checked_type_primitive(CHECKED_I32), 0, stmt->line);
+                    checked_type_primitive(CHECKED_I32), 0, 0, stmt->line);
             }
-            type_check_bind(ctx, stmt->as.for_in.value_var, value_type, 0, stmt->line);
+            type_check_bind(ctx, stmt->as.for_in.value_var, value_type, 0, 0, stmt->line);
 
             checked_type_free(iter_type);
             type_check_stmt(ctx, stmt->as.for_in.body);
@@ -1794,7 +1795,7 @@ void type_check_stmt(TypeCheckContext *ctx, Stmt *stmt) {
             // Also bind enum to scope as a type
             CheckedType *enum_type = checked_type_primitive(CHECKED_ENUM);
             enum_type->type_name = strdup(stmt->as.enum_decl.name);
-            type_check_bind(ctx, stmt->as.enum_decl.name, enum_type, 1, stmt->line);
+            type_check_bind(ctx, stmt->as.enum_decl.name, enum_type, 1, 0, stmt->line);
             break;
         }
 
@@ -1804,7 +1805,7 @@ void type_check_stmt(TypeCheckContext *ctx, Stmt *stmt) {
                 type_check_push_scope(ctx);
                 if (stmt->as.try_stmt.catch_param) {
                     type_check_bind(ctx, stmt->as.try_stmt.catch_param,
-                        checked_type_primitive(CHECKED_ANY), 0, stmt->line);
+                        checked_type_primitive(CHECKED_ANY), 0, 0, stmt->line);
                 }
                 type_check_stmt(ctx, stmt->as.try_stmt.catch_block);
                 type_check_pop_scope(ctx);
@@ -2009,6 +2010,20 @@ void type_check_mark_unboxable(TypeCheckContext *ctx, const char *name,
 
 CheckedTypeKind type_check_get_unboxable(TypeCheckContext *ctx, const char *name) {
     if (!ctx) return CHECKED_UNKNOWN;
+
+    // First check if this is a function parameter - parameters are always HmlValue
+    // and cannot be unboxed, even if a variable with the same name was marked
+    // as unboxable in a different scope
+    for (TypeCheckEnv *env = ctx->current_env; env; env = env->parent) {
+        for (TypeCheckBinding *b = env->bindings; b; b = b->next) {
+            if (strcmp(b->name, name) == 0) {
+                if (b->is_param) {
+                    return CHECKED_UNKNOWN;  // Parameters cannot be unboxed
+                }
+                break;  // Found the binding, not a parameter
+            }
+        }
+    }
 
     for (UnboxableVar *u = ctx->unboxable_vars; u; u = u->next) {
         if (strcmp(u->name, name) == 0) {
@@ -2393,6 +2408,9 @@ void type_check_analyze_while_loop(TypeCheckContext *ctx, Stmt *stmt) {
 
     // Look for accumulator patterns in the type environment
     for (TypeCheckBinding *b = ctx->current_env->bindings; b; b = b->next) {
+        // Skip function parameters - they are always HmlValue and cannot be unboxed
+        if (b->is_param) continue;
+
         CheckedTypeKind kind = b->type ? b->type->kind : CHECKED_UNKNOWN;
         if ((kind == CHECKED_I32 || kind == CHECKED_I64) &&
             find_accumulator_in_block(body, b->name)) {
