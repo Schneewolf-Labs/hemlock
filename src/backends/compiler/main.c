@@ -446,12 +446,14 @@ int main(int argc, char **argv) {
     }
 
     // Type check (if enabled - on by default)
+    // type_ctx is kept for codegen optimization hints
+    TypeCheckContext *type_ctx = NULL;
     if (opts.type_check) {
         if (opts.verbose) {
             printf("Type checking...\n");
         }
 
-        TypeCheckContext *type_ctx = type_check_new(opts.input_file);
+        type_ctx = type_check_new(opts.input_file);
         type_ctx->warn_implicit_any = opts.strict_types;
         int type_errors = type_check_program(type_ctx, statements, stmt_count);
 
@@ -470,13 +472,13 @@ int main(int argc, char **argv) {
         if (opts.verbose) {
             printf("Type checking passed\n");
         }
-        type_check_free(type_ctx);
 
         // If --check flag was used, exit after type checking
         if (opts.check_only) {
             if (!opts.verbose) {
                 printf("%s: no type errors\n", opts.input_file);
             }
+            type_check_free(type_ctx);
             for (int i = 0; i < stmt_count; i++) {
                 stmt_free(statements[i]);
             }
@@ -484,6 +486,7 @@ int main(int argc, char **argv) {
             free(source);
             return 0;
         }
+        // Note: type_ctx is kept alive for codegen optimization hints
     }
 
     // Determine C output file
@@ -545,6 +548,8 @@ int main(int argc, char **argv) {
 
     CodegenContext *ctx = codegen_new(output);
     codegen_set_module_cache(ctx, module_cache);
+    ctx->type_ctx = type_ctx;  // Pass type context for optimization hints
+    ctx->optimize = (type_ctx != NULL);  // Enable optimizations if type checking was done
     codegen_program(ctx, statements, stmt_count);
 
     // Check for compilation errors
@@ -554,6 +559,7 @@ int main(int argc, char **argv) {
     }
 
     codegen_free(ctx);
+    if (type_ctx) type_check_free(type_ctx);
     module_cache_free(module_cache);
     fclose(output);
 
