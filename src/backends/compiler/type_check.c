@@ -188,37 +188,45 @@ const char* checked_type_kind_name(CheckedTypeKind kind) {
 }
 
 const char* checked_type_name(CheckedType *type) {
-    static char buffer[256];
+    // Use rotating buffers to allow multiple calls in one expression (e.g., error messages)
+    #define TYPE_NAME_BUFFERS 4
+    #define TYPE_NAME_BUFSIZE 256
+    static char buffers[TYPE_NAME_BUFFERS][TYPE_NAME_BUFSIZE];
+    static int buf_index = 0;
+
+    char *buffer = buffers[buf_index];
+    buf_index = (buf_index + 1) % TYPE_NAME_BUFFERS;
 
     if (!type) return "unknown";
 
     if (type->kind == CHECKED_CUSTOM && type->type_name) {
-        snprintf(buffer, sizeof(buffer), "%s%s",
+        snprintf(buffer, TYPE_NAME_BUFSIZE, "%s%s",
                  type->type_name, type->nullable ? "?" : "");
         return buffer;
     }
 
     if (type->kind == CHECKED_ARRAY) {
         if (type->element_type) {
-            snprintf(buffer, sizeof(buffer), "array<%s>%s",
-                     checked_type_name(type->element_type),
-                     type->nullable ? "?" : "");
+            // Get element type name first (uses its own buffer slot)
+            const char *elem_name = checked_type_name(type->element_type);
+            snprintf(buffer, TYPE_NAME_BUFSIZE, "array<%s>%s",
+                     elem_name, type->nullable ? "?" : "");
         } else {
-            snprintf(buffer, sizeof(buffer), "array%s",
+            snprintf(buffer, TYPE_NAME_BUFSIZE, "array%s",
                      type->nullable ? "?" : "");
         }
         return buffer;
     }
 
     if (type->kind == CHECKED_ENUM && type->type_name) {
-        snprintf(buffer, sizeof(buffer), "%s%s",
+        snprintf(buffer, TYPE_NAME_BUFSIZE, "%s%s",
                  type->type_name, type->nullable ? "?" : "");
         return buffer;
     }
 
     const char *base = checked_type_kind_name(type->kind);
     if (type->nullable) {
-        snprintf(buffer, sizeof(buffer), "%s?", base);
+        snprintf(buffer, TYPE_NAME_BUFSIZE, "%s?", base);
         return buffer;
     }
     return base;
@@ -269,6 +277,7 @@ void type_check_free(TypeCheckContext *ctx) {
             }
             free(f->param_names);
         }
+        free(f->param_optional);
         checked_type_free(f->return_type);
         free(f);
         f = next;
@@ -378,7 +387,8 @@ int type_check_is_const(TypeCheckContext *ctx, const char *name) {
 
 void type_check_register_function(TypeCheckContext *ctx, const char *name,
                                   CheckedType **param_types, char **param_names,
-                                  int num_params, CheckedType *return_type,
+                                  int *param_optional, int num_params,
+                                  CheckedType *return_type,
                                   int has_rest_param, int is_async) {
     FunctionSig *sig = calloc(1, sizeof(FunctionSig));
     sig->name = strdup(name);
@@ -387,12 +397,22 @@ void type_check_register_function(TypeCheckContext *ctx, const char *name,
     sig->is_async = is_async;
     sig->return_type = return_type;
 
+    // Count required parameters
+    sig->num_required = 0;
+    for (int i = 0; i < num_params; i++) {
+        if (!param_optional || !param_optional[i]) {
+            sig->num_required = i + 1;  // Last required param index + 1
+        }
+    }
+
     if (num_params > 0) {
         sig->param_types = calloc(num_params, sizeof(CheckedType*));
         sig->param_names = calloc(num_params, sizeof(char*));
+        sig->param_optional = calloc(num_params, sizeof(int));
         for (int i = 0; i < num_params; i++) {
             sig->param_types[i] = param_types ? param_types[i] : NULL;
             sig->param_names[i] = param_names ? strdup(param_names[i]) : NULL;
+            sig->param_optional[i] = param_optional ? param_optional[i] : 0;
         }
     }
 
@@ -698,12 +718,56 @@ CheckedType* type_check_infer_expr(TypeCheckContext *ctx, Expr *expr) {
             return checked_type_primitive(CHECKED_NULL);
 
         case EXPR_IDENT: {
-            CheckedType *type = type_check_lookup(ctx, expr->as.ident.name);
+            const char *name = expr->as.ident.name;
+            CheckedType *type = type_check_lookup(ctx, name);
             if (type) {
                 return checked_type_clone(type);
             }
-            // Check if it's an enum variant (EnumName.VARIANT)
-            // For now, return ANY for unknown identifiers
+
+            // Check for built-in functions (don't warn for these)
+            static const char *builtins[] = {
+                "print", "eprint", "typeof", "len", "alloc", "free", "memset",
+                "memcpy", "buffer", "ptr_read_i8", "ptr_read_i16", "ptr_read_i32",
+                "ptr_read_i64", "ptr_read_f32", "ptr_read_f64", "ptr_read_u8",
+                "ptr_read_u16", "ptr_read_u32", "ptr_read_u64", "ptr_write_i8",
+                "ptr_write_i16", "ptr_write_i32", "ptr_write_i64", "ptr_write_f32",
+                "ptr_write_f64", "ptr_write_u8", "ptr_write_u16", "ptr_write_u32",
+                "ptr_write_u64", "ptr_null", "sizeof", "talloc", "open", "read_line",
+                "panic", "throw", "spawn", "join", "detach", "channel", "signal",
+                "raise", "apply", "exec", "wait", "kill", "fork", "sleep", "exit",
+                "atomic_load_i32", "atomic_store_i32", "atomic_add_i32", "atomic_sub_i32",
+                "atomic_cas_i32", "atomic_exchange_i32", "atomic_fence",
+                "atomic_load_i64", "atomic_store_i64", "atomic_add_i64", "atomic_sub_i64",
+                "atomic_cas_i64", "atomic_and_i32", "atomic_or_i32", "atomic_xor_i32",
+                "ffi_open", "ffi_bind", "ffi_close",
+                // Type constructors
+                "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64",
+                "f32", "f64", "bool", "string", "integer", "number", "byte",
+                NULL
+            };
+
+            for (int i = 0; builtins[i]; i++) {
+                if (strcmp(name, builtins[i]) == 0) {
+                    return checked_type_primitive(CHECKED_ANY);
+                }
+            }
+
+            // Check if it's a registered function
+            if (type_check_lookup_function(ctx, name)) {
+                return checked_type_primitive(CHECKED_ANY);
+            }
+
+            // Check if it's an enum name
+            if (type_check_lookup_enum(ctx, name)) {
+                return checked_type_primitive(CHECKED_ENUM);
+            }
+
+            // Unknown identifier - warn if configured
+            if (ctx->warn_implicit_any) {
+                type_warning(ctx, expr->line,
+                    "identifier '%s' has unknown type", name);
+            }
+
             return checked_type_primitive(CHECKED_ANY);
         }
 
@@ -940,6 +1004,216 @@ CheckedType* type_check_infer_expr(TypeCheckContext *ctx, Expr *expr) {
     }
 }
 
+// ========== METHOD TYPE CHECKING ==========
+
+// Check method call arguments for built-in types (array, string)
+// Returns 1 if method was found and checked, 0 if unknown method
+static int type_check_method_call(TypeCheckContext *ctx, CheckedType *receiver_type,
+                                  const char *method_name, Expr **args, int num_args, int line) {
+    if (!receiver_type || !method_name) return 0;
+
+    // Array methods
+    if (receiver_type->kind == CHECKED_ARRAY) {
+        CheckedType *elem_type = receiver_type->element_type;
+
+        // Methods that take an element: push, unshift, insert, contains, find
+        if (strcmp(method_name, "push") == 0 || strcmp(method_name, "unshift") == 0) {
+            if (num_args < 1) {
+                type_error(ctx, line, "array.%s() requires at least 1 argument", method_name);
+                return 1;
+            }
+            if (elem_type && elem_type->kind != CHECKED_ANY) {
+                for (int i = 0; i < num_args; i++) {
+                    CheckedType *arg_type = type_check_infer_expr(ctx, args[i]);
+                    if (!type_is_assignable(elem_type, arg_type)) {
+                        type_error(ctx, line,
+                            "array.%s(): cannot add '%s' to array<%s>",
+                            method_name, checked_type_name(arg_type),
+                            checked_type_name(elem_type));
+                    }
+                    checked_type_free(arg_type);
+                }
+            }
+            return 1;
+        }
+
+        if (strcmp(method_name, "insert") == 0) {
+            if (num_args < 2) {
+                type_error(ctx, line, "array.insert() requires 2 arguments (index, element)");
+                return 1;
+            }
+            // First arg should be integer (index)
+            CheckedType *idx_type = type_check_infer_expr(ctx, args[0]);
+            if (!type_is_integer(idx_type) && idx_type->kind != CHECKED_ANY) {
+                type_error(ctx, line, "array.insert(): index must be integer, got '%s'",
+                    checked_type_name(idx_type));
+            }
+            checked_type_free(idx_type);
+
+            // Second arg should be element type
+            if (elem_type && elem_type->kind != CHECKED_ANY) {
+                CheckedType *val_type = type_check_infer_expr(ctx, args[1]);
+                if (!type_is_assignable(elem_type, val_type)) {
+                    type_error(ctx, line,
+                        "array.insert(): cannot insert '%s' into array<%s>",
+                        checked_type_name(val_type), checked_type_name(elem_type));
+                }
+                checked_type_free(val_type);
+            }
+            return 1;
+        }
+
+        // Methods with no required args: pop, shift, first, last, clear, reverse
+        if (strcmp(method_name, "pop") == 0 || strcmp(method_name, "shift") == 0 ||
+            strcmp(method_name, "first") == 0 || strcmp(method_name, "last") == 0 ||
+            strcmp(method_name, "clear") == 0 || strcmp(method_name, "reverse") == 0) {
+            return 1;  // No type checking needed for arguments
+        }
+
+        // Methods that take index: remove, slice
+        if (strcmp(method_name, "remove") == 0) {
+            if (num_args < 1) {
+                type_error(ctx, line, "array.remove() requires 1 argument (index)");
+                return 1;
+            }
+            CheckedType *idx_type = type_check_infer_expr(ctx, args[0]);
+            if (!type_is_integer(idx_type) && idx_type->kind != CHECKED_ANY) {
+                type_error(ctx, line, "array.remove(): index must be integer, got '%s'",
+                    checked_type_name(idx_type));
+            }
+            checked_type_free(idx_type);
+            return 1;
+        }
+
+        if (strcmp(method_name, "slice") == 0) {
+            for (int i = 0; i < num_args && i < 2; i++) {
+                CheckedType *arg_type = type_check_infer_expr(ctx, args[i]);
+                if (!type_is_integer(arg_type) && arg_type->kind != CHECKED_ANY) {
+                    type_error(ctx, line, "array.slice(): argument %d must be integer, got '%s'",
+                        i + 1, checked_type_name(arg_type));
+                }
+                checked_type_free(arg_type);
+            }
+            return 1;
+        }
+
+        // join takes a string separator
+        if (strcmp(method_name, "join") == 0) {
+            if (num_args > 0) {
+                CheckedType *sep_type = type_check_infer_expr(ctx, args[0]);
+                if (sep_type->kind != CHECKED_STRING && sep_type->kind != CHECKED_ANY) {
+                    type_error(ctx, line, "array.join(): separator must be string, got '%s'",
+                        checked_type_name(sep_type));
+                }
+                checked_type_free(sep_type);
+            }
+            return 1;
+        }
+
+        // map, filter, reduce take functions
+        if (strcmp(method_name, "map") == 0 || strcmp(method_name, "filter") == 0 ||
+            strcmp(method_name, "reduce") == 0) {
+            if (num_args < 1) {
+                type_error(ctx, line, "array.%s() requires a function argument", method_name);
+            }
+            return 1;
+        }
+
+        // contains, find take an element
+        if (strcmp(method_name, "contains") == 0 || strcmp(method_name, "find") == 0) {
+            return 1;  // Permissive for now
+        }
+
+        // concat takes another array
+        if (strcmp(method_name, "concat") == 0) {
+            if (num_args > 0) {
+                CheckedType *other_type = type_check_infer_expr(ctx, args[0]);
+                if (other_type->kind != CHECKED_ARRAY && other_type->kind != CHECKED_ANY) {
+                    type_error(ctx, line, "array.concat(): argument must be array, got '%s'",
+                        checked_type_name(other_type));
+                }
+                checked_type_free(other_type);
+            }
+            return 1;
+        }
+    }
+
+    // String methods
+    if (receiver_type->kind == CHECKED_STRING) {
+        // Methods that take integer indices
+        if (strcmp(method_name, "substr") == 0 || strcmp(method_name, "slice") == 0 ||
+            strcmp(method_name, "char_at") == 0 || strcmp(method_name, "byte_at") == 0) {
+            for (int i = 0; i < num_args && i < 2; i++) {
+                CheckedType *arg_type = type_check_infer_expr(ctx, args[i]);
+                if (!type_is_integer(arg_type) && arg_type->kind != CHECKED_ANY) {
+                    type_error(ctx, line, "string.%s(): argument %d must be integer, got '%s'",
+                        method_name, i + 1, checked_type_name(arg_type));
+                }
+                checked_type_free(arg_type);
+            }
+            return 1;
+        }
+
+        // Methods that take a string argument
+        if (strcmp(method_name, "find") == 0 || strcmp(method_name, "contains") == 0 ||
+            strcmp(method_name, "starts_with") == 0 || strcmp(method_name, "ends_with") == 0 ||
+            strcmp(method_name, "split") == 0) {
+            if (num_args > 0) {
+                CheckedType *arg_type = type_check_infer_expr(ctx, args[0]);
+                if (arg_type->kind != CHECKED_STRING && arg_type->kind != CHECKED_ANY) {
+                    type_error(ctx, line, "string.%s(): argument must be string, got '%s'",
+                        method_name, checked_type_name(arg_type));
+                }
+                checked_type_free(arg_type);
+            }
+            return 1;
+        }
+
+        // replace/replace_all take two strings
+        if (strcmp(method_name, "replace") == 0 || strcmp(method_name, "replace_all") == 0) {
+            if (num_args < 2) {
+                type_error(ctx, line, "string.%s() requires 2 arguments (pattern, replacement)",
+                    method_name);
+                return 1;
+            }
+            for (int i = 0; i < 2; i++) {
+                CheckedType *arg_type = type_check_infer_expr(ctx, args[i]);
+                if (arg_type->kind != CHECKED_STRING && arg_type->kind != CHECKED_ANY) {
+                    type_error(ctx, line, "string.%s(): argument %d must be string, got '%s'",
+                        method_name, i + 1, checked_type_name(arg_type));
+                }
+                checked_type_free(arg_type);
+            }
+            return 1;
+        }
+
+        // repeat takes an integer
+        if (strcmp(method_name, "repeat") == 0) {
+            if (num_args < 1) {
+                type_error(ctx, line, "string.repeat() requires 1 argument (count)");
+                return 1;
+            }
+            CheckedType *arg_type = type_check_infer_expr(ctx, args[0]);
+            if (!type_is_integer(arg_type) && arg_type->kind != CHECKED_ANY) {
+                type_error(ctx, line, "string.repeat(): count must be integer, got '%s'",
+                    checked_type_name(arg_type));
+            }
+            checked_type_free(arg_type);
+            return 1;
+        }
+
+        // No-arg string methods
+        if (strcmp(method_name, "trim") == 0 || strcmp(method_name, "to_upper") == 0 ||
+            strcmp(method_name, "to_lower") == 0 || strcmp(method_name, "chars") == 0 ||
+            strcmp(method_name, "bytes") == 0 || strcmp(method_name, "to_bytes") == 0 ||
+            strcmp(method_name, "deserialize") == 0) {
+            return 1;
+        }
+    }
+
+    return 0;  // Unknown method, not checked
+}
+
 // ========== EXPRESSION TYPE CHECKING ==========
 
 void type_check_expr(TypeCheckContext *ctx, Expr *expr) {
@@ -1070,6 +1344,19 @@ void type_check_expr(TypeCheckContext *ctx, Expr *expr) {
                             name, sig->num_params, provided);
                     }
 
+                    // Check for too few arguments (must have at least num_required)
+                    if (provided < sig->num_required) {
+                        if (sig->num_required == sig->num_params) {
+                            type_error(ctx, expr->line,
+                                "too few arguments to '%s': expected %d, got %d",
+                                name, sig->num_required, provided);
+                        } else {
+                            type_error(ctx, expr->line,
+                                "too few arguments to '%s': expected at least %d, got %d",
+                                name, sig->num_required, provided);
+                        }
+                    }
+
                     // Check argument types
                     for (int i = 0; i < provided && i < sig->num_params; i++) {
                         if (!sig->param_types[i]) continue;
@@ -1085,6 +1372,17 @@ void type_check_expr(TypeCheckContext *ctx, Expr *expr) {
                         checked_type_free(arg_type);
                     }
                 }
+            }
+            // Check method calls (e.g., arr.push(x), str.split(","))
+            else if (expr->as.call.func->type == EXPR_GET_PROPERTY) {
+                Expr *prop_expr = expr->as.call.func;
+                CheckedType *receiver_type = type_check_infer_expr(ctx, prop_expr->as.get_property.object);
+                const char *method_name = prop_expr->as.get_property.property;
+
+                type_check_method_call(ctx, receiver_type, method_name,
+                    expr->as.call.args, expr->as.call.num_args, expr->line);
+
+                checked_type_free(receiver_type);
             }
             break;
         }
@@ -1124,14 +1422,72 @@ void type_check_expr(TypeCheckContext *ctx, Expr *expr) {
             type_check_expr(ctx, expr->as.index_assign.value);
             break;
 
-        case EXPR_GET_PROPERTY:
+        case EXPR_GET_PROPERTY: {
             type_check_expr(ctx, expr->as.get_property.object);
-            break;
 
-        case EXPR_SET_PROPERTY:
+            // Validate property access against object definition
+            CheckedType *obj_type = type_check_infer_expr(ctx, expr->as.get_property.object);
+            if (obj_type && obj_type->kind == CHECKED_CUSTOM && obj_type->type_name) {
+                ObjectDef *def = type_check_lookup_object(ctx, obj_type->type_name);
+                if (def) {
+                    const char *prop = expr->as.get_property.property;
+                    int found = 0;
+                    for (int i = 0; i < def->num_fields; i++) {
+                        if (strcmp(def->field_names[i], prop) == 0) {
+                            found = 1;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        type_warning(ctx, expr->line,
+                            "property '%s' not defined in type '%s'",
+                            prop, obj_type->type_name);
+                    }
+                }
+            }
+            checked_type_free(obj_type);
+            break;
+        }
+
+        case EXPR_SET_PROPERTY: {
             type_check_expr(ctx, expr->as.set_property.object);
             type_check_expr(ctx, expr->as.set_property.value);
+
+            // Validate property and type against object definition
+            CheckedType *obj_type = type_check_infer_expr(ctx, expr->as.set_property.object);
+            if (obj_type && obj_type->kind == CHECKED_CUSTOM && obj_type->type_name) {
+                ObjectDef *def = type_check_lookup_object(ctx, obj_type->type_name);
+                if (def) {
+                    const char *prop = expr->as.set_property.property;
+                    int found = 0;
+                    CheckedType *field_type = NULL;
+                    for (int i = 0; i < def->num_fields; i++) {
+                        if (strcmp(def->field_names[i], prop) == 0) {
+                            found = 1;
+                            field_type = def->field_types[i];
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        type_warning(ctx, expr->line,
+                            "property '%s' not defined in type '%s'",
+                            prop, obj_type->type_name);
+                    } else if (field_type && field_type->kind != CHECKED_ANY) {
+                        // Check that assigned value matches field type
+                        CheckedType *val_type = type_check_infer_expr(ctx, expr->as.set_property.value);
+                        if (!type_is_assignable(field_type, val_type)) {
+                            type_error(ctx, expr->line,
+                                "cannot assign '%s' to property '%s' of type '%s'",
+                                checked_type_name(val_type), prop,
+                                checked_type_name(field_type));
+                        }
+                        checked_type_free(val_type);
+                    }
+                }
+            }
+            checked_type_free(obj_type);
             break;
+        }
 
         case EXPR_TERNARY:
             type_check_expr(ctx, expr->as.ternary.condition);
@@ -1500,17 +1856,22 @@ static void collect_function_signatures(TypeCheckContext *ctx, Stmt **stmts, int
             if (value && value->type == EXPR_FUNCTION) {
                 Expr *func = value;
 
-                // Collect parameter types
+                // Collect parameter types and optional info
                 CheckedType **param_types = NULL;
                 char **param_names = NULL;
+                int *param_optional = NULL;
                 if (func->as.function.num_params > 0) {
                     param_types = calloc(func->as.function.num_params, sizeof(CheckedType*));
                     param_names = calloc(func->as.function.num_params, sizeof(char*));
+                    param_optional = calloc(func->as.function.num_params, sizeof(int));
                     for (int j = 0; j < func->as.function.num_params; j++) {
                         if (func->as.function.param_types[j]) {
                             param_types[j] = checked_type_from_ast(func->as.function.param_types[j]);
                         }
                         param_names[j] = strdup(func->as.function.param_names[j]);
+                        // Parameter is optional if it has a default value
+                        param_optional[j] = (func->as.function.param_defaults &&
+                                            func->as.function.param_defaults[j]) ? 1 : 0;
                     }
                 }
 
@@ -1519,7 +1880,7 @@ static void collect_function_signatures(TypeCheckContext *ctx, Stmt **stmts, int
                     : NULL;
 
                 type_check_register_function(ctx, name, param_types, param_names,
-                    func->as.function.num_params, return_type,
+                    param_optional, func->as.function.num_params, return_type,
                     func->as.function.rest_param != NULL,
                     func->as.function.is_async);
             }
@@ -1541,14 +1902,18 @@ static void collect_function_signatures(TypeCheckContext *ctx, Stmt **stmts, int
 
                     CheckedType **param_types = NULL;
                     char **param_names = NULL;
+                    int *param_optional = NULL;
                     if (func->as.function.num_params > 0) {
                         param_types = calloc(func->as.function.num_params, sizeof(CheckedType*));
                         param_names = calloc(func->as.function.num_params, sizeof(char*));
+                        param_optional = calloc(func->as.function.num_params, sizeof(int));
                         for (int j = 0; j < func->as.function.num_params; j++) {
                             if (func->as.function.param_types[j]) {
                                 param_types[j] = checked_type_from_ast(func->as.function.param_types[j]);
                             }
                             param_names[j] = strdup(func->as.function.param_names[j]);
+                            param_optional[j] = (func->as.function.param_defaults &&
+                                                func->as.function.param_defaults[j]) ? 1 : 0;
                         }
                     }
 
@@ -1557,7 +1922,7 @@ static void collect_function_signatures(TypeCheckContext *ctx, Stmt **stmts, int
                         : NULL;
 
                     type_check_register_function(ctx, name, param_types, param_names,
-                        func->as.function.num_params, return_type,
+                        param_optional, func->as.function.num_params, return_type,
                         func->as.function.rest_param != NULL,
                         func->as.function.is_async);
                 }
