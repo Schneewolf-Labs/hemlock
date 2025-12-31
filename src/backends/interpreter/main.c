@@ -102,7 +102,6 @@ static void run_source(const char *source, int argc, char **argv, int stack_dept
     exec_context_free(ctx);
     env_break_cycles(env);  // Break circular references before release
     env_release(env);
-    clear_manually_freed_pointers();  // Clear after env is fully freed
     for (int i = 0; i < stmt_count; i++) {
         stmt_free(statements[i]);
     }
@@ -255,7 +254,6 @@ static int run_embedded_payload(uint8_t *payload, size_t payload_size, int argc,
     exec_context_free(ctx);
     env_break_cycles(env);
     env_release(env);
-    clear_manually_freed_pointers();
 
     for (int i = 0; i < stmt_count; i++) {
         stmt_free(statements[i]);
@@ -319,7 +317,6 @@ static void run_file(const char *path, int argc, char **argv, int stack_depth) {
 
         env_break_cycles(global_env);  // Break circular references before release
         env_release(global_env);
-        clear_manually_freed_pointers();  // Clear after env is fully freed
         exec_context_free(ctx);
         free(source);
 
@@ -791,7 +788,6 @@ static void run_hmlc_file(const char *path, int argc, char **argv, int stack_dep
     exec_context_free(ctx);
     env_break_cycles(env);
     env_release(env);
-    clear_manually_freed_pointers();
 
     for (int i = 0; i < stmt_count; i++) {
         stmt_free(statements[i]);
@@ -889,7 +885,6 @@ static void run_repl(int stack_depth) {
     exec_context_free(ctx);
     env_break_cycles(env);  // Break circular references before release
     env_release(env);
-    clear_manually_freed_pointers();  // Clear after env is fully freed
 }
 
 static void print_version(void) {

@@ -98,6 +98,21 @@ typedef struct {
 
 extern EnumTypeRegistry enum_types;
 
+// ========== VISITED SET (for cycle detection) ==========
+
+// Internal structure for tracking visited objects/arrays during cycle detection
+// Used by both environment.c (cycle breaking) and values.c (cycle-safe deallocation)
+typedef struct {
+    void **pointers;
+    int count;
+    int capacity;
+} VisitedSet;
+
+VisitedSet* visited_set_new(void);
+void visited_set_free(VisitedSet *set);
+int visited_set_contains(VisitedSet *set, void *ptr);
+void visited_set_add(VisitedSet *set, void *ptr);
+
 // ========== ENVIRONMENT (environment.c) ==========
 
 // DJB2 hash function for variable names
@@ -115,12 +130,6 @@ void env_define_borrowed(Environment *env, const char *name, Value value, int is
 void env_define_param(Environment *env, const char *name, uint32_t hash, Value value);
 void env_set(Environment *env, const char *name, Value value, ExecutionContext *ctx);
 Value env_get(Environment *env, const char *name, ExecutionContext *ctx);
-
-// DEPRECATED: These functions are no-ops. Thread-safe double-free detection now uses
-// atomic 'freed' flags on Buffer, Array, and Object structs. Kept for backward compatibility.
-void register_manually_freed_pointer(void *ptr);
-int is_manually_freed_pointer(void *ptr);
-void clear_manually_freed_pointers(void);
 
 // ========== VALUES (values.c) ==========
 

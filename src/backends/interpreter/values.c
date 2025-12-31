@@ -9,15 +9,7 @@
 
 // ========== FORWARD DECLARATIONS FOR CYCLE DETECTION ==========
 
-// Internal structure for tracking visited objects/arrays during deallocation
-typedef struct {
-    void **pointers;
-    int count;
-    int capacity;
-} VisitedSet;
-
-static VisitedSet* visited_set_new(void);
-static void visited_set_free(VisitedSet *set);
+// VisitedSet typedef is in internal.h
 static void object_free_internal(Object *obj, VisitedSet *visited);
 static void array_free_internal(Array *arr, VisitedSet *visited);
 
@@ -1278,8 +1270,9 @@ char* value_to_string(Value val) {
 
 // ========== CYCLE DETECTION FOR DEALLOCATION ==========
 
-// Implementation of visited set functions (declared at top of file)
-static VisitedSet* visited_set_new(void) {
+// Shared VisitedSet implementation (declared in internal.h)
+// Used by both values.c and environment.c for cycle detection
+VisitedSet* visited_set_new(void) {
     VisitedSet *set = malloc(sizeof(VisitedSet));
     if (!set) return NULL;
     set->capacity = 16;
@@ -1292,14 +1285,14 @@ static VisitedSet* visited_set_new(void) {
     return set;
 }
 
-static void visited_set_free(VisitedSet *set) {
+void visited_set_free(VisitedSet *set) {
     if (set) {
         free(set->pointers);
         free(set);
     }
 }
 
-static int visited_set_contains(VisitedSet *set, void *ptr) {
+int visited_set_contains(VisitedSet *set, void *ptr) {
     for (int i = 0; i < set->count; i++) {
         if (set->pointers[i] == ptr) {
             return 1;
@@ -1308,7 +1301,7 @@ static int visited_set_contains(VisitedSet *set, void *ptr) {
     return 0;
 }
 
-static void visited_set_add(VisitedSet *set, void *ptr) {
+void visited_set_add(VisitedSet *set, void *ptr) {
     if (set->count >= set->capacity) {
         // SECURITY: Check for integer overflow before doubling
         if (set->capacity > INT_MAX / 2) {

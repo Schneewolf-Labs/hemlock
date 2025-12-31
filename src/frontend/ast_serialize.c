@@ -96,14 +96,6 @@ static void ctx_init(SerializeContext *ctx, uint16_t flags) {
     ctx->flags = flags;
 }
 
-static void __attribute__((unused)) ctx_free(SerializeContext *ctx) {
-    string_table_free(&ctx->strings);
-    // Note: buffer ownership is transferred to caller
-    ctx->buffer = NULL;
-    ctx->buffer_size = 0;
-    ctx->buffer_capacity = 0;
-}
-
 static void ctx_ensure_capacity(SerializeContext *ctx, size_t additional) {
     while (ctx->buffer_size + additional > ctx->buffer_capacity) {
         ctx->buffer_capacity *= 2;

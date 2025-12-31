@@ -188,77 +188,7 @@ Environment* env_new(Environment *parent) {
 
 // ========== CYCLE BREAKING ==========
 
-// DEPRECATED: The global manually_freed_pointers array has been replaced with
-// atomic 'freed' flags on Buffer, Array, and Object structs for thread-safe
-// double-free detection. These functions are kept as no-ops for backward compatibility.
-
-void register_manually_freed_pointer(void *ptr) {
-    (void)ptr;  // No-op - freed flag is now set atomically on the struct itself
-}
-
-int is_manually_freed_pointer(void *ptr) {
-    (void)ptr;
-    // No-op - callers should use atomic_load(&struct->freed) instead
-    return 0;
-}
-
-void clear_manually_freed_pointers(void) {
-    // No-op - nothing to clear since we no longer track globally
-}
-
-// Visited set for tracking processed pointers during cycle breaking
-typedef struct {
-    void **pointers;
-    int count;
-    int capacity;
-} VisitedSet;
-
-static VisitedSet* visited_set_new(void) {
-    VisitedSet *set = malloc(sizeof(VisitedSet));
-    if (!set) {
-        fprintf(stderr, "Runtime error: Memory allocation failed\n");
-        exit(1);
-    }
-    set->capacity = 16;
-    set->count = 0;
-    set->pointers = malloc(sizeof(void*) * set->capacity);
-    if (!set->pointers) {
-        free(set);
-        fprintf(stderr, "Runtime error: Memory allocation failed\n");
-        exit(1);
-    }
-    return set;
-}
-
-static void visited_set_free(VisitedSet *set) {
-    if (set) {
-        free(set->pointers);
-        free(set);
-    }
-}
-
-static int visited_set_contains(VisitedSet *set, void *ptr) {
-    for (int i = 0; i < set->count; i++) {
-        if (set->pointers[i] == ptr) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static void visited_set_add(VisitedSet *set, void *ptr) {
-    // Grow if needed
-    if (set->count >= set->capacity) {
-        set->capacity *= 2;
-        void **new_pointers = realloc(set->pointers, sizeof(void*) * set->capacity);
-        if (!new_pointers) {
-            fprintf(stderr, "Runtime error: Memory allocation failed\n");
-            exit(1);
-        }
-        set->pointers = new_pointers;
-    }
-    set->pointers[set->count++] = ptr;
-}
+// VisitedSet is declared in internal.h and implemented in values.c
 
 // Forward declaration
 static void value_break_cycles_internal(Value val, VisitedSet *visited);

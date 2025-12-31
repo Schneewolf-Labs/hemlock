@@ -182,13 +182,13 @@ Value call_array_method(Array *arr, const char *method, Value *args, int num_arg
                 return throw_runtime_error(ctx, "serialize() expects no arguments");
             }
 
-            VisitedSet visited;
-            visited_init(&visited);
+            SerializeVisitedSet visited;
+            serialize_visited_init(&visited);
 
             Value arr_val = val_array(arr);
             char *json = serialize_value(arr_val, &visited, ctx);
 
-            visited_free(&visited);
+            serialize_visited_free(&visited);
 
             if (json == NULL) {
                 // Exception was already thrown by serialize_value
