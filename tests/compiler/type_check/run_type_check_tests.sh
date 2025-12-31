@@ -115,6 +115,91 @@ else
     ((PASSED++))
 fi
 
+# Test 9: Too few arguments
+echo "Test 9: Too few arguments"
+cat > /tmp/test_too_few.hml << 'EOF'
+let add = fn(a: i32, b: i32): i32 { return a + b; };
+let x = add(1);
+EOF
+if $HEMLOCKC --type-check /tmp/test_too_few.hml 2>&1 | grep -q "too few arguments"; then
+    echo "  PASSED: Caught too few arguments"
+    ((PASSED++))
+else
+    echo "  FAILED: Did not catch too few arguments"
+    ((FAILED++))
+fi
+
+# Test 10: Too few arguments with optional params should be fine
+echo "Test 10: Optional params - fewer args allowed"
+cat > /tmp/test_optional.hml << 'EOF'
+let greet = fn(name: string, msg?: "Hello"): string { return msg + " " + name; };
+let x = greet("world");
+EOF
+if $HEMLOCKC --type-check /tmp/test_optional.hml 2>&1 | grep -q "too few arguments"; then
+    echo "  FAILED: Optional param incorrectly flagged"
+    ((FAILED++))
+else
+    echo "  PASSED: Optional params work correctly"
+    ((PASSED++))
+fi
+
+# Test 11: Array method type checking - push wrong type
+echo "Test 11: Array.push() with wrong type"
+cat > /tmp/test_array_push.hml << 'EOF'
+let nums: array<i32> = [1, 2, 3];
+nums.push("hello");
+EOF
+if $HEMLOCKC --type-check /tmp/test_array_push.hml 2>&1 | grep -q "cannot add"; then
+    echo "  PASSED: Caught array.push() type mismatch"
+    ((PASSED++))
+else
+    echo "  FAILED: Did not catch array.push() type mismatch"
+    ((FAILED++))
+fi
+
+# Test 12: String method type checking - repeat with non-integer
+echo "Test 12: String.repeat() with non-integer"
+cat > /tmp/test_string_repeat.hml << 'EOF'
+let s = "hi";
+let r = s.repeat("3");
+EOF
+if $HEMLOCKC --type-check /tmp/test_string_repeat.hml 2>&1 | grep -q "count must be integer"; then
+    echo "  PASSED: Caught string.repeat() type mismatch"
+    ((PASSED++))
+else
+    echo "  FAILED: Did not catch string.repeat() type mismatch"
+    ((FAILED++))
+fi
+
+# Test 13: Array.join() with non-string separator
+echo "Test 13: Array.join() with non-string separator"
+cat > /tmp/test_array_join.hml << 'EOF'
+let arr = [1, 2, 3];
+let s = arr.join(42);
+EOF
+if $HEMLOCKC --type-check /tmp/test_array_join.hml 2>&1 | grep -q "separator must be string"; then
+    echo "  PASSED: Caught array.join() type mismatch"
+    ((PASSED++))
+else
+    echo "  FAILED: Did not catch array.join() type mismatch"
+    ((FAILED++))
+fi
+
+# Test 14: Property access on object type
+echo "Test 14: Property type checking on set"
+cat > /tmp/test_property.hml << 'EOF'
+define Person { name: string, age: i32 }
+let p: Person = { name: "Alice", age: 30 };
+p.age = "thirty";
+EOF
+if $HEMLOCKC --type-check /tmp/test_property.hml 2>&1 | grep -q "cannot assign"; then
+    echo "  PASSED: Caught property type mismatch"
+    ((PASSED++))
+else
+    echo "  FAILED: Did not catch property type mismatch"
+    ((FAILED++))
+fi
+
 echo ""
 echo "=== Type Check Test Results ==="
 echo "Passed: $PASSED"

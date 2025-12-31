@@ -82,7 +82,9 @@ typedef struct FunctionSig {
     char *name;
     CheckedType **param_types;
     char **param_names;             // Parameter names (for error messages)
+    int *param_optional;            // Whether each param has a default value
     int num_params;
+    int num_required;               // Number of required (non-optional) params
     CheckedType *return_type;
     int has_rest_param;
     int is_async;
@@ -164,7 +166,8 @@ int type_check_is_const(TypeCheckContext *ctx, const char *name);
 // Register a function signature
 void type_check_register_function(TypeCheckContext *ctx, const char *name,
                                   CheckedType **param_types, char **param_names,
-                                  int num_params, CheckedType *return_type,
+                                  int *param_optional, int num_params,
+                                  CheckedType *return_type,
                                   int has_rest_param, int is_async);
 
 // Look up a function signature

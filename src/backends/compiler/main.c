@@ -120,6 +120,7 @@ typedef struct {
     const char *cc;              // C compiler to use
     const char *runtime_path;    // Path to runtime library
     int type_check;              // Enable compile-time type checking
+    int strict_types;            // Enable strict type checking (warn on implicit any)
 } Options;
 
 static void print_usage(const char *progname) {
@@ -134,6 +135,7 @@ static void print_usage(const char *progname) {
     fprintf(stderr, "  --cc <path>   C compiler to use (default: gcc)\n");
     fprintf(stderr, "  --runtime <p> Path to runtime library\n");
     fprintf(stderr, "  --type-check  Enable compile-time type checking\n");
+    fprintf(stderr, "  --strict-types Enable strict type checking (warn on implicit any)\n");
     fprintf(stderr, "  -v, --verbose Verbose output\n");
     fprintf(stderr, "  -h, --help    Show this help message\n");
     fprintf(stderr, "  --version     Show version\n");
@@ -180,6 +182,9 @@ static Options parse_args(int argc, char **argv) {
             opts.verbose = 1;
         } else if (strcmp(argv[i], "--type-check") == 0) {
             opts.type_check = 1;
+        } else if (strcmp(argv[i], "--strict-types") == 0) {
+            opts.type_check = 1;  // Implies type checking
+            opts.strict_types = 1;
         } else if (argv[i][0] == '-') {
             fprintf(stderr, "Unknown option: %s\n", argv[i]);
             exit(1);
@@ -440,6 +445,7 @@ int main(int argc, char **argv) {
         }
 
         TypeCheckContext *type_ctx = type_check_new(opts.input_file);
+        type_ctx->warn_implicit_any = opts.strict_types;
         int type_errors = type_check_program(type_ctx, statements, stmt_count);
 
         if (type_errors > 0) {
