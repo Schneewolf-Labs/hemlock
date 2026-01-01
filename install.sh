@@ -65,7 +65,7 @@ while [[ $# -gt 0 ]]; do
             echo "  curl -fsSL https://raw.githubusercontent.com/hemlang/hemlock/main/install.sh | sudo bash -s -- --prefix /usr/local"
             echo ""
             echo "  # Install specific version"
-            echo "  curl -fsSL https://raw.githubusercontent.com/hemlang/hemlock/main/install.sh | bash -s -- --version v1.5.0"
+            echo "  curl -fsSL https://raw.githubusercontent.com/hemlang/hemlock/main/install.sh | bash -s -- --version v1.6.0"
             exit 0
             ;;
         *)
