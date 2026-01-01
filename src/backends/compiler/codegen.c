@@ -32,6 +32,7 @@ CodegenContext* codegen_new(FILE *output) {
     ctx->label_counter = 0;
     ctx->func_counter = 0;
     ctx->in_function = 0;
+    ctx->in_inline = 0;
     ctx->local_vars = NULL;
     ctx->num_locals = 0;
     ctx->local_capacity = 0;
@@ -59,6 +60,8 @@ CodegenContext* codegen_new(FILE *output) {
     ctx->main_func_params = NULL;
     ctx->main_func_has_rest = NULL;
     ctx->main_func_param_is_ref = NULL;
+    ctx->main_func_ast = NULL;
+    ctx->main_func_inlinable = NULL;
     ctx->num_main_funcs = 0;
     ctx->main_funcs_capacity = 0;
     ctx->main_imports = NULL;
@@ -158,6 +161,12 @@ void codegen_free(CodegenContext *ctx) {
                 }
             }
             free(ctx->main_func_param_is_ref);
+        }
+        if (ctx->main_func_ast) {
+            free(ctx->main_func_ast);  // Don't free the AST nodes themselves - owned by parser
+        }
+        if (ctx->main_func_inlinable) {
+            free(ctx->main_func_inlinable);
         }
 
         // Free shadow variables tracking
@@ -501,14 +510,121 @@ int codegen_is_main_var(CodegenContext *ctx, const char *name) {
     return 0;
 }
 
+// Helper to count AST nodes for inlining decision
+static int count_stmt_nodes(Stmt *stmt);
+static int count_expr_nodes(Expr *expr) {
+    if (!expr) return 0;
+    int count = 1;  // This node
+    switch (expr->type) {
+        case EXPR_BINARY:
+            count += count_expr_nodes(expr->as.binary.left);
+            count += count_expr_nodes(expr->as.binary.right);
+            break;
+        case EXPR_UNARY:
+            count += count_expr_nodes(expr->as.unary.operand);
+            break;
+        case EXPR_CALL:
+            count += count_expr_nodes(expr->as.call.func);
+            for (int i = 0; i < expr->as.call.num_args; i++) {
+                count += count_expr_nodes(expr->as.call.args[i]);
+            }
+            break;
+        case EXPR_TERNARY:
+            count += count_expr_nodes(expr->as.ternary.condition);
+            count += count_expr_nodes(expr->as.ternary.true_expr);
+            count += count_expr_nodes(expr->as.ternary.false_expr);
+            break;
+        case EXPR_FUNCTION:
+            count += count_stmt_nodes(expr->as.function.body);
+            break;
+        default:
+            break;
+    }
+    return count;
+}
+
+static int count_stmt_nodes(Stmt *stmt) {
+    if (!stmt) return 0;
+    int count = 1;
+    switch (stmt->type) {
+        case STMT_EXPR:
+            count += count_expr_nodes(stmt->as.expr);
+            break;
+        case STMT_LET:
+        case STMT_CONST:
+            count += count_expr_nodes(stmt->as.let.value);
+            break;
+        case STMT_IF:
+            count += count_expr_nodes(stmt->as.if_stmt.condition);
+            count += count_stmt_nodes(stmt->as.if_stmt.then_branch);
+            count += count_stmt_nodes(stmt->as.if_stmt.else_branch);
+            break;
+        case STMT_WHILE:
+            count += count_expr_nodes(stmt->as.while_stmt.condition);
+            count += count_stmt_nodes(stmt->as.while_stmt.body);
+            break;
+        case STMT_FOR:
+            count += count_stmt_nodes(stmt->as.for_loop.initializer);
+            count += count_expr_nodes(stmt->as.for_loop.condition);
+            count += count_expr_nodes(stmt->as.for_loop.increment);
+            count += count_stmt_nodes(stmt->as.for_loop.body);
+            break;
+        case STMT_RETURN:
+            count += count_expr_nodes(stmt->as.return_stmt.value);
+            break;
+        case STMT_BLOCK:
+            for (int i = 0; i < stmt->as.block.count; i++) {
+                count += count_stmt_nodes(stmt->as.block.statements[i]);
+            }
+            break;
+        default:
+            break;
+    }
+    return count;
+}
+
+// Check if a function is suitable for inlining
+// Criteria: simple body (just a return statement), small expression, no recursion
+static int is_function_inlinable(Expr *func) {
+    if (!func || func->type != EXPR_FUNCTION) return 0;
+    // No async functions
+    if (func->as.function.is_async) return 0;
+    // No rest params (complex to inline)
+    if (func->as.function.rest_param) return 0;
+    // No ref params (complex to inline)
+    if (func->as.function.param_is_ref) {
+        for (int i = 0; i < func->as.function.num_params; i++) {
+            if (func->as.function.param_is_ref[i]) return 0;
+        }
+    }
+
+    Stmt *body = func->as.function.body;
+    if (!body) return 0;
+
+    // Must be a block with exactly one return statement
+    if (body->type != STMT_BLOCK) return 0;
+    if (body->as.block.count != 1) return 0;
+
+    Stmt *only_stmt = body->as.block.statements[0];
+    if (!only_stmt || only_stmt->type != STMT_RETURN) return 0;
+
+    // Check expression size (max 30 nodes for inlining)
+    int node_count = count_expr_nodes(only_stmt->as.return_stmt.value);
+    if (node_count > 30) return 0;
+
+    return 1;
+}
+
 // Main file function definitions (subset of main_vars that are actual function defs)
-void codegen_add_main_func(CodegenContext *ctx, const char *name, int num_params, int has_rest, int *param_is_ref) {
+void codegen_add_main_func(CodegenContext *ctx, const char *name, int num_params, int has_rest, int *param_is_ref, Expr *func_ast) {
     if (ctx->num_main_funcs >= ctx->main_funcs_capacity) {
         int new_cap = (ctx->main_funcs_capacity == 0) ? 16 : ctx->main_funcs_capacity * 2;
         ctx->main_funcs = realloc(ctx->main_funcs, new_cap * sizeof(char*));
         ctx->main_func_params = realloc(ctx->main_func_params, new_cap * sizeof(int));
         ctx->main_func_has_rest = realloc(ctx->main_func_has_rest, new_cap * sizeof(int));
         ctx->main_func_param_is_ref = realloc(ctx->main_func_param_is_ref, new_cap * sizeof(int*));
+        ctx->main_func_ast = realloc(ctx->main_func_ast, new_cap * sizeof(Expr*));
+        ctx->main_func_inlinable = realloc(ctx->main_func_inlinable, new_cap * sizeof(int));
         ctx->main_funcs_capacity = new_cap;
     }
     ctx->main_funcs[ctx->num_main_funcs] = strdup(name);
@@ -523,6 +639,9 @@ void codegen_add_main_func(CodegenContext *ctx, const char *name, int num_params
     } else {
         ctx->main_func_param_is_ref[ctx->num_main_funcs] = NULL;
     }
+    // Store AST and compute inlinability
+    ctx->main_func_ast[ctx->num_main_funcs] = func_ast;
+    ctx->main_func_inlinable[ctx->num_main_funcs] = is_function_inlinable(func_ast);
     ctx->num_main_funcs++;
 }
 
@@ -560,6 +679,24 @@ int* codegen_get_main_func_param_is_ref(CodegenContext *ctx, const char *name) {
         }
     }
     return NULL;  // Not found
+}
+
+Expr* codegen_get_main_func_ast(CodegenContext *ctx, const char *name) {
+    for (int i = 0; i < ctx->num_main_funcs; i++) {
+        if (strcmp(ctx->main_funcs[i], name) == 0) {
+            return ctx->main_func_ast[i];
+        }
+    }
+    return NULL;  // Not found
+}
+
+int codegen_is_main_func_inlinable(CodegenContext *ctx, const char *name) {
+    for (int i = 0; i < ctx->num_main_funcs; i++) {
+        if (strcmp(ctx->main_funcs[i], name) == 0) {
+            return ctx->main_func_inlinable[i];
+        }
+    }
+    return 0;  // Not found, not inlinable
 }
 
 // Main file import tracking (for function call resolution)

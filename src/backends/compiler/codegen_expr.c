@@ -107,6 +107,26 @@ static InferredNumericType infer_numeric_type(CodegenContext *ctx, Expr *expr) {
                         break;
                 }
             }
+            // Also check type context lookup (for inlined parameters with known types)
+            // Note: Only match exact i32/i64/f64 to preserve Hemlock's type promotion rules
+            // (e.g., i8 + i16 should return i16, not i32)
+            if (ctx->type_ctx) {
+                CheckedType *var_type = type_check_lookup(ctx->type_ctx, expr->as.ident.name);
+                if (var_type) {
+                    switch (var_type->kind) {
+                        case CHECKED_I32:
+                            return INFER_I32;
+                        case CHECKED_I64:
+                            return INFER_I64;
+                        case CHECKED_F64:
+                            return INFER_F64;
+                        case CHECKED_BOOL:
+                            return INFER_BOOL;
+                        default:
+                            break;
+                    }
+                }
+            }
             return INFER_UNKNOWN;
 
         case EXPR_BINARY:

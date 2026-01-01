@@ -103,6 +103,7 @@ typedef struct {
     int label_counter;      // Counter for labels
     int func_counter;       // Counter for anonymous functions
     int in_function;        // Whether we're inside a function
+    int in_inline;          // Whether we're inside inlined function code (prevents recursive inlining)
     char **local_vars;      // Stack of local variable names
     int num_locals;         // Number of local variables
     int local_capacity;     // Capacity of local vars array
@@ -146,6 +147,8 @@ typedef struct {
     int *main_func_params;      // Number of parameters for each main file function
     int *main_func_has_rest;    // Whether each function has rest param (...args)
     int **main_func_param_is_ref;  // Array of param_is_ref arrays for each main file function
+    Expr **main_func_ast;       // AST expression for each function (for inlining)
+    int *main_func_inlinable;   // Whether each function is inlinable
     int num_main_funcs;         // Count of main file functions
     int main_funcs_capacity;    // Capacity of main_funcs array
 
