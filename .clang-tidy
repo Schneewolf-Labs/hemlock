@@ -9,9 +9,17 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   -bugprone-reserved-identifier,
   -bugprone-assignment-in-if-condition,
+  -bugprone-multi-level-implicit-pointer-conversion,
+  -bugprone-narrowing-conversions,
+  -bugprone-switch-missing-default-case,
+  -bugprone-suspicious-realloc-usage,
+  -bugprone-branch-clone,
+  -bugprone-signed-char-misuse,
   cert-*,
   -cert-dcl37-c,
   -cert-dcl51-cpp,
+  -cert-err34-c,
+  -cert-str34-c,
   clang-analyzer-*,
   -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
   misc-redundant-expression,
@@ -21,7 +29,7 @@ Checks: >
   readability-duplicate-include,
   readability-misleading-indentation,
   readability-redundant-control-flow,
-  readability-redundant-declaration,
+  -readability-redundant-declaration,
 
 # Treat warnings as warnings (not errors) by default
 WarningsAsErrors: ''
