@@ -230,10 +230,9 @@ valgrind-clean:
 CLANG_TIDY := $(shell command -v clang-tidy 2> /dev/null)
 SCAN_BUILD := $(shell command -v scan-build 2> /dev/null)
 
-# Source files to analyze (exclude generated or third-party code)
+# Source files to analyze (exclude runtime - it has its own build system)
 ANALYZE_SRCS = $(FRONTEND_SRCS) $(INTERP_SRCS) $(OTHER_SRCS) \
-               $(wildcard $(SRC_DIR)/backends/compiler/*.c) \
-               $(wildcard runtime/src/*.c)
+               $(wildcard $(SRC_DIR)/backends/compiler/*.c)
 
 # clang-tidy: Run clang-tidy linter on all source files
 .PHONY: clang-tidy
