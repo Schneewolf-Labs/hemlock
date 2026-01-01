@@ -23,6 +23,59 @@
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
+#include <sys/sysctl.h>
+
+// Well-known Homebrew paths by architecture
+// Apple Silicon (arm64): /opt/homebrew/opt/<package>
+// Intel (x86_64): /usr/local/opt/<package>
+static const char* get_homebrew_prefix(void) {
+#if defined(__arm64__) || defined(__aarch64__)
+    return "/opt/homebrew/opt";
+#else
+    return "/usr/local/opt";
+#endif
+}
+
+// Get library path using: 1) env var, 2) well-known path, 3) brew --prefix (slow fallback)
+// Returns path in static buffer, or empty string if not found
+static const char* get_macos_lib_path(const char *env_var, const char *package_name) {
+    static char path_buf[PATH_MAX];
+
+    // 1. Check environment variable override (fastest)
+    const char *env_path = getenv(env_var);
+    if (env_path && env_path[0]) {
+        snprintf(path_buf, sizeof(path_buf), "%s", env_path);
+        // Verify path exists
+        if (access(path_buf, R_OK) == 0) {
+            return path_buf;
+        }
+    }
+
+    // 2. Try well-known Homebrew path (fast - just stat)
+    snprintf(path_buf, sizeof(path_buf), "%s/%s", get_homebrew_prefix(), package_name);
+    if (access(path_buf, R_OK) == 0) {
+        return path_buf;
+    }
+
+    // 3. Fallback to brew --prefix (slow - spawns Ruby)
+    char brew_cmd[256];
+    snprintf(brew_cmd, sizeof(brew_cmd), "brew --prefix %s 2>/dev/null", package_name);
+    FILE *fp = popen(brew_cmd, "r");
+    if (fp) {
+        if (fgets(path_buf, sizeof(path_buf), fp)) {
+            path_buf[strcspn(path_buf, "\n")] = 0;
+            pclose(fp);
+            if (access(path_buf, R_OK) == 0) {
+                return path_buf;
+            }
+        } else {
+            pclose(fp);
+        }
+    }
+
+    path_buf[0] = '\0';
+    return path_buf;
+}
 #endif
 
 // Get directory containing the hemlockc executable (cross-platform)
@@ -305,39 +358,43 @@ static int compile_c(const Options *opts, const char *c_file) {
     }
 
     // Platform-specific library paths
+    // On macOS, use well-known Homebrew paths (fast) instead of `brew --prefix` (slow)
+    // Override with env vars: HEMLOCK_LIBFFI_PATH, HEMLOCK_LWS_PATH, HEMLOCK_OPENSSL_PATH
     char extra_lib_paths[512] = "";
 #ifdef __APPLE__
     size_t extra_lib_len = 0;  // SECURITY: Track length to prevent overflow
-    // On macOS, check for Homebrew libffi and libwebsockets paths
-    FILE *fp = popen("brew --prefix libffi 2>/dev/null", "r");
-    if (fp) {
-        char libffi_path[256];
-        if (fgets(libffi_path, sizeof(libffi_path), fp)) {
-            libffi_path[strcspn(libffi_path, "\n")] = 0;
-            char tmp[128];
-            int n = snprintf(tmp, sizeof(tmp), " -L%s/lib", libffi_path);
-            // SECURITY: Bounds-checked concatenation
-            if (n > 0 && extra_lib_len + (size_t)n < sizeof(extra_lib_paths) - 1) {
-                strcat(extra_lib_paths + extra_lib_len, tmp);
-                extra_lib_len += (size_t)n;
-            }
+
+    // Get libffi path (fast: uses well-known paths, falls back to brew only if needed)
+    const char *libffi_path = get_macos_lib_path("HEMLOCK_LIBFFI_PATH", "libffi");
+    if (libffi_path[0]) {
+        char tmp[128];
+        int n = snprintf(tmp, sizeof(tmp), " -L%s/lib", libffi_path);
+        if (n > 0 && extra_lib_len + (size_t)n < sizeof(extra_lib_paths) - 1) {
+            strcat(extra_lib_paths + extra_lib_len, tmp);
+            extra_lib_len += (size_t)n;
         }
-        pclose(fp);
     }
-    fp = popen("brew --prefix libwebsockets 2>/dev/null", "r");
-    if (fp) {
-        char lws_path[256];
-        if (fgets(lws_path, sizeof(lws_path), fp)) {
-            lws_path[strcspn(lws_path, "\n")] = 0;
-            char tmp[128];
-            int n = snprintf(tmp, sizeof(tmp), " -L%s/lib", lws_path);
-            // SECURITY: Bounds-checked concatenation
-            if (n > 0 && extra_lib_len + (size_t)n < sizeof(extra_lib_paths) - 1) {
-                strcat(extra_lib_paths + extra_lib_len, tmp);
-                extra_lib_len += (size_t)n;
-            }
+
+    // Get libwebsockets path
+    const char *lws_path = get_macos_lib_path("HEMLOCK_LWS_PATH", "libwebsockets");
+    if (lws_path[0]) {
+        char tmp[128];
+        int n = snprintf(tmp, sizeof(tmp), " -L%s/lib", lws_path);
+        if (n > 0 && extra_lib_len + (size_t)n < sizeof(extra_lib_paths) - 1) {
+            strcat(extra_lib_paths + extra_lib_len, tmp);
+            extra_lib_len += (size_t)n;
         }
-        pclose(fp);
+    }
+
+    // Get OpenSSL path
+    const char *ssl_path = get_macos_lib_path("HEMLOCK_OPENSSL_PATH", "openssl@3");
+    if (ssl_path[0]) {
+        char tmp[128];
+        int n = snprintf(tmp, sizeof(tmp), " -L%s/lib", ssl_path);
+        if (n > 0 && extra_lib_len + (size_t)n < sizeof(extra_lib_paths) - 1) {
+            strcat(extra_lib_paths + extra_lib_len, tmp);
+            extra_lib_len += (size_t)n;
+        }
     }
 #endif
 
@@ -350,26 +407,6 @@ static int compile_c(const Options *opts, const char *c_file) {
     if (system(ws_test_cmd) == 0) {
         strcpy(websockets_flag, " -lwebsockets");
     }
-
-    // OpenSSL/libcrypto is required for hash functions (sha256, sha512, md5)
-#ifdef __APPLE__
-    // On macOS, add OpenSSL library path from Homebrew
-    FILE *ssl_fp = popen("brew --prefix openssl@3 2>/dev/null", "r");
-    if (ssl_fp) {
-        char ssl_path[256];
-        if (fgets(ssl_path, sizeof(ssl_path), ssl_fp)) {
-            ssl_path[strcspn(ssl_path, "\n")] = 0;
-            char tmp[128];
-            int n = snprintf(tmp, sizeof(tmp), " -L%s/lib", ssl_path);
-            // SECURITY: Bounds-checked concatenation
-            if (n > 0 && extra_lib_len + (size_t)n < sizeof(extra_lib_paths) - 1) {
-                strcat(extra_lib_paths + extra_lib_len, tmp);
-                extra_lib_len += (size_t)n;
-            }
-        }
-        pclose(ssl_fp);
-    }
-#endif
 
     // OpenSSL/libcrypto is required - the runtime links against it for hash functions
     // The runtime always needs libcrypto, so always link it
