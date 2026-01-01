@@ -422,15 +422,15 @@ ifeq ($(shell uname),Darwin)
     endif
 else
     # Linux: Hybrid static/dynamic linking
-    # - Static: libffi, libz, libssl, libcrypto, libwebsockets (no user install needed)
-    # - Dynamic: glibc (libc, libm, libpthread, libdl) for dlopen/FFI support
+    # - Static: libffi, libz, libssl, libcrypto, libwebsockets
+    # - Dynamic: glibc, libcap, libuv, libev (no static libs available on Ubuntu)
     # Requires: libffi-dev, zlib1g-dev, libssl-dev, libwebsockets-dev,
-    #           libcap-dev, libuv1-dev, libev-dev (for static .a files)
-    # Note: libssl must come before libcrypto, and libwebsockets deps come after it
+    #           libcap-dev, libuv1-dev, libev-dev
+    # Note: libssl must come before libcrypto
     STATIC_LDFLAGS = -Wl,-Bstatic -lffi -lz -Wl,-Bdynamic -lm -lpthread -ldl
     ifeq ($(HAS_LIBWEBSOCKETS),1)
-        # libwebsockets requires: libssl, libcrypto, libcap, libuv, libev
-        STATIC_LDFLAGS += -Wl,-Bstatic -lwebsockets -lssl -lcrypto -lcap -luv -lev -Wl,-Bdynamic
+        # libwebsockets requires: libssl, libcrypto (static), libcap, libuv, libev (dynamic)
+        STATIC_LDFLAGS += -Wl,-Bstatic -lwebsockets -lssl -lcrypto -Wl,-Bdynamic -lcap -luv -lev
     else
         STATIC_LDFLAGS += -Wl,-Bstatic -lssl -lcrypto -Wl,-Bdynamic
     endif
