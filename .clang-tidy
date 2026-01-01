@@ -1,0 +1,72 @@
+# Clang-Tidy configuration for Hemlock
+# A systems scripting language with manual memory management
+
+---
+# Enable a focused set of checks appropriate for C11 systems code
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-reserved-identifier,
+  -bugprone-assignment-in-if-condition,
+  cert-*,
+  -cert-dcl37-c,
+  -cert-dcl51-cpp,
+  clang-analyzer-*,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  misc-redundant-expression,
+  misc-unused-parameters,
+  performance-*,
+  -performance-no-int-to-ptr,
+  readability-duplicate-include,
+  readability-misleading-indentation,
+  readability-redundant-control-flow,
+  readability-redundant-declaration,
+
+# Treat warnings as warnings (not errors) by default
+WarningsAsErrors: ''
+
+# Header filter - only analyze project headers, not system headers
+HeaderFilterRegex: '(include|src|runtime)/.*\.h$'
+
+# Format style for any automatic fixes
+FormatStyle: none
+
+CheckOptions:
+  # bugprone-argument-comment: require exact parameter names
+  - key: bugprone-argument-comment.StrictMode
+    value: 'false'
+
+  # bugprone-assert-side-effect: functions considered side-effect free
+  - key: bugprone-assert-side-effect.AssertMacros
+    value: 'assert'
+
+  # bugprone-sizeof-expression: allow sizeof on pointer types (common in systems code)
+  - key: bugprone-sizeof-expression.WarnOnSizeOfPointerToAggregate
+    value: 'false'
+
+  # bugprone-suspicious-string-compare: warn on implicit conversions
+  - key: bugprone-suspicious-string-compare.WarnOnImplicitComparison
+    value: 'true'
+
+  # bugprone-signed-char-misuse: treat char as signed (default on most platforms)
+  - key: bugprone-signed-char-misuse.CharTypdefsToIgnore
+    value: ''
+
+  # cert-err33-c: functions that should have return value checked
+  - key: cert-err33-c.CheckedFunctions
+    value: ''
+
+  # misc-unused-parameters: don't require removing unused params (APIs may need them)
+  - key: misc-unused-parameters.StrictMode
+    value: 'false'
+
+  # performance-unnecessary-value-param: threshold for pass-by-value warnings
+  - key: performance-unnecessary-value-param.AllowedTypes
+    value: ''
+
+# Diagnostic options
+ExtraArgs:
+  - '-std=c11'
+  - '-D_POSIX_C_SOURCE=200809L'
+...
