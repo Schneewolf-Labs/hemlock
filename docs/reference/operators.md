@@ -239,6 +239,8 @@ obj.x = 20;
 
 ### Compound Assignment
 
+#### Arithmetic Compound Assignment
+
 | Operator | Name            | Example    | Equivalent         |
 |----------|-----------------|------------|--------------------|
 | `+=`     | Add assign      | `a += b`   | `a = a + b`        |
@@ -257,6 +259,28 @@ x /= 4;      // x is now 6
 
 let count = 0;
 count += 1;  // Increment by 1
+```
+
+#### Bitwise Compound Assignment
+
+| Operator | Name               | Example     | Equivalent          |
+|----------|--------------------|-------------|---------------------|
+| `&=`     | Bitwise AND assign | `a &= b`    | `a = a & b`         |
+| `\|=`    | Bitwise OR assign  | `a \|= b`   | `a = a \| b`        |
+| `^=`     | Bitwise XOR assign | `a ^= b`    | `a = a ^ b`         |
+| `<<=`    | Left shift assign  | `a <<= b`   | `a = a << b`        |
+| `>>=`    | Right shift assign | `a >>= b`   | `a = a >> b`        |
+
+**Examples:**
+```hemlock
+let flags = 0b1111;
+flags &= 0b0011;   // flags is now 0b0011 (mask off upper bits)
+flags |= 0b1000;   // flags is now 0b1011 (set a bit)
+flags ^= 0b0001;   // flags is now 0b1010 (toggle a bit)
+
+let x = 1;
+x <<= 4;           // x is now 16 (shift left by 4)
+x >>= 2;           // x is now 4 (shift right by 2)
 ```
 
 ### Increment/Decrement
@@ -453,7 +477,7 @@ Operators are listed from highest to lowest precedence:
 | 12         | `&&`                       | Logical AND                    | Left-to-right |
 | 13         | `||`                       | Logical OR                     | Left-to-right |
 | 14         | `??`                       | Null coalescing                | Left-to-right |
-| 15         | `=` `+=` `-=` `*=` `/=` `%=` | Assignment                   | Right-to-left |
+| 15         | `=` `+=` `-=` `*=` `/=` `%=` `&=` `\|=` `^=` `<<=` `>>=` | Assignment | Right-to-left |
 
 ---
 

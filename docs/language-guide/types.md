@@ -636,8 +636,9 @@ Current limitations:
 - **No generics** - Cannot parameterize types
 - **No union types** - Cannot express "A or B"
 - **No nullable types** - All types can be null
-- **No type aliases** - Cannot `typedef` custom types
-- **Runtime only** - No compile-time type checking
+- **No custom type aliases** - Cannot define your own type aliases (built-in aliases like `integer`, `number`, `byte` exist)
+
+**Note:** The compiler (`hemlockc`) provides compile-time type checking. The interpreter performs runtime type checking only. See the [compiler documentation](../design/implementation.md) for details.
 
 ## Best Practices
 
