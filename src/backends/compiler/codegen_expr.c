@@ -110,6 +110,10 @@ static InferredNumericType infer_numeric_type(CodegenContext *ctx, Expr *expr) {
             return INFER_UNKNOWN;
 
         case EXPR_BINARY:
+            // Division ALWAYS returns f64 in Hemlock
+            if (expr->as.binary.op == OP_DIV) {
+                return INFER_F64;
+            }
             // For arithmetic/bitwise ops, infer from operands
             if (expr->as.binary.op >= OP_ADD && expr->as.binary.op <= OP_BIT_RSHIFT) {
                 InferredNumericType left = infer_numeric_type(ctx, expr->as.binary.left);
