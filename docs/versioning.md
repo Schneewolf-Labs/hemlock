@@ -29,10 +29,10 @@ The version is defined in `include/version.h`:
 
 ```c
 #define HEMLOCK_VERSION_MAJOR 1
-#define HEMLOCK_VERSION_MINOR 3
-#define HEMLOCK_VERSION_PATCH 0
+#define HEMLOCK_VERSION_MINOR 6
+#define HEMLOCK_VERSION_PATCH 1
 
-#define HEMLOCK_VERSION "1.3.0"
+#define HEMLOCK_VERSION "1.6.1"
 ```
 
 ### Checking Versions
@@ -93,6 +93,9 @@ import { sin, cos } from "@stdlib/math";
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **1.6.1** | 2026 | Patch release |
+| **1.6.0** | 2025 | Compile-time type checking in hemlockc, LSP integration, compound bitwise operators (`&=`, `\|=`, `^=`, `<<=`, `>>=`, `%=`) |
+| **1.5.0** | 2024 | Full type system, async/await, atomics, 39 stdlib modules, FFI struct support, 99 parity tests |
 | **1.3.0** | 2025 | Proper lexical block scoping (JS-like let/const semantics), per-iteration loop closures |
 | **1.2.3** | 2025 | Import star syntax (`import * from`) |
 | **1.2.2** | 2025 | Add `export extern` support, cross-platform test fixes |

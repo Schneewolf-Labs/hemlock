@@ -157,18 +157,21 @@ See [Bundling & Packaging](docs/advanced/bundling-packaging.md) for details.
 
 ## Project Status
 
-Hemlock v1.2.3 is released with:
+Hemlock v1.6.1 is released with:
 
+- **Compile-time type checking** in hemlockc (enabled by default)
+- **LSP integration** with real-time type diagnostics
+- **Compound bitwise operators** (`&=`, `|=`, `^=`, `<<=`, `>>=`, `%=`)
 - Full type system with 64-bit integers and Unicode support
 - Manual memory management with safe and unsafe options
 - Async/await with true pthread parallelism
+- Atomic operations for lock-free concurrent programming
 - 39 stdlib modules
 - FFI for C interop with `export extern fn` for reusable library wrappers
-- Compiler backend (C code generation)
+- Compiler backend (C code generation) with 100% interpreter parity
 - LSP server with go-to-definition and find-references
-- HTTP PUT/DELETE/PATCH and WebSocket binary support
 - [hpm](https://github.com/hemlang/hpm) package manager with GitHub-based registry
-- 625+ tests with 97 parity tests (100% pass rate)
+- 690+ tests with 114 parity tests (100% pass rate)
 
 ## Philosophy
 

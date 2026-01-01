@@ -70,6 +70,23 @@ let response = get("https://api.example.com/users", headers);
 }
 ```
 
+#### `get_binary(url: string, headers?: array<string>): object`
+
+Perform an HTTP GET request for binary data (images, files, etc.).
+
+```hemlock
+import { get_binary } from "@stdlib/http";
+
+// Download binary content
+let response = get_binary("https://example.com/image.png", null);
+if (response.status_code == 200) {
+    // response.body contains raw binary data
+    print(`Downloaded ${response.body.length} bytes`);
+}
+```
+
+**Returns:** Same structure as `get()`, but body may contain binary data.
+
 #### `post(url: string, body?: string, headers?: array<string>): object`
 
 Perform an HTTP POST request.
@@ -206,7 +223,7 @@ let url = "https://api.example.com/search?q=" + url_encode("foo & bar");
 import { get } from "@stdlib/http";
 
 let response = get("https://httpbin.org/get", null);
-print("Status: " + typeof(response.status_code));
+print(`Status: ${response.status_code}`);
 print("Body: " + response.body);
 ```
 
@@ -250,9 +267,9 @@ try {
     if (is_success(response.status_code)) {
         print("Success: " + response.body);
     } else if (is_client_error(response.status_code)) {
-        print("Client error: HTTP " + typeof(response.status_code));
+        print(`Client error: HTTP ${response.status_code}`);
     } else {
-        print("Error: HTTP " + typeof(response.status_code));
+        print(`Error: HTTP ${response.status_code}`);
     }
 } catch (e) {
     print("Request failed: " + e);
@@ -268,12 +285,12 @@ import { get_json } from "@stdlib/http";
 let user = get_json("https://api.github.com/users/octocat");
 print("Name: " + user.name);
 print("Bio: " + user.bio);
-print("Public repos: " + typeof(user.public_repos));
+print(`Public repos: ${user.public_repos}`);
 
 // Fetch todos
 let todos = get_json("https://jsonplaceholder.typicode.com/todos/1");
 print("Title: " + todos.title);
-print("Completed: " + typeof(todos.completed));
+print(`Completed: ${todos.completed}`);
 ```
 
 ### Download File
@@ -299,8 +316,8 @@ import { get_json } from "@stdlib/http";
 // Fetch multiple users
 let i = 1;
 while (i <= 3) {
-    let user = get_json("https://jsonplaceholder.typicode.com/users/" + typeof(i));
-    print(typeof(i) + ". " + user.name + " (" + user.email + ")");
+    let user = get_json(`https://jsonplaceholder.typicode.com/users/${i}`);
+    print(`${i}. ${user.name} (${user.email})`);
     i = i + 1;
 }
 ```
@@ -420,6 +437,34 @@ sudo yum install curl
 # macOS (usually pre-installed)
 brew install curl
 ```
+
+## HTTP Server
+
+#### `HttpServer(host: string, port: i32): object`
+
+Create a simple HTTP server.
+
+```hemlock
+import { HttpServer } from "@stdlib/http";
+
+// Create server
+let server = HttpServer("0.0.0.0", 8080);
+
+// Handle requests
+server.on_request(fn(req) {
+    print("Request: " + req.method + " " + req.path);
+    return {
+        status: 200,
+        headers: ["Content-Type: text/plain"],
+        body: "Hello, World!"
+    };
+});
+
+// Start listening
+server.start();
+```
+
+**Note:** This is an experimental feature. For production use, consider using the `@stdlib/net` module for more control.
 
 ## See Also
 

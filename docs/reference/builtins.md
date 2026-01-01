@@ -638,6 +638,65 @@ signal(SIGTERM, handle_signal);
 
 ---
 
+## Math/Arithmetic Functions
+
+### div
+
+Floor division returning a float.
+
+**Signature:**
+```hemlock
+div(a: number, b: number): f64
+```
+
+**Parameters:**
+- `a` - Dividend
+- `b` - Divisor
+
+**Returns:** Floor of `a / b` as a float (f64)
+
+**Examples:**
+```hemlock
+let result = div(7, 2);    // 3.0 (not 3.5)
+let result2 = div(10, 3);  // 3.0
+let result3 = div(-7, 2);  // -4.0 (floor rounds toward negative infinity)
+```
+
+**Note:** In Hemlock, the `/` operator always returns a float. Use `div()` for floor division when you need the integer part as a float, or `divi()` when you need an integer result.
+
+---
+
+### divi
+
+Floor division returning an integer.
+
+**Signature:**
+```hemlock
+divi(a: number, b: number): i64
+```
+
+**Parameters:**
+- `a` - Dividend
+- `b` - Divisor
+
+**Returns:** Floor of `a / b` as an integer (i64)
+
+**Examples:**
+```hemlock
+let result = divi(7, 2);    // 3
+let result2 = divi(10, 3);  // 3
+let result3 = divi(-7, 2);  // -4 (floor rounds toward negative infinity)
+```
+
+**Comparison:**
+```hemlock
+print(7 / 2);      // 3.5 (regular division, always float)
+print(div(7, 2));  // 3.0 (floor division, float result)
+print(divi(7, 2)); // 3   (floor division, integer result)
+```
+
+---
+
 ## Memory Management Functions
 
 See [Memory API](memory-api.md) for complete reference:
@@ -752,6 +811,154 @@ let p2 = alloc(sizeof(i32) * 10);  // Manual calculation
 - Checks for size overflow (count * element_size)
 
 **See Also:** `alloc()`, `sizeof()`, `free()`
+
+---
+
+## FFI Pointer Helpers
+
+These functions help read and write typed values to raw memory, useful for FFI and low-level memory manipulation.
+
+### ptr_null
+
+Create a null pointer.
+
+**Signature:**
+```hemlock
+ptr_null(): ptr
+```
+
+**Returns:** A null pointer
+
+**Example:**
+```hemlock
+let p = ptr_null();
+if (p == null) {
+    print("Pointer is null");
+}
+```
+
+---
+
+### ptr_offset
+
+Calculate pointer offset (pointer arithmetic).
+
+**Signature:**
+```hemlock
+ptr_offset(ptr: ptr, index: i32, element_size: i32): ptr
+```
+
+**Parameters:**
+- `ptr` - Base pointer
+- `index` - Element index
+- `element_size` - Size of each element in bytes
+
+**Returns:** Pointer to the element at the given index
+
+**Example:**
+```hemlock
+let arr = talloc(i32, 10);
+ptr_write_i32(arr, 100);                      // arr[0] = 100
+ptr_write_i32(ptr_offset(arr, 1, 4), 200);    // arr[1] = 200
+ptr_write_i32(ptr_offset(arr, 2, 4), 300);    // arr[2] = 300
+
+print(ptr_read_i32(ptr_offset(arr, 1, 4)));   // 200
+free(arr);
+```
+
+---
+
+### Pointer Read Functions
+
+Read typed values from memory.
+
+| Function | Signature | Returns | Description |
+|----------|-----------|---------|-------------|
+| `ptr_read_i8` | `(ptr)` | `i8` | Read signed 8-bit integer |
+| `ptr_read_i16` | `(ptr)` | `i16` | Read signed 16-bit integer |
+| `ptr_read_i32` | `(ptr)` | `i32` | Read signed 32-bit integer |
+| `ptr_read_i64` | `(ptr)` | `i64` | Read signed 64-bit integer |
+| `ptr_read_u8` | `(ptr)` | `u8` | Read unsigned 8-bit integer |
+| `ptr_read_u16` | `(ptr)` | `u16` | Read unsigned 16-bit integer |
+| `ptr_read_u32` | `(ptr)` | `u32` | Read unsigned 32-bit integer |
+| `ptr_read_u64` | `(ptr)` | `u64` | Read unsigned 64-bit integer |
+| `ptr_read_f32` | `(ptr)` | `f32` | Read 32-bit float |
+| `ptr_read_f64` | `(ptr)` | `f64` | Read 64-bit float |
+| `ptr_read_ptr` | `(ptr)` | `ptr` | Read pointer value |
+
+**Example:**
+```hemlock
+let p = alloc(8);
+ptr_write_f64(p, 3.14159);
+let value = ptr_read_f64(p);
+print(value);  // 3.14159
+free(p);
+```
+
+---
+
+### Pointer Write Functions
+
+Write typed values to memory.
+
+| Function | Signature | Returns | Description |
+|----------|-----------|---------|-------------|
+| `ptr_write_i8` | `(ptr, value)` | `null` | Write signed 8-bit integer |
+| `ptr_write_i16` | `(ptr, value)` | `null` | Write signed 16-bit integer |
+| `ptr_write_i32` | `(ptr, value)` | `null` | Write signed 32-bit integer |
+| `ptr_write_i64` | `(ptr, value)` | `null` | Write signed 64-bit integer |
+| `ptr_write_u8` | `(ptr, value)` | `null` | Write unsigned 8-bit integer |
+| `ptr_write_u16` | `(ptr, value)` | `null` | Write unsigned 16-bit integer |
+| `ptr_write_u32` | `(ptr, value)` | `null` | Write unsigned 32-bit integer |
+| `ptr_write_u64` | `(ptr, value)` | `null` | Write unsigned 64-bit integer |
+| `ptr_write_f32` | `(ptr, value)` | `null` | Write 32-bit float |
+| `ptr_write_f64` | `(ptr, value)` | `null` | Write 64-bit float |
+| `ptr_write_ptr` | `(ptr, value)` | `null` | Write pointer value |
+
+**Example:**
+```hemlock
+let p = alloc(4);
+ptr_write_i32(p, 42);
+print(ptr_read_i32(p));  // 42
+free(p);
+```
+
+---
+
+### Buffer/Pointer Conversion
+
+#### buffer_ptr
+
+Get raw pointer from a buffer.
+
+**Signature:**
+```hemlock
+buffer_ptr(buf: buffer): ptr
+```
+
+**Example:**
+```hemlock
+let buf = buffer(64);
+let p = buffer_ptr(buf);
+// Now p points to the same memory as buf
+```
+
+#### ptr_to_buffer
+
+Create a buffer wrapper around a raw pointer.
+
+**Signature:**
+```hemlock
+ptr_to_buffer(ptr: ptr, size: i32): buffer
+```
+
+**Example:**
+```hemlock
+let p = alloc(64);
+let buf = ptr_to_buffer(p, 64);
+buf[0] = 65;  // Now has bounds checking
+// Note: freeing buf will free the underlying memory
+```
 
 ---
 
