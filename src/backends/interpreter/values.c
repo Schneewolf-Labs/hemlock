@@ -1497,8 +1497,19 @@ void value_free(Value val) {
     visited_set_free(visited);
 }
 
+// Fast path check - most values don't need refcounting
+static inline int value_needs_refcount(ValueType type) {
+    // Only heap-allocated types need refcounting
+    return type == VAL_STRING || type == VAL_BUFFER || type == VAL_ARRAY ||
+           type == VAL_OBJECT || type == VAL_FUNCTION || type == VAL_TASK ||
+           type == VAL_CHANNEL || type == VAL_REF;
+}
+
 // Public API - increment reference count for heap-allocated values
 void value_retain(Value val) {
+    // Fast path: skip primitives (i8-u64, f32, f64, bool, rune, ptr, null, etc.)
+    if (!value_needs_refcount(val.type)) return;
+
     switch (val.type) {
         case VAL_STRING:
             if (val.as.as_string) {
@@ -1548,6 +1559,9 @@ void value_retain(Value val) {
 
 // Public API - decrement reference count and free if reaches 0
 void value_release(Value val) {
+    // Fast path: skip primitives (i8-u64, f32, f64, bool, rune, ptr, null, etc.)
+    if (!value_needs_refcount(val.type)) return;
+
     switch (val.type) {
         case VAL_STRING:
             if (val.as.as_string) {
