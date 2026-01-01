@@ -645,7 +645,7 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
         Expr *func;
         if (is_function_def(stmt, &name, &func)) {
             codegen_add_main_var(ctx, name);
-            codegen_add_main_func(ctx, name, func->as.function.num_params, func->as.function.rest_param != NULL, func->as.function.param_is_ref);  // Also track as function definition with param count, rest param, and ref params
+            codegen_add_main_func(ctx, name, func->as.function.num_params, func->as.function.rest_param != NULL, func->as.function.param_is_ref, func);  // Also track as function definition with param count, rest param, ref params, and AST for inlining
         } else if (stmt->type == STMT_CONST) {
             codegen_add_main_var(ctx, stmt->as.const_stmt.name);
             codegen_add_const(ctx, stmt->as.const_stmt.name);

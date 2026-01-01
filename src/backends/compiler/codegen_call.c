@@ -2347,6 +2347,82 @@ char* codegen_expr_call(CodegenContext *ctx, Expr *expr, char *result) {
             import_binding = codegen_find_main_import(ctx, fn_name);
         }
 
+        // OPTIMIZATION: Function inlining for small pure functions
+        // This eliminates function call overhead for simple helper functions
+        // Note: !ctx->in_inline prevents recursive inlining which causes code bloat
+        if (ctx->optimize && !ctx->in_inline && !import_binding && !ctx->current_module &&
+            codegen_is_main_func_inlinable(ctx, fn_name) &&
+            expr->as.call.num_args == codegen_get_main_func_params(ctx, fn_name)) {
+
+            Expr *func_ast = codegen_get_main_func_ast(ctx, fn_name);
+            if (func_ast && func_ast->type == EXPR_FUNCTION) {
+                // Get the return expression (we know it's just "return expr")
+                Stmt *body = func_ast->as.function.body;
+                Expr *return_expr = body->as.block.statements[0]->as.return_stmt.value;
+
+                // Declare result BEFORE the block so it remains in scope after
+                codegen_writeln(ctx, "HmlValue %s;", result);
+
+                // Create a scope block for the inlined code
+                codegen_writeln(ctx, "{ // INLINE: %s", fn_name);
+                codegen_indent_inc(ctx);
+
+                // Prevent recursive inlining inside inlined code
+                ctx->in_inline = 1;
+
+                // Push a type scope for the inlined code (for type specialization)
+                if (ctx->type_ctx) {
+                    type_check_push_scope(ctx->type_ctx);
+                }
+
+                // Bind arguments to parameter names and register their types
+                int num_params = func_ast->as.function.num_params;
+                for (int i = 0; i < num_params; i++) {
+                    // Infer argument type for type specialization
+                    if (ctx->type_ctx) {
+                        CheckedType *arg_type = type_check_infer_expr(ctx->type_ctx, expr->as.call.args[i]);
+                        if (arg_type && arg_type->kind != CHECKED_UNKNOWN && arg_type->kind != CHECKED_ANY) {
+                            // Bind parameter name to inferred type (is_const=0, is_param=0, line=0)
+                            type_check_bind(ctx->type_ctx, func_ast->as.function.param_names[i], arg_type, 0, 0, 0);
+                        }
+                    }
+
+                    char *arg_val = codegen_expr(ctx, expr->as.call.args[i]);
+                    char *param_name = codegen_sanitize_ident(func_ast->as.function.param_names[i]);
+                    codegen_writeln(ctx, "HmlValue %s = %s;", param_name, arg_val);
+                    codegen_add_local(ctx, func_ast->as.function.param_names[i]);
+                    free(arg_val);
+                    free(param_name);
+                }
+
+                // Generate the inlined expression
+                char *inline_result = codegen_expr(ctx, return_expr);
+                codegen_writeln(ctx, "%s = %s;", result, inline_result);
+
+                // Release parameter bindings (primitives will be skipped)
+                for (int i = 0; i < num_params; i++) {
+                    char *param_name = codegen_sanitize_ident(func_ast->as.function.param_names[i]);
+                    codegen_writeln(ctx, "hml_release_if_needed(&%s);", param_name);
+                    codegen_remove_local(ctx, func_ast->as.function.param_names[i]);
+                    free(param_name);
+                }
+                free(inline_result);
+
+                // Pop type scope
+                if (ctx->type_ctx) {
+                    type_check_pop_scope(ctx->type_ctx);
+                }
+
+                // Restore inline flag
+                ctx->in_inline = 0;
+
+                codegen_indent_dec(ctx);
+                codegen_writeln(ctx, "}");
+
+                return result;
+            }
+        }
+
         if (codegen_is_main_func(ctx, fn_name) && !import_binding && !ctx->current_module) {
             // OPTIMIZATION: Main file function definition - call directly
             // This is safe because we know the function signature at compile time
