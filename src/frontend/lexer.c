@@ -701,6 +701,42 @@ Token lexer_next(Lexer *lex) {
                 advance(lex);  // consume third dot
                 return make_token(lex, TOK_DOT_DOT_DOT);
             }
+            // Check for float literal without leading zero (e.g., .5)
+            if (isdigit(peek(lex))) {
+                // Consume the fractional digits
+                while (isdigit(peek(lex))) {
+                    advance(lex);
+                }
+
+                // Check for scientific notation (e.g., .5e10, .5E-3)
+                if (peek(lex) == 'e' || peek(lex) == 'E') {
+                    char next = peek_next(lex);
+                    int has_exponent = 0;
+                    if (isdigit(next)) {
+                        has_exponent = 1;
+                    } else if ((next == '+' || next == '-') && !is_at_end(lex) && lex->current[1] != '\0') {
+                        char after_sign = lex->current[2];
+                        if (isdigit(after_sign)) {
+                            has_exponent = 1;
+                        }
+                    }
+
+                    if (has_exponent) {
+                        advance(lex);  // consume 'e' or 'E'
+                        if (peek(lex) == '+' || peek(lex) == '-') {
+                            advance(lex);  // consume sign
+                        }
+                        while (isdigit(peek(lex))) {
+                            advance(lex);
+                        }
+                    }
+                }
+
+                Token token = make_token(lex, TOK_NUMBER);
+                token.is_float = 1;
+                token.float_value = strtod(lex->start, NULL);
+                return token;
+            }
             return make_token(lex, TOK_DOT);
         case '[': return make_token(lex, TOK_LBRACKET);
         case ']': return make_token(lex, TOK_RBRACKET);

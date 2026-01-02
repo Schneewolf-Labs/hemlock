@@ -1,0 +1,53 @@
+// Test float literals without leading zero (e.g., .5 instead of 0.5)
+
+// Basic float literals
+print(.5);
+print(.123);
+print(.0001);
+print(.9999);
+
+// Arithmetic with no-leading-zero floats
+print(.5 + .5);
+print(.25 * 4);
+print(1 - .75);
+print(.1 + .2 + .3 + .4);
+
+// Type check
+print(typeof(.5));
+
+// Scientific notation with no leading zero
+print(.5e2);
+print(.25E3);
+print(.5e-1);
+print(.1E+2);
+print(.5e0);
+
+// Mixed with regular floats
+print(.5 + 0.5);
+print(.25 + 1.75);
+print(0.5 - .25);
+
+// In expressions
+let x = .5;
+let y = .25;
+print(x + y);
+print(x * 2);
+print(y / .5);
+
+// In arrays
+let arr = [.1, .2, .3];
+print(arr[0]);
+print(arr[1]);
+print(arr[2]);
+
+// In function calls
+fn double(n) {
+    return n * 2;
+}
+print(double(.5));
+print(double(.125));
+
+// Comparison
+print(.5 == 0.5);
+print(.25 < .5);
+print(.75 > .5);
