@@ -2589,6 +2589,34 @@ HmlValue hml_call_method(HmlValue obj, const char *method, HmlValue *args, int n
         hml_runtime_error("Array has no method '%s'", method);
     }
 
+    // Handle file methods
+    if (obj.type == HML_VAL_FILE) {
+        if (strcmp(method, "read") == 0 && (num_args == 0 || num_args == 1)) {
+            HmlValue size = (num_args == 1) ? args[0] : hml_val_i32(0);
+            return hml_file_read(obj, size);
+        }
+        if (strcmp(method, "read_bytes") == 0 && num_args == 1) {
+            return hml_file_read_bytes(obj, args[0]);
+        }
+        if (strcmp(method, "write") == 0 && num_args == 1) {
+            return hml_file_write(obj, args[0]);
+        }
+        if (strcmp(method, "write_bytes") == 0 && num_args == 1) {
+            return hml_file_write_bytes(obj, args[0]);
+        }
+        if (strcmp(method, "seek") == 0 && num_args == 1) {
+            return hml_file_seek(obj, args[0]);
+        }
+        if (strcmp(method, "tell") == 0 && num_args == 0) {
+            return hml_file_tell(obj);
+        }
+        if (strcmp(method, "close") == 0 && num_args == 0) {
+            hml_file_close(obj);
+            return hml_val_null();
+        }
+        hml_runtime_error("File has no method '%s'", method);
+    }
+
     // Handle object methods
     if (obj.type != HML_VAL_OBJECT || !obj.as.as_object) {
         hml_runtime_error("Cannot call method '%s' on non-object (type: %s)",
@@ -2851,6 +2879,97 @@ void hml_file_close(HmlValue file) {
         fclose((FILE*)fh->fp);
         fh->closed = 1;
     }
+}
+
+HmlValue hml_file_read_bytes(HmlValue file, HmlValue size) {
+    if (file.type != HML_VAL_FILE) {
+        fprintf(stderr, "Error: read_bytes() expects file object\n");
+        exit(1);
+    }
+
+    HmlFileHandle *fh = file.as.as_file;
+    if (fh->closed) {
+        fprintf(stderr, "Error: Cannot read from closed file '%s'\n", fh->path);
+        exit(1);
+    }
+
+    int32_t read_size = 0;
+    if (size.type == HML_VAL_I32) {
+        read_size = size.as.as_i32;
+    } else if (size.type == HML_VAL_I64) {
+        read_size = (int32_t)size.as.as_i64;
+    } else {
+        fprintf(stderr, "Error: read_bytes() expects integer size argument\n");
+        exit(1);
+    }
+
+    if (read_size <= 0) {
+        // Return empty buffer
+        HmlBuffer *buf = malloc(sizeof(HmlBuffer));
+        buf->data = malloc(1);
+        buf->length = 0;
+        buf->capacity = 0;
+        buf->ref_count = 1;
+        atomic_store(&buf->freed, 0);
+        return (HmlValue){ .type = HML_VAL_BUFFER, .as.as_buffer = buf };
+    }
+
+    void *data = malloc(read_size);
+    if (!data) {
+        fprintf(stderr, "Error: Memory allocation failed in read_bytes()\n");
+        exit(1);
+    }
+
+    size_t bytes_read = fread(data, 1, read_size, (FILE*)fh->fp);
+
+    if (ferror((FILE*)fh->fp)) {
+        free(data);
+        fprintf(stderr, "Error: Read error on file '%s': %s\n", fh->path, strerror(errno));
+        exit(1);
+    }
+
+    HmlBuffer *buf = malloc(sizeof(HmlBuffer));
+    buf->data = data;
+    buf->length = (int)bytes_read;
+    buf->capacity = read_size;
+    buf->ref_count = 1;
+    atomic_store(&buf->freed, 0);
+
+    return (HmlValue){ .type = HML_VAL_BUFFER, .as.as_buffer = buf };
+}
+
+HmlValue hml_file_write_bytes(HmlValue file, HmlValue data) {
+    if (file.type != HML_VAL_FILE) {
+        fprintf(stderr, "Error: write_bytes() expects file object\n");
+        exit(1);
+    }
+
+    HmlFileHandle *fh = file.as.as_file;
+    if (fh->closed) {
+        fprintf(stderr, "Error: Cannot write to closed file '%s'\n", fh->path);
+        exit(1);
+    }
+
+    // Check if file is writable
+    if (fh->mode[0] == 'r' && strchr(fh->mode, '+') == NULL) {
+        fprintf(stderr, "Error: Cannot write to file '%s' opened in read-only mode\n", fh->path);
+        exit(1);
+    }
+
+    if (data.type != HML_VAL_BUFFER || !data.as.as_buffer) {
+        fprintf(stderr, "Error: write_bytes() expects buffer argument\n");
+        exit(1);
+    }
+
+    HmlBuffer *buf = data.as.as_buffer;
+    size_t written = fwrite(buf->data, 1, buf->length, (FILE*)fh->fp);
+
+    if (ferror((FILE*)fh->fp)) {
+        fprintf(stderr, "Error: Write error on file '%s': %s\n", fh->path, strerror(errno));
+        exit(1);
+    }
+
+    return hml_val_i32((int32_t)written);
 }
 
 // ========== SYSTEM INFO OPERATIONS ==========
