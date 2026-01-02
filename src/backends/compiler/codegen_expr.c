@@ -704,15 +704,19 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
             // - x * 2^n = x << n (left shift by n bits)
             // - x / 2^n = x >> n (right shift for positive integers)
             // - x % 2^n = x & (2^n - 1) (bitwise AND with mask)
+            // NOTE: Only apply when BOTH operands are constant integers to avoid
+            // applying integer operations to float variables.
             if (ctx->optimize) {
-                int64_t const_val;
+                int64_t const_val, const_val2;
                 int power;
 
-                // Check for x * (power of 2) or (power of 2) * x
+                // Check for (int const) * (power of 2) or (power of 2) * (int const)
+                // Only apply when both are known to be integers at compile time
                 if (expr->as.binary.op == OP_MUL) {
-                    if (is_const_integer(expr->as.binary.right, &const_val) &&
+                    if (is_const_integer(expr->as.binary.left, &const_val2) &&
+                        is_const_integer(expr->as.binary.right, &const_val) &&
                         (power = get_power_of_2_exponent(const_val)) >= 0) {
-                        // x * 2^n -> x << n
+                        // const * 2^n -> const << n
                         char *left_val = codegen_expr(ctx, expr->as.binary.left);
                         // Use runtime shift (type-agnostic)
                         codegen_writeln(ctx, "HmlValue %s = hml_i32_lshift(%s, hml_val_i32(%d));",
@@ -722,8 +726,9 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                         break;
                     }
                     if (is_const_integer(expr->as.binary.left, &const_val) &&
+                        is_const_integer(expr->as.binary.right, &const_val2) &&
                         (power = get_power_of_2_exponent(const_val)) >= 0) {
-                        // 2^n * x -> x << n
+                        // 2^n * const -> const << n
                         char *right_val = codegen_expr(ctx, expr->as.binary.right);
                         // Use runtime shift (type-agnostic)
                         codegen_writeln(ctx, "HmlValue %s = hml_i32_lshift(%s, hml_val_i32(%d));",
@@ -734,10 +739,12 @@ char* codegen_expr(CodegenContext *ctx, Expr *expr) {
                     }
                 }
 
-                // Check for x % (power of 2)
+                // Check for (int const) % (power of 2)
                 // Proof: For any n = 2^k, x % n = x & (n-1)
                 // Example: x % 8 = x & 7 (keeps only the lower 3 bits)
+                // Only apply when left operand is known to be an integer
                 if (expr->as.binary.op == OP_MOD &&
+                    is_const_integer(expr->as.binary.left, &const_val2) &&
                     is_const_integer(expr->as.binary.right, &const_val) &&
                     get_power_of_2_exponent(const_val) >= 0) {
                     int64_t mask = const_val - 1;

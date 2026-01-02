@@ -329,10 +329,11 @@ static Expr *try_short_circuit(BinaryOp op, Expr *left, Expr *right, Optimizatio
 
 /*
  * Try strength reduction for multiplication/division by powers of 2.
+ * Only applies when BOTH operands are known to be integers at compile time.
  */
 static Expr *try_strength_reduce(BinaryOp op, Expr *left, Expr *right, int line, OptimizationStats *stats) {
-    /* Only for integer operations */
-    if (op == OP_MUL && is_const_int(right)) {
+    /* Only for integer operations - both operands must be constant integers */
+    if (op == OP_MUL && is_const_int(left) && is_const_int(right)) {
         int64_t val = right->as.number.int_value;
         /* Check if power of 2 */
         if (val > 0 && (val & (val - 1)) == 0) {
@@ -354,11 +355,8 @@ static Expr *try_strength_reduce(BinaryOp op, Expr *left, Expr *right, int line,
             stats->strength_reductions++;
             return result;
         }
-    }
-
-    /* x * 2 on left side too: 2 * x → x << 1 */
-    if (op == OP_MUL && is_const_int(left)) {
-        int64_t val = left->as.number.int_value;
+        /* Check left side for power of 2: 2 * x → x << 1 */
+        val = left->as.number.int_value;
         if (val > 0 && (val & (val - 1)) == 0) {
             int shift = 0;
             int64_t temp = val;

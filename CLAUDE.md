@@ -69,6 +69,7 @@ let big = 5000000000;    // i64 (> i32 max)
 let hex = 0xDEADBEEF;    // hex literal
 let bin = 0b1010;        // binary literal
 let pi = 3.14;           // f64
+let half = .5;           // f64 (no leading zero)
 let s = "hello";         // string
 let ch = 'A';            // rune
 let emoji = '🚀';        // rune (Unicode)
@@ -562,7 +563,8 @@ make parity
 
 ## Version
 
-**v1.6.5** - Current release with:
+**v1.6.6** - Current release with:
+- **Float literals without leading zero** (`.5`, `.123`, `.5e2`)
 - **Compile-time type checking** in hemlockc (enabled by default)
 - **LSP integration** with type checking for real-time diagnostics
 - **Compound bitwise operators** (`&=`, `|=`, `^=`, `<<=`, `>>=`, `%=`)

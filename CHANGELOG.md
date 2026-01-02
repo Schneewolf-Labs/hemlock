@@ -5,6 +5,16 @@ All notable changes to Hemlock will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.6] - 2026-01-02
+
+### Added
+
+- Float literals without leading zero (e.g., `.5`, `.123`, `.5e2`)
+
+### Fixed
+
+- Strength reduction optimizer incorrectly converted float*integer to shift operation
+
 ## [1.6.5] - 2026-01-02
 
 ### Fixed
