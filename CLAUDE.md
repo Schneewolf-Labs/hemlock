@@ -69,6 +69,7 @@ let big = 5000000000;    // i64 (> i32 max)
 let hex = 0xDEADBEEF;    // hex literal
 let bin = 0b1010;        // binary literal
 let pi = 3.14;           // f64
+let half = .5;           // f64 (no leading zero)
 let s = "hello";         // string
 let ch = 'A';            // rune
 let emoji = '🚀';        // rune (Unicode)
