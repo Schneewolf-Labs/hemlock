@@ -1,0 +1,36 @@
+// Simple sandbox functionality test
+
+print("Testing sandbox restrictions...\n");
+
+// Test 1: File write
+print("Test 1: File write");
+try {
+    let f = open("/tmp/sandbox_test.txt", "w");
+    f.write("test");
+    f.close();
+    print("  -> ALLOWED\n");
+} catch (e) {
+    print("  -> BLOCKED: " + e + "\n");
+}
+
+// Test 2: File read
+print("Test 2: File read");
+try {
+    let f = open("/etc/hostname", "r");
+    let content = f.read();
+    f.close();
+    print("  -> ALLOWED\n");
+} catch (e) {
+    print("  -> BLOCKED: " + e + "\n");
+}
+
+// Test 3: Process execution
+print("Test 3: Process exec");
+try {
+    exec("echo hello");
+    print("  -> ALLOWED\n");
+} catch (e) {
+    print("  -> BLOCKED: " + e + "\n");
+}
+
+print("\nDone.\n");

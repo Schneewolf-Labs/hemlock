@@ -15,6 +15,7 @@
 #include "../../include/parser.h"
 #include "../../include/ast.h"
 #include "../../include/version.h"
+#include "../../include/hemlock_limits.h"
 #include "codegen.h"
 #include "type_check.h"
 
@@ -177,6 +178,8 @@ typedef struct {
     int check_only;              // Only type check, don't compile
     int static_link;             // Static link all libraries for standalone binary
     int stack_check;             // Enable stack overflow checking (default: on)
+    int sandbox;                 // Enable sandbox mode (restrict FFI, network, process, file writes)
+    const char *sandbox_root;    // Optional sandbox root directory for file access
 } Options;
 
 static void print_usage(const char *progname) {
@@ -199,6 +202,8 @@ static void print_usage(const char *progname) {
     fprintf(stderr, "  --strict-types  Strict type checking (warn on implicit any)\n");
     fprintf(stderr, "  --no-stack-check  Disable stack overflow checking (faster, but no protection)\n");
     fprintf(stderr, "  --static        Static link all libraries (standalone binary)\n");
+    fprintf(stderr, "  --sandbox [DIR] Enable sandbox mode (restrict FFI, network, process, file writes)\n");
+    fprintf(stderr, "                  If DIR provided, restricts file reads to that directory\n");
     fprintf(stderr, "  -v, --verbose   Verbose output\n");
     fprintf(stderr, "  -h, --help      Show this help message\n");
     fprintf(stderr, "  --version       Show version\n");
@@ -223,7 +228,9 @@ static Options parse_args(int argc, char **argv) {
         .strict_types = 0,
         .check_only = 0,
         .static_link = 0,
-        .stack_check = 1         // Stack overflow checking ON by default
+        .stack_check = 1,        // Stack overflow checking ON by default
+        .sandbox = 0,
+        .sandbox_root = NULL
     };
 
     for (int i = 1; i < argc; i++) {
@@ -263,6 +270,18 @@ static Options parse_args(int argc, char **argv) {
             opts.static_link = 1;
         } else if (strcmp(argv[i], "--no-stack-check") == 0) {
             opts.stack_check = 0;
+        } else if (strcmp(argv[i], "--sandbox") == 0) {
+            opts.sandbox = 1;
+            // Check if next argument is an optional directory (not a flag and not a .hml file)
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                const char *next = argv[i + 1];
+                size_t len = strlen(next);
+                // If it doesn't end with .hml, treat it as sandbox root
+                if (len < 4 || strcmp(next + len - 4, ".hml") != 0) {
+                    opts.sandbox_root = next;
+                    i++;  // Skip the directory argument
+                }
+            }
         } else if (argv[i][0] == '-') {
             fprintf(stderr, "Unknown option: %s\n", argv[i]);
             exit(1);
@@ -656,6 +675,20 @@ int main(int argc, char **argv) {
     ctx->stack_check = opts.stack_check;  // Pass stack check setting
     // Note: ctx->optimize is already set in codegen_new() based on optimization level
     // Don't override it here - the type context is just for unboxing hints
+
+    // Configure sandbox if enabled
+    if (opts.sandbox) {
+        // Default sandbox flags: FFI, network, process, file write
+        ctx->sandbox_flags = HML_SANDBOX_RESTRICT_FFI |
+                            HML_SANDBOX_RESTRICT_NETWORK |
+                            HML_SANDBOX_RESTRICT_PROCESS |
+                            HML_SANDBOX_RESTRICT_FILE_WRITE;
+        if (opts.sandbox_root) {
+            ctx->sandbox_flags |= HML_SANDBOX_RESTRICT_FILE_READ;
+            ctx->sandbox_root = opts.sandbox_root;
+        }
+    }
+
     codegen_program(ctx, statements, stmt_count);
 
     // Check for compilation errors

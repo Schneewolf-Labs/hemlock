@@ -304,6 +304,11 @@ static HmlValue hml_ffi_to_value(void *result, HmlFFIType type) {
 // ========== FFI CALL ==========
 
 HmlValue hml_ffi_call(void *func_ptr, HmlValue *args, int num_args, HmlFFIType *types) {
+    // SANDBOX: Check if FFI is allowed
+    if (hml_sandbox_check(HML_SANDBOX_RESTRICT_FFI)) {
+        hml_sandbox_error("FFI (calling native functions)");
+    }
+
     if (!func_ptr) {
         hml_runtime_error("FFI call with null function pointer");
     }
@@ -654,6 +659,11 @@ void hml_ffi_struct_cleanup(void) {
 //               struct_names[0] is for return type, struct_names[1..] for args
 HmlValue hml_ffi_call_with_structs(void *func_ptr, HmlValue *args, int num_args,
                                     HmlFFIType *types, const char **struct_names) {
+    // SANDBOX: Check if FFI is allowed
+    if (hml_sandbox_check(HML_SANDBOX_RESTRICT_FFI)) {
+        hml_sandbox_error("FFI (calling native functions)");
+    }
+
     if (!func_ptr) {
         hml_runtime_error("FFI call with null function pointer");
     }

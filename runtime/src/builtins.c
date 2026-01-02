@@ -65,6 +65,90 @@ typedef struct DeferEntry {
 
 static DeferEntry *g_defer_stack = NULL;
 
+// Sandbox state
+static int g_sandbox_flags = 0;
+static char *g_sandbox_root = NULL;
+
+// ========== SANDBOX FUNCTIONS ==========
+
+void hml_sandbox_init(int flags, const char *root_path) {
+    g_sandbox_flags = flags;
+    if (g_sandbox_root) {
+        free(g_sandbox_root);
+        g_sandbox_root = NULL;
+    }
+    if (root_path) {
+        g_sandbox_root = strdup(root_path);
+    }
+}
+
+int hml_sandbox_check(int restriction_flag) {
+    return (g_sandbox_flags & restriction_flag) != 0;
+}
+
+int hml_sandbox_path_allowed(const char *path, int is_write) {
+    // Check file write restriction
+    if (is_write && hml_sandbox_check(HML_SANDBOX_RESTRICT_FILE_WRITE)) {
+        return 0;
+    }
+
+    // Check file read restriction (only when sandbox_root is set)
+    if (!is_write && hml_sandbox_check(HML_SANDBOX_RESTRICT_FILE_READ)) {
+        if (!g_sandbox_root) {
+            return 0;  // No root = all reads blocked
+        }
+    }
+
+    // If sandbox_root is set, validate path is within it
+    if (g_sandbox_root) {
+        char resolved_path[PATH_MAX];
+        char resolved_root[PATH_MAX];
+
+        // Resolve both paths to absolute form
+        if (!realpath(path, resolved_path)) {
+            // Path doesn't exist yet - try resolving parent directory
+            char *path_copy = strdup(path);
+            char *last_slash = strrchr(path_copy, '/');
+            if (last_slash) {
+                *last_slash = '\0';
+                if (!realpath(path_copy, resolved_path)) {
+                    free(path_copy);
+                    return 0;  // Parent doesn't exist
+                }
+            } else {
+                // Relative path without directory - use cwd
+                if (!getcwd(resolved_path, sizeof(resolved_path))) {
+                    free(path_copy);
+                    return 0;
+                }
+            }
+            free(path_copy);
+        }
+
+        if (!realpath(g_sandbox_root, resolved_root)) {
+            return 0;  // Sandbox root doesn't exist
+        }
+
+        // Check if resolved path starts with resolved root
+        size_t root_len = strlen(resolved_root);
+        if (strncmp(resolved_path, resolved_root, root_len) != 0) {
+            return 0;  // Path is outside sandbox root
+        }
+
+        // Make sure it's not just a prefix match (e.g., /foo vs /foobar)
+        if (resolved_path[root_len] != '\0' && resolved_path[root_len] != '/') {
+            return 0;
+        }
+    }
+
+    return 1;  // Allowed
+}
+
+void hml_sandbox_error(const char *operation) {
+    fprintf(stderr, "Sandbox violation: %s is not allowed in sandbox mode\n", operation);
+    exit(1);
+}
+
 // ========== RUNTIME INITIALIZATION ==========
 
 void hml_runtime_init(int argc, char **argv) {
@@ -698,6 +782,11 @@ void hml_panic(HmlValue message) {
 // This is vulnerable to command injection if the command string contains untrusted input.
 // For safe command execution, use exec_argv() instead which bypasses the shell.
 HmlValue hml_exec(HmlValue command) {
+    // SANDBOX: Check if process spawning is allowed
+    if (hml_sandbox_check(HML_SANDBOX_RESTRICT_PROCESS)) {
+        hml_sandbox_error("command execution");
+    }
+
     if (command.type != HML_VAL_STRING || !command.as.as_string) {
         hml_runtime_error("exec() argument must be a string");
     }
@@ -804,6 +893,11 @@ done_warning:
 // Takes an array of strings: [program, arg1, arg2, ...]
 // Uses fork/execvp directly, preventing shell injection attacks
 HmlValue hml_exec_argv(HmlValue args_array) {
+    // SANDBOX: Check if process spawning is allowed
+    if (hml_sandbox_check(HML_SANDBOX_RESTRICT_PROCESS)) {
+        hml_sandbox_error("command execution");
+    }
+
     if (args_array.type != HML_VAL_ARRAY || !args_array.as.as_array) {
         hml_runtime_error("exec_argv() argument must be an array of strings");
     }
@@ -1007,6 +1101,11 @@ HmlValue hml_kill(HmlValue pid, HmlValue sig) {
 }
 
 HmlValue hml_fork(void) {
+    // SANDBOX: Check if process spawning is allowed
+    if (hml_sandbox_check(HML_SANDBOX_RESTRICT_PROCESS)) {
+        hml_sandbox_error("process forking");
+    }
+
     pid_t pid = fork();
     return hml_val_i32((int32_t)pid);
 }
@@ -2749,6 +2848,18 @@ HmlValue hml_open(HmlValue path, HmlValue mode) {
         mode_str = mode.as.as_string->data;
     }
 
+    // SANDBOX: Check file access permissions
+    // Modes with write access: w, a, r+, w+, a+
+    int is_write = (strchr(mode_str, 'w') != NULL || strchr(mode_str, 'a') != NULL ||
+                    strstr(mode_str, "r+") != NULL);
+    if (!hml_sandbox_path_allowed(path_str, is_write)) {
+        if (is_write) {
+            hml_sandbox_error("file write operations");
+        } else {
+            hml_sandbox_error("file read outside sandbox root");
+        }
+    }
+
     FILE *fp = fopen(path_str, mode_str);
     if (!fp) {
         fprintf(stderr, "Error: Failed to open '%s'\n", path_str);
@@ -3329,6 +3440,11 @@ HmlValue hml_read_file(HmlValue path) {
         exit(1);
     }
 
+    // SANDBOX: Check file read permission
+    if (!hml_sandbox_path_allowed(path.as.as_string->data, 0)) {
+        hml_sandbox_error("file read outside sandbox root");
+    }
+
     FILE *fp = fopen(path.as.as_string->data, "r");
     if (!fp) {
         fprintf(stderr, "Error: Failed to open '%s': %s\n", path.as.as_string->data, strerror(errno));
@@ -3363,6 +3479,11 @@ HmlValue hml_write_file(HmlValue path, HmlValue content) {
     if (content.type != HML_VAL_STRING || !content.as.as_string) {
         fprintf(stderr, "Error: write_file() requires string content\n");
         exit(1);
+    }
+
+    // SANDBOX: Check file write permission
+    if (!hml_sandbox_path_allowed(path.as.as_string->data, 1)) {
+        hml_sandbox_error("file write operations");
     }
 
     FILE *fp = fopen(path.as.as_string->data, "w");

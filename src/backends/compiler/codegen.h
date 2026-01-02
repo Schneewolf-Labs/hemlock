@@ -203,6 +203,10 @@ typedef struct {
     // Error tracking
     int error_count;              // Number of compilation errors
     int warning_count;            // Number of compilation warnings
+
+    // Sandbox configuration
+    int sandbox_flags;            // Sandbox restriction flags (0 = disabled)
+    const char *sandbox_root;     // Sandbox root directory (NULL = no restriction)
 } CodegenContext;
 
 // Initialize code generation context

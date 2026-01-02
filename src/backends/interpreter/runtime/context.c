@@ -1,4 +1,5 @@
 #include "internal.h"
+#include <unistd.h>
 
 // ========== CURRENT SOURCE FILE TRACKING ==========
 
@@ -33,6 +34,8 @@ ExecutionContext* exec_context_new(void) {
     ctx->exception_state.is_throwing = 0;
     ctx->exception_state.exception_value = val_null();
     ctx->max_stack_depth = DEFAULT_MAX_STACK_DEPTH;
+    ctx->sandbox_flags = HML_SANDBOX_RESTRICT_NONE;  // No restrictions by default
+    ctx->sandbox_root = NULL;                         // No root restriction
     call_stack_init(&ctx->call_stack);
     defer_stack_init(&ctx->defer_stack);
     return ctx;
@@ -42,6 +45,9 @@ void exec_context_free(ExecutionContext *ctx) {
     if (ctx) {
         call_stack_free(&ctx->call_stack);
         defer_stack_free(&ctx->defer_stack);
+        if (ctx->sandbox_root) {
+            free(ctx->sandbox_root);
+        }
         free(ctx);
     }
 }
@@ -272,4 +278,83 @@ void runtime_error_at(ExecutionContext *ctx, int line, const char *format, ...) 
         fprintf(stderr, "Runtime error: %s\n", full_buffer);
         exit(1);
     }
+}
+
+// ========== SANDBOX HELPERS ==========
+
+// Check if a specific sandbox restriction is active
+int sandbox_is_restricted(ExecutionContext *ctx, int restriction_flag) {
+    if (!ctx) return 0;  // No context = no restrictions
+    return (ctx->sandbox_flags & restriction_flag) != 0;
+}
+
+// Check if a file path is allowed under sandbox rules
+// Returns 1 if allowed, 0 if blocked
+int sandbox_path_allowed(ExecutionContext *ctx, const char *path, int is_write) {
+    if (!ctx) return 1;  // No context = allowed
+
+    // Check file write restriction
+    if (is_write && sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_FILE_WRITE)) {
+        return 0;
+    }
+
+    // Check file read restriction (only when sandbox_root is set)
+    if (!is_write && sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_FILE_READ)) {
+        // If no sandbox root, all reads are blocked
+        if (!ctx->sandbox_root) {
+            return 0;
+        }
+    }
+
+    // If sandbox_root is set, validate path is within it
+    if (ctx->sandbox_root) {
+        char resolved_path[HML_SANDBOX_ROOT_MAX_PATH];
+        char resolved_root[HML_SANDBOX_ROOT_MAX_PATH];
+
+        // Resolve both paths to absolute form
+        if (!realpath(path, resolved_path)) {
+            // Path doesn't exist yet - try resolving parent directory
+            char *path_copy = strdup(path);
+            char *parent = path_copy;
+            char *last_slash = strrchr(path_copy, '/');
+            if (last_slash) {
+                *last_slash = '\0';
+                if (!realpath(parent, resolved_path)) {
+                    free(path_copy);
+                    return 0;  // Parent doesn't exist
+                }
+            } else {
+                // Relative path without directory - use cwd
+                if (!getcwd(resolved_path, sizeof(resolved_path))) {
+                    free(path_copy);
+                    return 0;
+                }
+            }
+            free(path_copy);
+        }
+
+        if (!realpath(ctx->sandbox_root, resolved_root)) {
+            return 0;  // Sandbox root doesn't exist
+        }
+
+        // Check if resolved path starts with resolved root
+        size_t root_len = strlen(resolved_root);
+        if (strncmp(resolved_path, resolved_root, root_len) != 0) {
+            return 0;  // Path is outside sandbox root
+        }
+
+        // Make sure it's not just a prefix match (e.g., /foo vs /foobar)
+        if (resolved_path[root_len] != '\0' && resolved_path[root_len] != '/') {
+            return 0;
+        }
+    }
+
+    return 1;  // Allowed
+}
+
+// Throw a sandbox violation error
+void sandbox_error(ExecutionContext *ctx, const char *operation) {
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), "Sandbox violation: %s is not allowed in sandbox mode", operation);
+    runtime_error(ctx, "%s", buffer);
 }

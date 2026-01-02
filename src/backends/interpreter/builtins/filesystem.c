@@ -28,7 +28,6 @@ Value builtin_exists(Value *args, int num_args, ExecutionContext *ctx) {
 }
 
 Value builtin_read_file(Value *args, int num_args, ExecutionContext *ctx) {
-    (void)ctx;
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: read_file() expects 1 argument (path)\n");
         exit(1);
@@ -47,6 +46,13 @@ Value builtin_read_file(Value *args, int num_args, ExecutionContext *ctx) {
     }
     memcpy(cpath, path->data, path->length);
     cpath[path->length] = '\0';
+
+    // SANDBOX: Check if file read is allowed
+    if (!sandbox_path_allowed(ctx, cpath, 0)) {
+        free(cpath);
+        sandbox_error(ctx, "file read outside sandbox root");
+        return val_null();
+    }
 
     // SECURITY: Use O_NOFOLLOW to prevent symlink attacks
     int fd = open(cpath, O_RDONLY | O_NOFOLLOW);
@@ -125,6 +131,13 @@ Value builtin_write_file(Value *args, int num_args, ExecutionContext *ctx) {
     memcpy(cpath, path->data, path->length);
     cpath[path->length] = '\0';
 
+    // SANDBOX: Check if file write is allowed
+    if (!sandbox_path_allowed(ctx, cpath, 1)) {
+        free(cpath);
+        sandbox_error(ctx, "file write operations");
+        return val_null();
+    }
+
     // SECURITY: Use O_NOFOLLOW to prevent symlink attacks
     // O_CREAT | O_TRUNC to create or truncate the file
     int fd = open(cpath, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0644);
@@ -187,6 +200,13 @@ Value builtin_append_file(Value *args, int num_args, ExecutionContext *ctx) {
     }
     memcpy(cpath, path->data, path->length);
     cpath[path->length] = '\0';
+
+    // SANDBOX: Check if file write is allowed
+    if (!sandbox_path_allowed(ctx, cpath, 1)) {
+        free(cpath);
+        sandbox_error(ctx, "file write operations");
+        return val_null();
+    }
 
     // SECURITY: Use O_NOFOLLOW to prevent symlink attacks
     // O_CREAT | O_APPEND to create or append to the file

@@ -288,6 +288,12 @@ static int parse_url(const char *url, char *host, int *port, char *path, int *ss
 
 // __lws_http_get(url: string): ptr
 Value builtin_lws_http_get(Value *args, int num_args, ExecutionContext *ctx) {
+    // SANDBOX: Check if network is allowed
+    if (sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_NETWORK)) {
+        sandbox_error(ctx, "HTTP requests");
+        return val_null();
+    }
+
     lws_init_logging();
 
     if (num_args != 1) {
@@ -405,6 +411,12 @@ Value builtin_lws_http_get(Value *args, int num_args, ExecutionContext *ctx) {
 
 // __lws_http_post(url: string, body: string, content_type: string): ptr
 Value builtin_lws_http_post(Value *args, int num_args, ExecutionContext *ctx) {
+    // SANDBOX: Check if network is allowed
+    if (sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_NETWORK)) {
+        sandbox_error(ctx, "HTTP requests");
+        return val_null();
+    }
+
     lws_init_logging();
 
     if (num_args != 3) {
@@ -531,6 +543,12 @@ Value builtin_lws_http_post(Value *args, int num_args, ExecutionContext *ctx) {
 // __lws_http_request(method: string, url: string, body: string, content_type: string): ptr
 // Generic HTTP request function supporting any method (PUT, DELETE, PATCH, etc.)
 Value builtin_lws_http_request(Value *args, int num_args, ExecutionContext *ctx) {
+    // SANDBOX: Check if network is allowed
+    if (sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_NETWORK)) {
+        sandbox_error(ctx, "HTTP requests");
+        return val_null();
+    }
+
     lws_init_logging();
 
     if (num_args != 4) {
@@ -1118,6 +1136,12 @@ static int ws_server_callback(struct lws *wsi, enum lws_callback_reasons reason,
 
 // __lws_ws_connect(url: string): ptr
 Value builtin_lws_ws_connect(Value *args, int num_args, ExecutionContext *ctx) {
+    // SANDBOX: Check if network is allowed
+    if (sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_NETWORK)) {
+        sandbox_error(ctx, "WebSocket connections");
+        return val_null();
+    }
+
     lws_init_logging();
 
     if (num_args != 1) {
@@ -1593,6 +1617,12 @@ Value builtin_lws_ws_is_closed(Value *args, int num_args, ExecutionContext *ctx)
 
 // __lws_ws_server_create(host: string, port: i32): ptr
 Value builtin_lws_ws_server_create(Value *args, int num_args, ExecutionContext *ctx) {
+    // SANDBOX: Check if network is allowed
+    if (sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_NETWORK)) {
+        sandbox_error(ctx, "WebSocket server creation");
+        return val_null();
+    }
+
     lws_init_logging();
 
     if (num_args != 2) {

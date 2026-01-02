@@ -63,7 +63,7 @@ static char* read_file(const char *path) {
     return buffer;
 }
 
-static void run_source(const char *source, int argc, char **argv, int stack_depth) {
+static void run_source(const char *source, int argc, char **argv, int stack_depth, int sandbox_flags, const char *sandbox_root) {
     // Parse
     Lexer lexer;
     lexer_init(&lexer, source);
@@ -92,6 +92,14 @@ static void run_source(const char *source, int argc, char **argv, int stack_dept
     ExecutionContext *ctx = exec_context_new();
     if (stack_depth > 0) {
         ctx->max_stack_depth = stack_depth;
+    }
+
+    // Configure sandbox if enabled
+    if (sandbox_flags != 0) {
+        ctx->sandbox_flags = sandbox_flags;
+        if (sandbox_root) {
+            ctx->sandbox_root = strdup(sandbox_root);
+        }
     }
 
     register_builtins(env, argc, argv, ctx);
@@ -288,7 +296,7 @@ static int has_modules(const char *source) {
     return 0;
 }
 
-static void run_file(const char *path, int argc, char **argv, int stack_depth) {
+static void run_file(const char *path, int argc, char **argv, int stack_depth, int sandbox_flags, const char *sandbox_root) {
     char *source = read_file(path);
     if (source == NULL) {
         exit(1);
@@ -306,6 +314,14 @@ static void run_file(const char *path, int argc, char **argv, int stack_depth) {
         ExecutionContext *ctx = exec_context_new();
         if (stack_depth > 0) {
             ctx->max_stack_depth = stack_depth;
+        }
+
+        // Configure sandbox if enabled
+        if (sandbox_flags != 0) {
+            ctx->sandbox_flags = sandbox_flags;
+            if (sandbox_root) {
+                ctx->sandbox_root = strdup(sandbox_root);
+            }
         }
 
         // Need to set up builtins in a global environment first
@@ -329,7 +345,7 @@ static void run_file(const char *path, int argc, char **argv, int stack_depth) {
         }
     } else {
         // Use traditional execution
-        run_source(source, argc, argv, stack_depth);
+        run_source(source, argc, argv, stack_depth, sandbox_flags, sandbox_root);
         free(source);
 
         // Cleanup FFI and source file tracking
@@ -758,7 +774,7 @@ static int package_file(const char *input_path, const char *output_path, int ver
 }
 
 // Run a .hmlc compiled file
-static void run_hmlc_file(const char *path, int argc, char **argv, int stack_depth) {
+static void run_hmlc_file(const char *path, int argc, char **argv, int stack_depth, int sandbox_flags, const char *sandbox_root) {
     // Deserialize AST from file
     int stmt_count;
     Stmt **statements = ast_deserialize_from_file(path, &stmt_count);
@@ -779,6 +795,15 @@ static void run_hmlc_file(const char *path, int argc, char **argv, int stack_dep
     if (stack_depth > 0) {
         ctx->max_stack_depth = stack_depth;
     }
+
+    // Configure sandbox if enabled
+    if (sandbox_flags != 0) {
+        ctx->sandbox_flags = sandbox_flags;
+        if (sandbox_root) {
+            ctx->sandbox_root = strdup(sandbox_root);
+        }
+    }
+
     register_builtins(env, argc, argv, ctx);
 
     // Execute
@@ -923,7 +948,10 @@ static void print_help(const char *program) {
     printf("    -o, --output <FILE>  Output path for compiled/bundled/packaged file\n");
     printf("    --debug              Include line numbers in compiled output\n");
     printf("    --verbose            Print progress during bundling/packaging\n");
-    printf("    --stack-depth <N>    Set maximum call stack depth (default: 10000)\n\n");
+    printf("    --stack-depth <N>    Set maximum call stack depth (default: 10000)\n");
+    printf("    --sandbox [DIR]      Run in sandbox mode (restricts dangerous operations)\n");
+    printf("                         Disables: FFI, network, process spawning, file writes\n");
+    printf("                         If DIR provided, restricts file reads to that directory\n\n");
     printf("EXAMPLES:\n");
     printf("    %s                     # Start interactive REPL\n", program);
     printf("    %s script.hml          # Run script.hml\n", program);
@@ -940,7 +968,9 @@ static void print_help(const char *program) {
     printf("    %s --info app.hmlc         # Show compiled file info\n", program);
     printf("    %s --stack-depth 50000 script.hml  # Run with larger stack\n", program);
     printf("    %s lsp                 # Start LSP server (stdio)\n", program);
-    printf("    %s lsp --tcp 6969      # Start LSP server (TCP)\n\n", program);
+    printf("    %s lsp --tcp 6969      # Start LSP server (TCP)\n", program);
+    printf("    %s --sandbox script.hml    # Run in sandbox mode\n", program);
+    printf("    %s --sandbox /tmp script.hml   # Sandbox with /tmp as allowed dir\n\n", program);
     printf("For more information, visit: https://github.com/hemlang/hemlock\n");
 }
 
@@ -1007,6 +1037,8 @@ int main(int argc, char **argv) {
     int package_mode = 0;
     int info_mode = 0;
     int stack_depth = 0;  // 0 = use default (DEFAULT_MAX_STACK_DEPTH)
+    int sandbox_flags = 0;  // 0 = no sandbox, otherwise HML_SANDBOX_RESTRICT_* flags
+    const char *sandbox_root = NULL;  // Optional directory to restrict file access to
     const char *file_to_info = NULL;
     const char *file_to_run = NULL;
     const char *file_to_compile = NULL;
@@ -1105,6 +1137,25 @@ int main(int argc, char **argv) {
             }
             file_to_package = argv[i + 1];
             i++;  // Skip the file argument
+        } else if (strcmp(argv[i], "--sandbox") == 0) {
+            // Enable sandbox mode with all restrictions
+            sandbox_flags = HML_SANDBOX_RESTRICT_FFI |
+                           HML_SANDBOX_RESTRICT_NETWORK |
+                           HML_SANDBOX_RESTRICT_PROCESS |
+                           HML_SANDBOX_RESTRICT_FILE_WRITE;
+            // Check if next argument is an optional directory (not a flag and not a .hml file)
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                const char *next = argv[i + 1];
+                size_t len = strlen(next);
+                // If it doesn't end with .hml/.hmlc/.hmlb, treat it as sandbox root
+                if (len < 4 || (strcmp(next + len - 4, ".hml") != 0 &&
+                               (len < 5 || strcmp(next + len - 5, ".hmlc") != 0) &&
+                               (len < 5 || strcmp(next + len - 5, ".hmlb") != 0))) {
+                    sandbox_root = next;
+                    sandbox_flags |= HML_SANDBOX_RESTRICT_FILE_READ;  // Also restrict reads to sandbox root
+                    i++;  // Skip the directory argument
+                }
+            }
         } else if (argv[i][0] == '-') {
             // Unknown flag
             fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
@@ -1165,7 +1216,7 @@ int main(int argc, char **argv) {
     if (command_to_run != NULL) {
         // Execute code string
         ffi_init();
-        run_source(command_to_run, 0, NULL, stack_depth);
+        run_source(command_to_run, 0, NULL, stack_depth, sandbox_flags, sandbox_root);
         ffi_cleanup();
 
         if (interactive_mode) {
@@ -1185,9 +1236,9 @@ int main(int argc, char **argv) {
 
         // Check if it's a compiled .hmlc file
         if (is_hmlc_extension(file_to_run) || is_hmlc_file(file_to_run)) {
-            run_hmlc_file(file_to_run, script_argc, script_argv, stack_depth);
+            run_hmlc_file(file_to_run, script_argc, script_argv, stack_depth, sandbox_flags, sandbox_root);
         } else {
-            run_file(file_to_run, script_argc, script_argv, stack_depth);
+            run_file(file_to_run, script_argc, script_argv, stack_depth, sandbox_flags, sandbox_root);
         }
 
         if (interactive_mode) {

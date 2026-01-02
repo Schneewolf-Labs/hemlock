@@ -165,6 +165,12 @@ static const char* validate_ffi_library_path(const char *path) {
 // ========== LIBRARY LOADING ==========
 
 FFILibrary* ffi_load_library(const char *path, ExecutionContext *ctx) {
+    // SANDBOX: Check if FFI is allowed
+    if (sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_FFI)) {
+        sandbox_error(ctx, "FFI (loading native libraries)");
+        return NULL;
+    }
+
     // SECURITY: Validate library path before loading
     const char *validation_error = validate_ffi_library_path(path);
     if (validation_error) {
@@ -851,6 +857,12 @@ void ffi_free_function(FFIFunction *func) {
 // ========== FUNCTION INVOCATION ==========
 
 Value ffi_call_function(FFIFunction *func, Value *args, int num_args, ExecutionContext *ctx) {
+    // SANDBOX: Check if FFI is allowed
+    if (sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_FFI)) {
+        sandbox_error(ctx, "FFI (calling native functions)");
+        return val_null();
+    }
+
     // Lazy symbol resolution: resolve on first call
     if (func->func_ptr == NULL) {
         dlerror();  // Clear any existing error

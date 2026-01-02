@@ -124,4 +124,20 @@
 #define HML_ASCII_PRINTABLE_START 32
 #define HML_ASCII_PRINTABLE_END   127
 
+// ========== SANDBOX CONFIGURATION ==========
+
+// Sandbox restriction flags (bitmask)
+#define HML_SANDBOX_RESTRICT_FFI         0x0001  // Disable FFI (dlopen, extern fn)
+#define HML_SANDBOX_RESTRICT_NETWORK     0x0002  // Disable network (sockets, http, websocket)
+#define HML_SANDBOX_RESTRICT_PROCESS     0x0004  // Disable process spawning (exec, fork, spawn)
+#define HML_SANDBOX_RESTRICT_FILE_WRITE  0x0008  // Disable file write operations
+#define HML_SANDBOX_RESTRICT_FILE_READ   0x0010  // Disable file read operations (outside sandbox root)
+
+// Default sandbox restrictions (everything restricted)
+#define HML_SANDBOX_RESTRICT_ALL         0x001F
+#define HML_SANDBOX_RESTRICT_NONE        0x0000
+
+// Maximum path length for sandbox root directory
+#define HML_SANDBOX_ROOT_MAX_PATH        4096
+
 #endif // HEMLOCK_LIMITS_H

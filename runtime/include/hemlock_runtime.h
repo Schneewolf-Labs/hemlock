@@ -25,6 +25,28 @@ void hml_runtime_cleanup(void);
 // Get command-line arguments as Hemlock array
 HmlValue hml_get_args(void);
 
+// ========== SANDBOX CONFIGURATION ==========
+
+// Sandbox restriction flags (must match hemlock_limits.h)
+#define HML_SANDBOX_RESTRICT_FFI         0x0001
+#define HML_SANDBOX_RESTRICT_NETWORK     0x0002
+#define HML_SANDBOX_RESTRICT_PROCESS     0x0004
+#define HML_SANDBOX_RESTRICT_FILE_WRITE  0x0008
+#define HML_SANDBOX_RESTRICT_FILE_READ   0x0010
+#define HML_SANDBOX_RESTRICT_ALL         0x001F
+
+// Initialize sandbox mode (call after hml_runtime_init)
+void hml_sandbox_init(int flags, const char *root_path);
+
+// Check if sandbox restriction is active
+int hml_sandbox_check(int restriction_flag);
+
+// Check if file path is allowed (returns 1 if allowed, 0 if blocked)
+int hml_sandbox_path_allowed(const char *path, int is_write);
+
+// Throw sandbox violation error
+__attribute__((noreturn)) void hml_sandbox_error(const char *operation);
+
 // ========== BINARY OPERATIONS ==========
 
 typedef enum {
