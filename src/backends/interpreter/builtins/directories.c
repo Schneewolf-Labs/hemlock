@@ -29,6 +29,13 @@ Value builtin_make_dir(Value *args, int num_args, ExecutionContext *ctx) {
     memcpy(cpath, path->data, path->length);
     cpath[path->length] = '\0';
 
+    // SANDBOX: Check if directory creation is allowed (treated as write)
+    if (!sandbox_path_allowed(ctx, cpath, 1)) {
+        free(cpath);
+        sandbox_error(ctx, "directory creation");
+        return val_null();
+    }
+
     if (mkdir(cpath, mode) != 0) {
         char error_msg[512];
         snprintf(error_msg, sizeof(error_msg), "Failed to create directory '%s': %s", cpath, strerror(errno));
@@ -62,6 +69,13 @@ Value builtin_remove_dir(Value *args, int num_args, ExecutionContext *ctx) {
     memcpy(cpath, path->data, path->length);
     cpath[path->length] = '\0';
 
+    // SANDBOX: Check if directory removal is allowed (treated as write)
+    if (!sandbox_path_allowed(ctx, cpath, 1)) {
+        free(cpath);
+        sandbox_error(ctx, "directory removal");
+        return val_null();
+    }
+
     if (rmdir(cpath) != 0) {
         char error_msg[512];
         snprintf(error_msg, sizeof(error_msg), "Failed to remove directory '%s': %s", cpath, strerror(errno));
@@ -94,6 +108,13 @@ Value builtin_list_dir(Value *args, int num_args, ExecutionContext *ctx) {
     }
     memcpy(cpath, path->data, path->length);
     cpath[path->length] = '\0';
+
+    // SANDBOX: Check if directory read is allowed
+    if (!sandbox_path_allowed(ctx, cpath, 0)) {
+        free(cpath);
+        sandbox_error(ctx, "directory listing outside sandbox root");
+        return val_null();
+    }
 
     DIR *dir = opendir(cpath);
     if (!dir) {

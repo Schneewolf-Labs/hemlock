@@ -427,6 +427,19 @@ Value builtin_open(Value *args, int num_args, ExecutionContext *ctx) {
         mode = args[1].as.as_string->data;
     }
 
+    // SANDBOX: Check file access permissions
+    // Modes with write access: w, a, r+, w+, a+
+    int is_write = (strchr(mode, 'w') != NULL || strchr(mode, 'a') != NULL ||
+                    strstr(mode, "r+") != NULL);
+    if (!sandbox_path_allowed(ctx, path, is_write)) {
+        if (is_write) {
+            sandbox_error(ctx, "file write operations");
+        } else {
+            sandbox_error(ctx, "file read outside sandbox root");
+        }
+        return val_null();
+    }
+
     FILE *fp = fopen(path, mode);
     if (!fp) {
         char error_msg[512];

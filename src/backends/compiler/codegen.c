@@ -94,6 +94,8 @@ CodegenContext* codegen_new(FILE *output) {
     ctx->tail_call_func_expr = NULL;
     ctx->error_count = 0;
     ctx->warning_count = 0;
+    ctx->sandbox_flags = 0;  // No sandbox restrictions by default
+    ctx->sandbox_root = NULL;  // No sandbox root directory by default
     return ctx;
 }
 

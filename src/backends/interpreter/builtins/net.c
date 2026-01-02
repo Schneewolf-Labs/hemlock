@@ -61,6 +61,12 @@ void socket_free(SocketHandle *sock) {
 
 // socket_create(domain: i32, type: i32, protocol: i32) -> Socket
 Value builtin_socket_create(Value *args, int num_args, ExecutionContext *ctx) {
+    // SANDBOX: Check if network is allowed
+    if (sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_NETWORK)) {
+        sandbox_error(ctx, "network socket creation");
+        return val_null();
+    }
+
     if (num_args != 3) {
         return throw_runtime_error(ctx, "socket_create() expects 3 arguments (domain, type, protocol)");
     }

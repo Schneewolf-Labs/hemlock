@@ -128,6 +128,12 @@ Value builtin_get_pid(Value *args, int num_args, ExecutionContext *ctx) {
 // This is vulnerable to command injection if the command string contains untrusted input.
 // For safe command execution, use exec_argv() or exec(cmd, args) instead which bypasses the shell.
 Value builtin_exec(Value *args, int num_args, ExecutionContext *ctx) {
+    // SANDBOX: Check if process spawning is allowed
+    if (sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_PROCESS)) {
+        sandbox_error(ctx, "command execution");
+        return val_null();
+    }
+
     if (num_args < 1 || num_args > 2) {
         fprintf(stderr, "Runtime error: exec() expects 1-2 arguments (command string, [args array])\n");
         exit(1);
@@ -418,6 +424,12 @@ done_warning:
 // Takes an array of strings: [program, arg1, arg2, ...]
 // Uses fork/execvp directly, preventing shell injection attacks
 Value builtin_exec_argv(Value *args, int num_args, ExecutionContext *ctx) {
+    // SANDBOX: Check if process spawning is allowed
+    if (sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_PROCESS)) {
+        sandbox_error(ctx, "command execution");
+        return val_null();
+    }
+
     if (num_args != 1) {
         fprintf(stderr, "Runtime error: exec_argv() expects 1 argument (array of strings)\n");
         exit(1);
@@ -658,6 +670,13 @@ Value builtin_kill(Value *args, int num_args, ExecutionContext *ctx) {
 
 Value builtin_fork(Value *args, int num_args, ExecutionContext *ctx) {
     (void)args;
+
+    // SANDBOX: Check if process spawning is allowed
+    if (sandbox_is_restricted(ctx, HML_SANDBOX_RESTRICT_PROCESS)) {
+        sandbox_error(ctx, "process forking");
+        return val_null();
+    }
+
     if (num_args != 0) {
         fprintf(stderr, "Runtime error: fork() expects no arguments\n");
         exit(1);

@@ -60,6 +60,9 @@ struct ExecutionContext {
     CallStack call_stack;
     DeferStack defer_stack;
     int max_stack_depth;  // Configurable stack limit (default: DEFAULT_MAX_STACK_DEPTH)
+    // Sandbox configuration
+    int sandbox_flags;    // Bitmask of HML_SANDBOX_RESTRICT_* flags (0 = unrestricted)
+    char *sandbox_root;   // Root directory for file access (NULL = no restriction)
 };
 
 // ========== OBJECT TYPE REGISTRY ==========
@@ -398,5 +401,17 @@ void runtime_error(ExecutionContext *ctx, const char *format, ...);
 
 // Runtime error with line number (for better error reporting)
 void runtime_error_at(ExecutionContext *ctx, int line, const char *format, ...);
+
+// ========== SANDBOX HELPERS ==========
+
+// Check if a specific sandbox restriction is active
+int sandbox_is_restricted(ExecutionContext *ctx, int restriction_flag);
+
+// Check if a file path is allowed under sandbox rules
+// Returns 1 if allowed, 0 if blocked
+int sandbox_path_allowed(ExecutionContext *ctx, const char *path, int is_write);
+
+// Throw a sandbox violation error
+void sandbox_error(ExecutionContext *ctx, const char *operation);
 
 #endif // HEMLOCK_INTERPRETER_INTERNAL_H

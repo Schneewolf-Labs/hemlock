@@ -731,6 +731,15 @@ void codegen_program(CodegenContext *ctx, Stmt **stmts, int stmt_count) {
     codegen_write(ctx, "int main(int argc, char **argv) {\n");
     codegen_indent_inc(ctx);
     codegen_writeln(ctx, "hml_runtime_init(argc, argv);");
+
+    // Initialize sandbox if enabled
+    if (ctx->sandbox_flags != 0) {
+        if (ctx->sandbox_root) {
+            codegen_writeln(ctx, "hml_sandbox_init(%d, \"%s\");", ctx->sandbox_flags, ctx->sandbox_root);
+        } else {
+            codegen_writeln(ctx, "hml_sandbox_init(%d, NULL);", ctx->sandbox_flags);
+        }
+    }
     codegen_writeln(ctx, "");
 
     // Initialize global args array from command-line arguments

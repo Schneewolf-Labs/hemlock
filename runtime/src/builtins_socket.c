@@ -10,6 +10,11 @@
 
 // socket_create(domain, type, protocol) -> socket
 HmlValue hml_socket_create(HmlValue domain, HmlValue sock_type, HmlValue protocol) {
+    // SANDBOX: Check if network is allowed
+    if (hml_sandbox_check(HML_SANDBOX_RESTRICT_NETWORK)) {
+        hml_sandbox_error("network socket creation");
+    }
+
     int d = hml_to_i32(domain);
     int t = hml_to_i32(sock_type);
     int p = hml_to_i32(protocol);
